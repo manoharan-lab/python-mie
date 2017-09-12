@@ -1,7 +1,7 @@
 # Copyright 2011-2013, 2016 Vinothan N. Manoharan, Thomas G. Dimiduk,
 # Rebecca W. Perry, Jerome Fung, Ryan McGorty, Anna Wang, and Sofia Magkiriadou
 #
-# This file is part of the python-mie python package.
+# This file is part of the structural-color python package.
 #
 # This package is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -43,6 +43,7 @@ import numpy as np
 from scipy.special import lpn, riccati_jn, riccati_yn, sph_jn, sph_yn
 from . import mie_specfuncs, ureg, Quantity
 from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2   # default tolerances
+from . import multilayer_sphere_lib as msl
 
 # User-facing functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
@@ -74,7 +75,6 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     parallel and perpendicular to scattering plane, respectively.  See
     Bohren & Huffman ch. 3 for details.)
     """
-
     # convert to radians from whatever units the user specifies
     angles = angles.to('rad').magnitude
     #initialize arrays for holding ipar and iperp
@@ -85,8 +85,13 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     # loop over input angles
     if mie:
         # Mie scattering preliminaries
-        nstop = _nstop(x)
-        coeffs = _scatcoeffs(m, x, nstop)
+        nstop = _nstop(np.array(x).max())    
+        # if the index ratio m is an array with more than 1 element, it's a 
+        # multilayer particle
+        if len(np.atleast_1d(m)) > 1:
+            coeffs = msl.scatcoeffs_multi(m, x)
+        else:
+            coeffs = _scatcoeffs(m, x, nstop)
         n = np.arange(nstop)+1.
         prefactor = (2*n+1.)/(n*(n+1.))
 
@@ -158,9 +163,13 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
     # TODO take arrays for m and x to describe a multilayer sphere and return
     # multilayer scattering coefficients
 
-    lmax = _nstop(x)
-    albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
-
+    lmax = _nstop(np.array(x).max())
+    # if the index ratio m is an array with more than 1 element, it's a 
+    # multilayer particle
+    if len(np.atleast_1d(m)) > 1:
+        albl = msl.scatcoeffs_multi(m, x, eps1=eps1, eps2=eps2)
+    else: 
+        albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
     cscat, cext, cback =  tuple(wavelen_media**2 * c/2/np.pi for c in
                                 _cross_sections(albl[0], albl[1]))
 
