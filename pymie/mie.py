@@ -1,7 +1,7 @@
 # Copyright 2011-2013, 2016 Vinothan N. Manoharan, Thomas G. Dimiduk,
 # Rebecca W. Perry, Jerome Fung, Ryan McGorty, Anna Wang, and Sofia Magkiriadou
 #
-# This file is part of the structural-color python package.
+# This file is part of the python-mie python package.
 #
 # This package is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
