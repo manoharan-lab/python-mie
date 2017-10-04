@@ -147,8 +147,6 @@ def test_efficiencies():
     # point for large size parameters)
     assert_array_almost_equal(qback, qback_bhmie, decimal=2)
 
-
-
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
     wavelen = Quantity('658 nm')
@@ -174,3 +172,88 @@ def test_absorbing_materials():
     ipar, iperp = mie.calc_ang_dist(m, x, angles)
     assert_array_almost_equal(ipar, ipar_bhmie)
     assert_array_almost_equal(iperp, iperp_bhmie)
+
+def test_multilayer_spheres():
+    # test that form factors and cross sections are the same for a non 
+    # multilayer particle and for an equivalent multilayer particle.
+
+    # form factor and cross section for non-multilayer    
+    m = 1.15
+    n_sample = Quantity(1.5, '')
+    wavelen = Quantity('500 nm')
+    angles = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
+    radius = Quantity('100 nm')    
+    x = size_parameter(wavelen, n_sample, radius) 
+
+    f_par, f_perp = mie.calc_ang_dist(m, x, angles)
+    cscat, cext, cabs, cback, asym = mie.calc_cross_sections(m, x, wavelen)
+    
+    # form factor and cross section for a multilayer particle with a core that 
+    # is the same as the non-multilayer and a shell thickness of zero
+    marray = [1.15, 1.15]  # layer index ratios, innermost first
+    multi_radius = Quantity(np.array([100, 100]),'nm')   
+    xarray = size_parameter(wavelen, n_sample, multi_radius)
+
+    f_par_multi, f_perp_multi = mie.calc_ang_dist(marray, xarray, angles)
+    cscat_multi, cext_multi, cabs_multi, cback_multi, asym_multi = mie.calc_cross_sections(marray, xarray, wavelen)
+    
+    assert_array_almost_equal(f_par, f_par_multi)
+    assert_array_almost_equal(f_perp, f_perp_multi)
+    assert_array_almost_equal(cscat, cscat_multi)
+    assert_array_almost_equal(cext, cext_multi)
+    assert_array_almost_equal(cabs, cabs_multi)
+    assert_array_almost_equal(cback, cback_multi)
+    assert_array_almost_equal(asym, asym_multi)
+    
+    # form factor and cross section for a multilayer particle with a core that 
+    # is the same as the non-multilayer and a shell index matched with the 
+    # medium (vacuum)
+    marray2 = [1.15, 1.]  # layer index ratios, innermost first
+    multi_radius2 = Quantity(np.array([100, 110]),'nm')   
+    xarray2 = size_parameter(wavelen, n_sample, multi_radius2)
+
+    f_par_multi2, f_perp_multi2 = mie.calc_ang_dist(marray2, xarray2, angles)
+    cscat_multi2, cext_multi2, cabs_multi2, cback_multi2, asym_multi2 = mie.calc_cross_sections(marray2, xarray2, wavelen)
+    
+    assert_array_almost_equal(f_par, f_par_multi2)
+    assert_array_almost_equal(f_perp, f_perp_multi2)
+    assert_array_almost_equal(cscat, cscat_multi2)
+    assert_array_almost_equal(cext, cext_multi2)
+    assert_array_almost_equal(cabs, cabs_multi2)
+    assert_array_almost_equal(cback, cback_multi2)
+    assert_array_almost_equal(asym, asym_multi2)
+    
+    # form factor and cross section for a 3-layer-particle with a core that 
+    # is the same as the non-multilayer and shell thicknesses of zero
+    marray3 = [1.15, 1.15, 1.15]  # layer index ratios, innermost first
+    multi_radius3 = Quantity(np.array([100, 100, 100]),'nm')   
+    xarray3 = size_parameter(wavelen, n_sample, multi_radius3)
+
+    f_par_multi3, f_perp_multi3 = mie.calc_ang_dist(marray3, xarray3, angles)
+    cscat_multi3, cext_multi3, cabs_multi3, cback_multi3, asym_multi3 = mie.calc_cross_sections(marray3, xarray3, wavelen)
+    
+    assert_array_almost_equal(f_par, f_par_multi3)
+    assert_array_almost_equal(f_perp, f_perp_multi3)
+    assert_array_almost_equal(cscat, cscat_multi3)
+    assert_array_almost_equal(cext, cext_multi3)
+    assert_array_almost_equal(cabs, cabs_multi3)
+    assert_array_almost_equal(cback, cback_multi3)
+    assert_array_almost_equal(asym, asym_multi3)
+    
+    # form factor and cross section for a 3-layer-particle with a core that 
+    # is the same as the non-multilayer and a shell index matched with the 
+    # medium (vacuum)
+    marray4= [1.15, 1., 1.]  # layer index ratios, innermost first
+    multi_radius4 = Quantity(np.array([100, 110, 120]),'nm')   
+    xarray4 = size_parameter(wavelen, n_sample, multi_radius4)
+
+    f_par_multi4, f_perp_multi4 = mie.calc_ang_dist(marray4, xarray4, angles)
+    cscat_multi4, cext_multi4, cabs_multi4, cback_multi4, asym_multi4 = mie.calc_cross_sections(marray4, xarray4, wavelen)
+    
+    assert_array_almost_equal(f_par, f_par_multi4)
+    assert_array_almost_equal(f_perp, f_perp_multi4)
+    assert_array_almost_equal(cscat, cscat_multi4)
+    assert_array_almost_equal(cext, cext_multi4)
+    assert_array_almost_equal(cabs, cabs_multi4)
+    assert_array_almost_equal(cback, cback_multi4)
+    assert_array_almost_equal(asym, asym_multi4)
