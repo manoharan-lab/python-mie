@@ -77,6 +77,7 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     """
     # convert to radians from whatever units the user specifies
     angles = angles.to('rad').magnitude
+
     #initialize arrays for holding ipar and iperp
     ipar = np.array([])
     iperp = np.array([])
@@ -86,6 +87,7 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     if mie:
         # Mie scattering preliminaries
         nstop = _nstop(np.array(x).max())    
+
         # if the index ratio m is an array with more than 1 element, it's a 
         # multilayer particle
         if len(np.atleast_1d(m)) > 1:
@@ -122,6 +124,7 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
             iperp = np.append(iperp, np.absolute(asmat[1])**2)
 
     return ipar, iperp
+
 
 @ureg.check(None, None, '[length]', None, None)
 def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
@@ -189,9 +192,15 @@ def calc_efficiencies(m, x):
     scattering cross-section in the backscattering direction, divided by the
     geometrical cross-section
     """
-    nstop = _nstop(x)
-    cscat, cext, cback = _cross_sections(_scatcoeffs(m, x, nstop)[0],
-                                         _scatcoeffs(m, x, nstop)[1])
+    nstop = _nstop(np.array(x).max())
+    # if the index ratio m is an array with more than 1 element, it's a 
+    # multilayer particle
+    if len(np.atleast_1d(m)) > 1:
+        coeffs = msl.scatcoeffs_multi(m, x)
+    else:
+        coeffs = _scatcoeffs(m, x, nstop)
+    
+    cscat, cext, cback = _cross_sections(coeffs[0], coeffs[1])
     qscat = cscat * 2./x**2
     qext = cext * 2./x**2
     qback = cback * 1./x**2
@@ -202,10 +211,16 @@ def calc_g(m, x):
     """
     Asymmetry parameter
     """
-    nstop = _nstop(x)
-    coeffs = _scatcoeffs(m, x, nstop)
-    cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./x**2
-    g = (4/(x**2 * cscat)) * _asymmetry_parameter(coeffs[0], coeffs[1])
+    nstop = _nstop(np.array(x).max())
+    # if the index ratio m is an array with more than 1 element, it's a 
+    # multilayer particle
+    if len(np.atleast_1d(m)) > 1:
+        coeffs = msl.scatcoeffs_multi(m, x)
+    else:
+        coeffs = _scatcoeffs(m, x, nstop)
+
+    cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./np.array(x).max()**2
+    g = (4./(np.array(x).max()**2 * cscat)) * _asymmetry_parameter(coeffs[0], coeffs[1])
     return g
 
 @ureg.check(None, None, '[length]', ('[]','[]', '[]'))
@@ -323,7 +338,7 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
                                                            eps1, eps2))
     cl = m * ratio * (D3x - D1x) / (D3x - m * D1mx)
     dl = m * ratio * (D3x - D1x) / (m * D3x - D1mx)
-    return array([cl[1:], dl[1:]]) # start from l = 1
+    return np.array([cl[1:], dl[1:]]) # start from l = 1
 
 def _nstop(x):
     # takes size parameter, outputs order to compute to according to

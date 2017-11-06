@@ -257,3 +257,28 @@ def test_multilayer_spheres():
     assert_array_almost_equal(cabs, cabs_multi4)
     assert_array_almost_equal(cback, cback_multi4)
     assert_array_almost_equal(asym, asym_multi4)
+    
+def test_multilayer_absorbing_spheres():
+    # test that the form factor and cross sections are the same for a real 
+    # index ratio m and a complex index ratio with a 0 imaginary component
+    marray_real = [1.15, 1.2]  
+    marray_imag = [1.15 + 0j, 1.2 + 0j] 
+    n_sample = Quantity(1.5, '')
+    wavelen = Quantity('500 nm')
+    multi_radius = Quantity(np.array([100, 110]),'nm')   
+    xarray = size_parameter(wavelen, n_sample, multi_radius)
+    angles = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
+    
+    f_par_multi_real, f_perp_multi_real = mie.calc_ang_dist(marray_real, xarray, angles)
+    f_par_multi_imag, f_perp_multi_imag = mie.calc_ang_dist(marray_imag, xarray, angles)
+        
+    cross_sections_multi_real = mie.calc_cross_sections(marray_real, xarray, wavelen)
+    cross_sections_multi_imag = mie.calc_cross_sections(marray_imag, xarray, wavelen)
+    
+    assert_array_almost_equal(f_par_multi_real, f_par_multi_imag)
+    assert_array_almost_equal(f_perp_multi_real, f_perp_multi_imag)
+    assert_array_almost_equal(cross_sections_multi_real[0], cross_sections_multi_imag[0])
+    assert_array_almost_equal(cross_sections_multi_real[1], cross_sections_multi_imag[1])
+    assert_array_almost_equal(cross_sections_multi_real[2], cross_sections_multi_imag[2])
+    assert_array_almost_equal(cross_sections_multi_real[3], cross_sections_multi_imag[3])
+    assert_array_almost_equal(cross_sections_multi_real[4], cross_sections_multi_imag[4])
