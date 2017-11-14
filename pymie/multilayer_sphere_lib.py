@@ -65,9 +65,8 @@ def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     '''
     # ensure correct data types
     marray = np.array(marray, dtype = 'complex128')
-    xarray = np.array(xarray, dtype = 'float64')
+    xarray = np.array(xarray, dtype = 'complex128')
 
-    # TODO: should we import sphere.py and all its dependencies? 
     # sanity check: marray and xarray must be same size
     if marray.size != xarray.size:
         from ...scatterer.sphere import Sphere

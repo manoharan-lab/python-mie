@@ -43,7 +43,7 @@ sphere," Applied Optics 42, 1710-1720, (1993).
 """
 import numpy as np
 from numpy import array, sin, cos, zeros, arange, real, imag, exp
-
+from . import csphjy2
 import scipy
 from scipy.special import riccati_jn, riccati_yn
 
@@ -57,11 +57,18 @@ def riccati_psi_xi(x, nstop):
     RB's based on j_n and y_n
     """
     if np.imag(x) != 0.:
-        raise TypeError('Cannot handle complex arguments.')
-    psin = riccati_jn(nstop, x)
-    # scipy sign on y_n consistent with B/H
-    xin = psin[0] + 1j*riccati_yn(nstop, x)[0]
-    rbh = array([psin[0], xin])
+        # if x is complex, use a f2py'd fortran function to get complex 
+        # solutions to the riccati-bessel functions
+        psin = csphjy2.csphjy(nstop,x)[1]*x
+        xin = psin + 1j*csphjy2.csphjy(nstop,x)[3]*x
+        rbh = array([psin, xin])
+    else:
+        x = x.real
+        psin = riccati_jn(nstop, x)
+        # scipy sign on y_n consistent with B/H
+        xin = psin[0] + 1j*riccati_yn(nstop, x)[0]
+        rbh = array([psin[0], xin])
+
     return rbh
 
 def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
