@@ -45,7 +45,7 @@ import numpy as np
 from numpy import array, sin, cos, zeros, arange, real, imag, exp
 from . import csphjy2
 import scipy
-from scipy.special import riccati_jn, riccati_yn
+from scipy.special import riccati_jn, riccati_yn, spherical_jn, spherical_yn
 
 # default tolerances
 DEFAULT_EPS1 = 1e-3
@@ -57,10 +57,11 @@ def riccati_psi_xi(x, nstop):
     RB's based on j_n and y_n
     """
     if np.imag(x) != 0.:
-        # if x is complex, use a f2py'd fortran function to get complex 
-        # solutions to the riccati-bessel functions
-        psin = csphjy2.csphjy(nstop,x)[1]*x
-        xin = psin + 1j*csphjy2.csphjy(nstop,x)[3]*x
+        # if x is complex, calculate spherical bessel functions and compute the
+        # complex riccati-bessel solutions 
+        nstop_array = np.arange(0,nstop+1)
+        psin = spherical_jn(nstop_array, x)*x
+        xin = psin + 1j*spherical_yn(nstop_array, x)*x
         rbh = array([psin, xin])
     else:
         x = x.real
