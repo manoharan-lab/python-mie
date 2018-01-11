@@ -105,7 +105,7 @@ def size_parameter(wavelen, n_matrix, radius):
 
     Returns
     -------
-    float
+    complex or float
     """
     # must use to('dimensionless') in case the wavelength and radius are
     # specified in different units; pint doesn't automatically make

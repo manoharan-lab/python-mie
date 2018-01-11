@@ -43,7 +43,6 @@ sphere," Applied Optics 42, 1710-1720, (1993).
 """
 import numpy as np
 from numpy import array, sin, cos, zeros, arange, real, imag, exp
-from . import csphjy2
 import scipy
 from scipy.special import riccati_jn, riccati_yn, spherical_jn, spherical_yn
 

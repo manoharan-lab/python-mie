@@ -125,7 +125,6 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
 
     return ipar, iperp
 
-
 @ureg.check(None, None, '[length]', None, None)
 def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
                         eps2 = DEFAULT_EPS2):
@@ -173,6 +172,7 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
         albl = msl.scatcoeffs_multi(m, x, eps1=eps1, eps2=eps2)
     else: 
         albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
+        
     cscat, cext, cback =  tuple(wavelen_media**2 * c/2/np.pi for c in
                                 _cross_sections(albl[0], albl[1]))
 
@@ -388,6 +388,81 @@ def _cross_sections(al, bl):
 
     return cscat, cext, cback
 
+def _cross_sections_abs_medium_Fu(al, bl, cl, dl, radius, n_particle, n_medium, x_scatterer, x_medium, wavelen):
+    '''
+    a: radius of particle
+    '''
+    eta = 4*np.pi*radius*n_medium.imag/wavelen
+    prefactor1 = eta**2 * wavelen / (2*np.pi*radius**2*n_medium.real*(1+(eta-1)*np.exp(eta)))
+    
+    lmax = al.shape[0]
+    l = np.arange(lmax) + 1
+    prefactor2 = (2. * l + 1.)
+
+    _, xi = mie_specfuncs.riccati_psi_xi(x_medium, lmax)
+    xishift = np.concatenate((np.zeros(1), xi))[0:lmax+1]
+    xi = xi[1:]
+    xishift = xishift[1:]
+    Bn = (np.abs(al)**2 * (xishift - l*xi/x_medium) * np.conj(xi) - np.abs(bl)**2 * xi * np.conj(xishift - l*xi/x_medium)) / (2*np.pi*n_medium/wavelen)
+    Qscat = prefactor1 * np.sum(prefactor2 * Bn.imag)
+
+    psi, _ = mie_specfuncs.riccati_psi_xi(x_scatterer, lmax)
+    psishift = np.concatenate((np.zeros(1), psi))[0:lmax+1]
+    psi = psi[1:]
+    psishift = psishift[1:]
+    An = (np.abs(cl)**2 * psi * np.conj(psishift - l*psi/x_scatterer) - np.abs(dl)**2 * (psishift - l*psi/x_scatterer)* np.conj(psi)) / (2*np.pi*n_particle/wavelen)
+    Qabs = prefactor1 * np.sum(prefactor2 * An.imag)
+
+    Qext = prefactor1 * np.sum(prefactor2 * (An+Bn).imag)
+
+    Cscat = Qscat *np.pi * radius**2
+    Cabs = Qabs *np.pi * radius**2
+    Cext = Qext *np.pi * radius**2
+    
+    return Cscat, Cabs, Cext
+
+def _cross_sections_abs_medium_Sudiarta(al, bl, x, radius):
+    k = x/radius
+    
+    lmax = al.shape[0]
+    l = np.arange(lmax) + 1
+    prefactor = (2. * l + 1.)
+    I_denom = k.real * (np.exp(2*radius*k.imag) / (2*radius*k.imag) + (1 - np.exp(2*radius*k.imag)) / (2*radius*k.imag)**2)
+    
+    _, xi = mie_specfuncs.riccati_psi_xi(x, lmax)
+    xishift = np.concatenate((np.zeros(1), xi))[0:lmax+1]
+    xi = xi[1:]
+    xishift = xishift[1:]
+    xideriv = xishift - l*xi/x
+    
+    psi, _ = mie_specfuncs.riccati_psi_xi(x, lmax)
+    psishift = np.concatenate((np.zeros(1), psi))[0:lmax+1]
+    psi = psi[1:]
+    psishift = psishift[1:]
+    psideriv = psishift - l*psi/x
+    
+    # calculate the scattering cross section
+    term1 = -1j * np.abs(al)**2 *xideriv * np.conj(xi) + 1j* np.abs(bl)**2 * xi * np.conj(xideriv)
+    numer1 = (np.sum(prefactor * term1) * k).real
+    Cscat = np.pi / np.abs(k)**2 * numer1 / I_denom
+    
+    # calculate the absorption cross section
+    term2 = (1j*np.conj(psi)*psideriv - 1j*psi*np.conj(psideriv) + 
+             1j*bl*np.conj(psideriv)*xi + 1j*np.conj(bl)*psi*np.conj(xideriv) + 
+             1j*np.abs(al)**2*xideriv*np.conj(xi) - 1j*np.abs(bl)**2*xi*np.conj(xideriv) - 
+             1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
+    numer2 = (np.sum(prefactor * term2) * k).real
+    Cabs = np.pi / np.abs(k)**2 * numer2 / I_denom
+
+    # calculate the extinction cross section
+    term3 = (1j*np.conj(psi)*psideriv - 1j*psi*np.conj(psideriv) + 
+             1j*bl*np.conj(psideriv)*xi + 1j*np.conj(bl)*psi*np.conj(xideriv) - 
+             1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
+    numer3 = (np.sum(prefactor * term3) * k).real
+    Cext = np.pi / np.abs(k)**2 * numer3 / I_denom
+                         
+    return(Cscat, Cabs, Cext)
+    
 def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, theta):
     # amplitude scattering matrix from Mie coefficients
     angfuncs = _pis_and_taus(n_stop, theta)
@@ -399,7 +474,7 @@ def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, theta):
 
 def _amplitude_scattering_matrix_RG(prefactor, x, theta):
     # amplitude scattering matrix from Rayleigh-Gans approximation
-    u = 2 * x * np.sin(thet/2.)
+    u = 2 * x * np.sin(theta/2.)
     S1 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u))
     S2 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u)) * np.cos(theta)
     return np.array([S2, S1])
