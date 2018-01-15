@@ -34,8 +34,6 @@ sphere," Applied Optics 42, 1710-1720, (1993).
 import numpy as np
 from numpy import exp, sin, cos, real, imag
 
-from .errors import InvalidScatterer
-
 try:
     from . import mie
     from .mie_specfuncs import Qratio, log_der_13, riccati_psi_xi
@@ -65,13 +63,11 @@ def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     '''
     # ensure correct data types
     marray = np.array(marray, dtype = 'complex128')
-    xarray = np.array(xarray, dtype = 'float64')
+    xarray = np.array(xarray, dtype = 'complex128')
 
-    # TODO: should we import sphere.py and all its dependencies? 
     # sanity check: marray and xarray must be same size
     if marray.size != xarray.size:
-        from ...scatterer.sphere import Sphere
-        raise InvalidScatterer(Sphere(),'Arrays of layer indices and size parameters must be the same length!')
+        raise ValueError('Arrays of layer indices and size parameters must be the same length!')
         
     # need number of layers L
     nlayers = marray.size

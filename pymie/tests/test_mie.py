@@ -257,3 +257,150 @@ def test_multilayer_spheres():
     assert_array_almost_equal(cabs, cabs_multi4)
     assert_array_almost_equal(cback, cback_multi4)
     assert_array_almost_equal(asym, asym_multi4)
+    
+def test_multilayer_absorbing_spheres():
+    # test that the form factor and cross sections are the same for a real 
+    # index ratio m and a complex index ratio with a 0 imaginary component
+    marray_real = [1.15, 1.2]  
+    marray_imag = [1.15 + 0j, 1.2 + 0j] 
+    n_sample = Quantity(1.5, '')
+    wavelen = Quantity('500 nm')
+    multi_radius = Quantity(np.array([100, 110]),'nm')   
+    xarray = size_parameter(wavelen, n_sample, multi_radius)
+    angles = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
+    
+    f_par_multi_real, f_perp_multi_real = mie.calc_ang_dist(marray_real, xarray, angles)
+    f_par_multi_imag, f_perp_multi_imag = mie.calc_ang_dist(marray_imag, xarray, angles)
+        
+    cross_sections_multi_real = mie.calc_cross_sections(marray_real, xarray, wavelen)
+    cross_sections_multi_imag = mie.calc_cross_sections(marray_imag, xarray, wavelen)
+    
+    assert_array_almost_equal(f_par_multi_real, f_par_multi_imag)
+    assert_array_almost_equal(f_perp_multi_real, f_perp_multi_imag)
+    assert_array_almost_equal(cross_sections_multi_real[0], cross_sections_multi_imag[0])
+    assert_array_almost_equal(cross_sections_multi_real[1], cross_sections_multi_imag[1])
+    assert_array_almost_equal(cross_sections_multi_real[2], cross_sections_multi_imag[2])
+    assert_array_almost_equal(cross_sections_multi_real[3], cross_sections_multi_imag[3])
+    assert_array_almost_equal(cross_sections_multi_real[4], cross_sections_multi_imag[4])
+    
+def test_cross_section_Fu():
+    # Test that the cross sections match the Mie cross sections when there is 
+    # no absorption in the medium
+    wavelen = Quantity('500 nm')
+    radius = Quantity('200 nm')
+    n_particle = Quantity(1.59, '')
+    
+    # Mie cross sections
+    n_matrix1 = Quantity(1.33, '')
+    m1 = index_ratio(n_particle, n_matrix1)
+    x1 = size_parameter(wavelen, n_matrix1, radius)
+    cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
+    
+    # Fu cross sections. The Fu method does not work when the imaginary component
+    # is exactly 0, so I choose 1e-6 j instead.
+    n_matrix2 = Quantity(1.33 + 1e-6j, '')
+    m2 = index_ratio(n_particle, n_matrix2)
+    x2 = size_parameter(wavelen, n_matrix2, radius)
+    x_scat = size_parameter(wavelen, n_particle, radius)
+    nstop = mie._nstop(x2)
+    coeffs = mie._scatcoeffs(m2, x2, nstop)
+    internal_coeffs = mie._internal_coeffs(m2, x2, nstop)
+    
+    cscat2, cabs2, cext2 = mie._cross_sections_abs_medium_Fu(coeffs[0], coeffs[1], 
+                                                             internal_coeffs[0],
+                                                             internal_coeffs[1],
+                                                             radius, n_particle,
+                                                             n_matrix2, x_scat, 
+                                                             x2, wavelen)
+
+    assert_almost_equal(cscat1.to('um^2').magnitude, cscat2.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cabs1.to('um^2').magnitude, cabs2.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cext1.to('um^2').magnitude, cext2.to('um^2').magnitude, decimal=6)
+    
+    # Test that the cross sections match the Mie cross sections when there is 
+    # no absorption in the medium and there is absorption in the particle
+    n_particle2 = Quantity(1.59 + 0.01j, '')
+    
+    # Mie cross sections
+    n_matrix1 = Quantity(1.33, '')
+    m1 = index_ratio(n_particle2, n_matrix1)
+    x1 = size_parameter(wavelen, n_matrix1, radius)
+    cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
+    
+    # Fu cross sections. The Fu method does not work when the imaginary component
+    # is exactly 0, so I choose 1e-6 j instead.
+    n_matrix2 = Quantity(1.33 + 1e-6j, '')
+    m2 = index_ratio(n_particle2, n_matrix2)
+    x2 = size_parameter(wavelen, n_matrix2, radius)
+    x_scat = size_parameter(wavelen, n_particle2, radius)
+    nstop = mie._nstop(x2)
+    coeffs = mie._scatcoeffs(m2, x2, nstop)
+    internal_coeffs = mie._internal_coeffs(m2, x2, nstop)
+    
+    cscat4, cabs4, cext4 = mie._cross_sections_abs_medium_Fu(coeffs[0], coeffs[1], 
+                                                             internal_coeffs[0],
+                                                             internal_coeffs[1],
+                                                             radius, n_particle2,
+                                                             n_matrix2, x_scat, 
+                                                             x2, wavelen)
+
+    assert_almost_equal(cscat3.to('um^2').magnitude, cscat4.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cabs3.to('um^2').magnitude, cabs4.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cext3.to('um^2').magnitude, cext4.to('um^2').magnitude, decimal=6)
+
+def test_cross_section_Sudiarta():
+    # Test that the cross sections match the Mie cross sections when there is 
+    # no absorption in the medium
+    wavelen = Quantity('500 nm')
+    radius = Quantity('200 nm')
+    n_particle = Quantity(1.59, '')
+    
+    # Mie cross sections
+    n_matrix1 = Quantity(1.33, '')
+    m1 = index_ratio(n_particle, n_matrix1)
+    x1 = size_parameter(wavelen, n_matrix1, radius)
+    cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
+    
+    # Sudiarta cross sections. The Sudiarta method does not work when the 
+    # imaginary component is exactly 0, so I choose 1e-6 j instead.
+    n_matrix2 = Quantity(1.33 + 1e-6j, '')
+    m2 = index_ratio(n_particle, n_matrix2)
+    x2 = size_parameter(wavelen, n_matrix2, radius)
+    nstop = mie._nstop(x2)
+    coeffs = mie._scatcoeffs(m2, x2, nstop)
+    
+    cscat2, cabs2, cext2 = mie._cross_sections_abs_medium_Sudiarta(coeffs[0], 
+                                                                   coeffs[1],
+                                                                   x2, radius)
+
+    assert_almost_equal(cscat1.to('um^2').magnitude, cscat2.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cabs1.to('um^2').magnitude, cabs2.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cext1.to('um^2').magnitude, cext2.to('um^2').magnitude, decimal=6)
+    
+    # Test that the cross sections match the Mie cross sections when there is 
+    # no absorption in the medium and there is absorption in the particle
+    n_particle2 = Quantity(1.59 + 0.01j, '')
+    
+    # Mie cross sections
+    n_matrix1 = Quantity(1.33, '')
+    m1 = index_ratio(n_particle2, n_matrix1)
+    x1 = size_parameter(wavelen, n_matrix1, radius)
+    cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
+    
+    # Fu cross sections. The Fu method does not work when the imaginary component
+    # is exactly 0, so I choose 1e-6 j instead.
+    n_matrix2 = Quantity(1.33 + 1e-6j, '')
+    m2 = index_ratio(n_particle2, n_matrix2)
+    x2 = size_parameter(wavelen, n_matrix2, radius)
+    nstop = mie._nstop(x2)
+    coeffs = mie._scatcoeffs(m2, x2, nstop)
+    
+    cscat4, cabs4, cext4 = mie._cross_sections_abs_medium_Sudiarta(coeffs[0], 
+                                                                   coeffs[1], 
+                                                                   x2, radius)
+
+    assert_almost_equal(cscat3.to('um^2').magnitude, cscat4.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cabs3.to('um^2').magnitude, cabs4.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cext3.to('um^2').magnitude, cext4.to('um^2').magnitude, decimal=6)
+
+    
