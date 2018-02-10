@@ -201,9 +201,11 @@ def calc_efficiencies(m, x):
         coeffs = _scatcoeffs(m, x, nstop)
     
     cscat, cext, cback = _cross_sections(coeffs[0], coeffs[1])
+
     qscat = cscat * 2./np.abs(x)**2
     qext = cext * 2./np.abs(x)**2
     qback = cback * 1./np.abs(x)**2
+
     # in order: scattering, extinction and backscattering efficiency
     return qscat, qext, qback
 
@@ -421,7 +423,7 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
         eta = 4*np.pi*radius*n_medium.imag/wavelen
         prefactor1 = eta**2 * wavelen / (2*np.pi*radius**2*n_medium.real*
                                         (1+(eta-1)*np.exp(eta)))
-    
+                                        
     lmax = al.shape[0]
     l = np.arange(lmax) + 1
     prefactor2 = (2. * l + 1.)
@@ -431,6 +433,7 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     xishift = np.concatenate((np.zeros(1), xi))[0:lmax+1]
     xi = xi[1:]
     xishift = xishift[1:]
+
     Bn = (np.abs(al)**2 * (xishift - l*xi/x_medium) * np.conj(xi) - 
           np.abs(bl)**2 * xi * 
           np.conj(xishift -  l*xi/x_medium)) / (2*np.pi*n_medium/wavelen)
@@ -441,6 +444,7 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     psishift = np.concatenate((np.zeros(1), psi))[0:lmax+1]
     psi = psi[1:]
     psishift = psishift[1:]
+
     An = (np.abs(cl)**2 * psi * np.conj(psishift - l*psi/x_scatterer) - 
           np.abs(dl)**2 * (psishift - l*psi/x_scatterer)* 
           np.conj(psi)) / (2*np.pi*n_particle/wavelen)
@@ -501,6 +505,7 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     # calculate the scattering cross section
     term1 = (-1j * np.abs(al)**2 *xideriv * np.conj(xi) + 
               1j* np.abs(bl)**2 * xi * np.conj(xideriv))
+
     numer1 = (np.sum(prefactor * term1) * k).real
     Cscat = np.pi / np.abs(k)**2 * numer1 / I_denom
     
