@@ -347,6 +347,9 @@ def _nstop(x):
     # Wiscombe, Applied Optics 19, 1505 (1980).
     # 7/7/08: generalize to apply same criterion when x is complex
     #return (np.round_(np.absolute(x+4.05*x**(1./3.)+2))).astype('int')
+
+    # Criterion for calculating near-field properties with exact Mie solutions
+    # (J. R. Allardice and E. C. Le Ru, Applied Optics, Vol. 53, No. 31 (2014).
     return (np.round_(np.absolute(x+11*x**(1./3.)+1))).astype('int')
 
 def _asymmetry_parameter(al, bl):
