@@ -296,9 +296,8 @@ def test_cross_section_Fu():
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
     
-    # Fu cross sections. The Fu method does not work when the imaginary component
-    # is exactly 0, so I choose 1e-6 j instead.
-    n_matrix2 = Quantity(1.33 + 1e-6j, '')
+    # Fu cross sections 
+    n_matrix2 = Quantity(1.33, '')
     m2 = index_ratio(n_particle, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     x_scat = size_parameter(wavelen, n_particle, radius)
@@ -306,12 +305,12 @@ def test_cross_section_Fu():
     coeffs = mie._scatcoeffs(m2, x2, nstop)
     internal_coeffs = mie._internal_coeffs(m2, x2, nstop)
     
-    cscat2, cabs2, cext2 = mie._cross_sections_abs_medium_Fu(coeffs[0], coeffs[1], 
-                                                             internal_coeffs[0],
-                                                             internal_coeffs[1],
-                                                             radius, n_particle,
-                                                             n_matrix2, x_scat, 
-                                                             x2, wavelen)
+    cscat2,cabs2,cext2 = mie._cross_sections_complex_medium_fu(coeffs[0],coeffs[1], 
+                                                               internal_coeffs[0],
+                                                               internal_coeffs[1],
+                                                               radius, n_particle,
+                                                               n_matrix2, x_scat, 
+                                                               x2, wavelen)
 
     assert_almost_equal(cscat1.to('um^2').magnitude, cscat2.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cabs1.to('um^2').magnitude, cabs2.to('um^2').magnitude, decimal=6)
@@ -327,9 +326,8 @@ def test_cross_section_Fu():
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
     
-    # Fu cross sections. The Fu method does not work when the imaginary component
-    # is exactly 0, so I choose 1e-6 j instead.
-    n_matrix2 = Quantity(1.33 + 1e-6j, '')
+    # Fu cross sections
+    n_matrix2 = Quantity(1.33, '')
     m2 = index_ratio(n_particle2, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     x_scat = size_parameter(wavelen, n_particle2, radius)
@@ -337,12 +335,12 @@ def test_cross_section_Fu():
     coeffs = mie._scatcoeffs(m2, x2, nstop)
     internal_coeffs = mie._internal_coeffs(m2, x2, nstop)
     
-    cscat4, cabs4, cext4 = mie._cross_sections_abs_medium_Fu(coeffs[0], coeffs[1], 
-                                                             internal_coeffs[0],
-                                                             internal_coeffs[1],
-                                                             radius, n_particle2,
-                                                             n_matrix2, x_scat, 
-                                                             x2, wavelen)
+    cscat4,cabs4,cext4 = mie._cross_sections_complex_medium_fu(coeffs[0],coeffs[1], 
+                                                               internal_coeffs[0],
+                                                               internal_coeffs[1],
+                                                               radius, n_particle2,
+                                                               n_matrix2, x_scat, 
+                                                               x2, wavelen)
 
     assert_almost_equal(cscat3.to('um^2').magnitude, cscat4.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cabs3.to('um^2').magnitude, cabs4.to('um^2').magnitude, decimal=6)
@@ -361,17 +359,16 @@ def test_cross_section_Sudiarta():
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
     
-    # Sudiarta cross sections. The Sudiarta method does not work when the 
-    # imaginary component is exactly 0, so I choose 1e-6 j instead.
-    n_matrix2 = Quantity(1.33 + 1e-6j, '')
+    # Sudiarta cross sections
+    n_matrix2 = Quantity(1.33, '')
     m2 = index_ratio(n_particle, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     nstop = mie._nstop(x2)
     coeffs = mie._scatcoeffs(m2, x2, nstop)
     
-    cscat2, cabs2, cext2 = mie._cross_sections_abs_medium_Sudiarta(coeffs[0], 
-                                                                   coeffs[1],
-                                                                   x2, radius)
+    cscat2, cabs2, cext2 = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
+                                                                       coeffs[1],
+                                                                       x2, radius)
 
     assert_almost_equal(cscat1.to('um^2').magnitude, cscat2.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cabs1.to('um^2').magnitude, cabs2.to('um^2').magnitude, decimal=6)
@@ -387,20 +384,96 @@ def test_cross_section_Sudiarta():
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
     
-    # Fu cross sections. The Fu method does not work when the imaginary component
-    # is exactly 0, so I choose 1e-6 j instead.
-    n_matrix2 = Quantity(1.33 + 1e-6j, '')
+    # Fu cross sections
+    n_matrix2 = Quantity(1.33, '')
     m2 = index_ratio(n_particle2, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     nstop = mie._nstop(x2)
     coeffs = mie._scatcoeffs(m2, x2, nstop)
     
-    cscat4, cabs4, cext4 = mie._cross_sections_abs_medium_Sudiarta(coeffs[0], 
-                                                                   coeffs[1], 
-                                                                   x2, radius)
+    cscat4, cabs4, cext4 = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
+                                                                       coeffs[1], 
+                                                                       x2, radius)
 
     assert_almost_equal(cscat3.to('um^2').magnitude, cscat4.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cabs3.to('um^2').magnitude, cabs4.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cext3.to('um^2').magnitude, cext4.to('um^2').magnitude, decimal=6)
 
+def test_cross_section_complex_medium():
+    # test that the cross sections calculated with the exact Mie solutions 
+    # match the far-field Mie solutions and Sudiarta and Fu's solutions when 
+    # there is no absorption in the medium
+    wavelen = Quantity('400 nm')
+    n_particle = Quantity(1.5+0.01j,'') 
+    n_matrix = Quantity(1.0,'') 
+    radius = Quantity(150,'nm')
+    theta = Quantity(np.linspace(0, np.pi, 1000), 'rad')
+    distance = Quantity(10000,'nm')
     
+    m = index_ratio(n_particle, n_matrix)
+    k = 2*np.pi*n_matrix/wavelen
+    x = size_parameter(wavelen, n_matrix, radius)
+    nstop = mie._nstop(x)
+    coeffs = mie._scatcoeffs(m, x, nstop)
+
+    # With far-field Mie solutions
+    cscat_mie = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
+    # With Sudiarta
+    cscat_sudiarta = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
+                                                                 coeffs[1], x, 
+                                                                 radius)[0]       
+    # With Fu
+    x_scat = size_parameter(wavelen, n_particle, radius)
+    internal_coeffs = mie._internal_coeffs(m, x, nstop)
+    cscat_fu = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], 
+                                                     internal_coeffs[0], 
+                                                     internal_coeffs[1], 
+                                                     radius, n_particle, 
+                                                     n_matrix, x_scat, x, 
+                                                     wavelen)[0]
+    # With exact Mie solutions
+    rho_scat = k*distance
+    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
+                                                                     rho_scat)
+    cscat_exact = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
+                                                         distance, theta, k)[0]
+
+    assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_mie.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_sudiarta.to('um^2').magnitude, decimal=6)
+    assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_fu.to('um^2').magnitude, decimal=6)
+    
+    
+    # test that the cross sections calculated with the exact Mie solutions 
+    # match the near field Sudiarta and Fu's solutions when there is absorption 
+    # in the medium
+    n_matrix = Quantity(1.0+0.001j,'') 
+    distance = Quantity(radius.magnitude,'nm')
+    
+    m = index_ratio(n_particle, n_matrix)
+    k = 2*np.pi*n_matrix/wavelen
+    x = size_parameter(wavelen, n_matrix, radius)
+    nstop = mie._nstop(x)
+    coeffs = mie._scatcoeffs(m, x, nstop)
+
+    # With Sudiarta
+    cscat_sudiarta2 = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
+                                                                  coeffs[1], x, 
+                                                                  radius)[0]       
+    # With Fu
+    x_scat = size_parameter(wavelen, n_particle, radius)
+    internal_coeffs = mie._internal_coeffs(m, x, nstop)
+    cscat_fu2 = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], 
+                                                      internal_coeffs[0], 
+                                                      internal_coeffs[1], 
+                                                      radius, n_particle, 
+                                                      n_matrix, x_scat, x, 
+                                                      wavelen)[0]
+    # With exact Mie solutions
+    rho_scat = k*distance
+    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
+                                                                     rho_scat)
+    cscat_exact2 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
+                                                         distance, theta, k)[0]
+
+    assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_sudiarta2.to('um^2').magnitude, decimal=4)
+    assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_fu2.to('um^2').magnitude, decimal=4)
