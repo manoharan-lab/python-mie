@@ -40,7 +40,7 @@ Small Particles" (1983)
 .. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>
 """
 import numpy as np
-from scipy.special import lpn, riccati_jn, riccati_yn, sph_jn, sph_yn, spherical_jn, spherical_yn
+from scipy.special import lpn, spherical_jn, spherical_yn
 from . import mie_specfuncs, ureg, Quantity
 from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2   # default tolerances
 from . import multilayer_sphere_lib as msl
