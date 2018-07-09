@@ -91,7 +91,7 @@ def test_form_factor():
     ipar, iperp = mie.calc_ang_dist(m, x, angles)
     assert_array_almost_equal(ipar, ipar_bhmie)
     assert_array_almost_equal(iperp, iperp_bhmie)
-
+    
 def test_efficiencies():
     x = np.array([0.01, 0.01778279, 0.03162278, 0.05623413, 0.1, 0.17782794,
                   0.31622777, 0.56234133, 1, 1.77827941, 3.16227766, 5.62341325,
@@ -477,3 +477,91 @@ def test_cross_section_complex_medium():
 
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_sudiarta2.to('um^2').magnitude, decimal=4)
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_fu2.to('um^2').magnitude, decimal=4)
+    
+    
+def test_amp_scat_vec_2d_theta_xy():
+    '''
+    Test that the amplitude scattering vector assuming x-polarized incident
+    light calculated by amp_scat_vec_2d_theta_xy() matches what we get by doing
+    the matrix multiplication manually
+    
+    amp_scat_vec_2d_theta_xy() converts from the parallel/perpendicular basis
+    by doing the change of basis matrix multiplication in the function
+    
+    Here, we carry out the change of basis manually and plug in the numbers
+    to make sure the two methods match.
+    
+    [as_vec_x]  = [cos(phi)  sin(phi)] * [S2  0] * [cos(phi)  sin(phi)] * [1]
+    [as_vec_y]    [sin(phi) -cos(phi)]   [0  S1]   [sin(phi) -cos(phi)]   [0]
+                        
+                = [S2cos(phi)^2       +       S1sin(phi)^2]
+                  [S2cos(phi)sin(phi) - S1cos(phi)sin(phi)]
+    
+    '''
+    
+    # parameters of sample and source
+    wavelen = Quantity('658 nm')
+    radius = Quantity('0.85 um')
+    n_matrix = Quantity(1.00, '')
+    #n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    n_particle = Quantity(1.59, '')
+    thetas = Quantity(np.linspace(np.pi/2, np.pi, 2), 'rad')
+    phis = Quantity(np.linspace(0, 2*np.pi, 4), 'rad')
+    thetas_2d, phis_2d = np.meshgrid(thetas, phis) 
+    
+    # parameters for calculating scattering
+    m = index_ratio(n_particle, n_matrix)
+    x = size_parameter(wavelen, n_matrix, radius)
+    
+    # calculate the amplitude scattering matrix in xy basis
+    as_vec_xy = mie.amp_scat_vec_2d_theta_xy(m, x, thetas_2d, phis_2d)
+    
+    # calcualte the amplitude scattering matrix in par/perp basis
+    asmat_par_perp = mie.amp_scat_mat_2d_theta(m, x, thetas_2d)
+    
+    as_vec_x = asmat_par_perp[:,:,0,0]*np.cos(phis_2d)**2 + asmat_par_perp[:,:,1,1]*np.sin(phis_2d)**2
+    as_vec_y = asmat_par_perp[:,:,0,0]*np.cos(phis_2d)*np.sin(phis_2d) - asmat_par_perp[:,:,1,1]*np.cos(phis_2d)*np.sin(phis_2d)
+    
+    assert_almost_equal(as_vec_xy[0,:,:], as_vec_x)
+    assert_almost_equal(as_vec_xy[1,:,:], as_vec_y)
+    
+    
+def test_diff_scat_intensity_complex_medium_xy():
+    '''
+    Test that the magnitude of the differential scattered intensity is the 
+    same in the xy basis as it is in the parallel, perpendicular basis when
+    phi = 0
+    
+    This should be true because a rotation around phi brings the par/perp basis
+    into the x,y basis
+    '''
+    # parameters of sample and source
+    wavelen = Quantity('658 nm')
+    radius = Quantity('0.85 um')
+    n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
+    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    thetas = Quantity(np.linspace(np.pi/2, np.pi, 3), 'rad')
+    phis = Quantity(np.linspace(0, 2*np.pi, 2), 'rad')
+    thetas_2d, phis_2d = np.meshgrid(thetas, phis)
+    thetas_2d = Quantity(thetas_2d, 'rad')
+    
+    # parameters for calculating scattering
+    m = index_ratio(n_particle, n_matrix)
+    x = size_parameter(wavelen, n_matrix, radius)
+    kd = 2*np.pi*n_matrix/wavelen*Quantity(10000,'nm')
+    
+    # calculate differential scattered intensity in xy basis
+    I_x, I_y = mie.diff_scat_intensity_complex_medium_xy(m, x, thetas_2d, phis_2d, kd)
+    
+    # calcualte differential scattered intensity in par/perp basis
+    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd)
+    
+    # assert equality of their magnitudes
+    I_xy_mag = np.sqrt(I_x**2 + I_y**2)
+    I_par_perp_mag = np.sqrt(I_par**2 + I_perp**2)
+    
+    assert_almost_equal(I_xy_mag[0], I_par_perp_mag)
+    
+# TODO add test for integration of integration of diff_scat_intensity_complex_medium, x,y
+    
+    

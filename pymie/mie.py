@@ -530,24 +530,14 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
                          
     return(Cscat, Cabs, Cext)
     
-def diff_scat_intensity_complex_medium(m, x, theta, kd):
+def _scat_fields_complex_medium(m, x, theta, kd):
     '''
-    Calculates the differential scattered intensity as a function of scattering
+    Calculates the scattered fields as a function of scattering
     angle theta using the exact Mie solutions. These solutions are valid both 
     in the near and far field. When the medium has a zero imaginary component
     of the refractive index (is non-absorbing), the exact solutions at the far
     field match the standard far-field Mie solutions given by 
     calc_cross_sections.
-    
-    The differential scattered intensity is computed by substituting the 
-    scattered electric and magnetic fields into the radial component of the 
-    Poynting vector:
-    
-    I_par = Es_theta * conj(Hs_phi) 
-    I_perp = Es_phi * conj(Hs_theta)
-    
-    where conj() indicates the complex conjugate. The radial component of the 
-    Poynting vector is then 1/2 * Re(I_par - I_perp). 
     
     Parameters
     ----------
@@ -560,8 +550,8 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd):
     
     Returns
     -------
-    I_par, I_perp: differential scattering intensities for an array of theta
-                   (dimensionless). 
+    Es_theta, Es_phi, Hs_phi, Hs_theta: arrays
+        scattered field components for an array of theta
     
     References
     ----------
@@ -569,7 +559,6 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd):
     small particles. Wiley-VCH (2004), chapter 4.4.1.
     Q. Fu and W. Sun, "Mie theory for light scattering by a spherical particle
     in an absorbing medium". Applied Optics, 40, 9 (2001).
-    
     '''
     # convert units from whatever units the user specifies
     theta = theta.to('rad').magnitude
@@ -628,12 +617,120 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd):
                     axis=1)
     Hs_theta = np.sum(En* (1j * bn * taus * bessel_deriv/kd - an * pis * zn), 
                       axis=1) 
+    return Es_theta, Es_phi, Hs_theta, Hs_phi
+    
+def diff_scat_intensity_complex_medium(m, x, theta, kd):
+    '''
+    Calculates the differential scattered intensity as a function of scattering
+    angle theta using the exact Mie solutions. These solutions are valid both 
+    in the near and far field. When the medium has a zero imaginary component
+    of the refractive index (is non-absorbing), the exact solutions at the far
+    field match the standard far-field Mie solutions given by 
+    calc_cross_sections.
+    
+    The differential scattered intensity is computed by substituting the 
+    scattered electric and magnetic fields into the radial component of the 
+    Poynting vector:
+    
+    I_par = Es_theta * conj(Hs_phi) 
+    I_perp = Es_phi * conj(Hs_theta)
+    
+    where conj() indicates the complex conjugate. The radial component of the 
+    Poynting vector is then 1/2 * Re(I_par - I_perp). 
+    
+    Parameters
+    ----------
+    m: complex relative refractive index 
+    x: size parameter using the medium's refractive index 
+    theta: array of scattering angles (Quantity in rad)
+    kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
+        distance away from the center of the particle. The far-field solution
+        is obtained when distance >> radius. (Quantity, dimensionless)
+    
+    Returns
+    -------
+    I_par, I_perp: differential scattering intensities for an array of theta
+                   (dimensionless). 
+    
+    References
+    ----------
+    C. F. Bohren and D. R. Huffman. Absorption and scattering of light by 
+    small particles. Wiley-VCH (2004), chapter 4.4.1.
+    Q. Fu and W. Sun, "Mie theory for light scattering by a spherical particle
+    in an absorbing medium". Applied Optics, 40, 9 (2001).
+    
+    '''
+    Es_theta, Es_phi, Hs_theta, Hs_phi = _scat_fields_complex_medium(m, x, theta, kd)
     
     # calculate the scattered intensities 
     I_par = Es_theta * np.conj(Hs_phi)
     I_perp = -Es_phi * np.conj(Hs_theta) 
 
     return I_par.real, I_perp.real
+
+def diff_scat_intensity_complex_medium_xy(m, x, thetas, phis, kd):
+    '''
+    Calculates the differential scattered intensity as a function of scattering
+    angle theta using the exact Mie solutions. These solutions are valid both 
+    in the near and far field. When the medium has a zero imaginary component
+    of the refractive index (is non-absorbing), the exact solutions at the far
+    field match the standard far-field Mie solutions given by 
+    calc_cross_sections.
+    
+    The differential scattered intensity is computed by substituting the 
+    scattered electric and magnetic fields into the radial component of the 
+    Poynting vector:
+    
+    I_x = Es_x * conj(Hs_x) 
+    I_y = Es_y * conj(Hs_y)
+    
+    where conj() indicates the complex conjugate. The radial component of the 
+    Poynting vector is then 1/2 * Re(I_x - I_y). 
+    
+    Parameters
+    ----------
+    m: complex relative refractive index 
+    x: size parameter using the medium's refractive index 
+    theta: array of scattering angles (Quantity in rad)
+    kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
+        distance away from the center of the particle. The far-field solution
+        is obtained when distance >> radius. (Quantity, dimensionless)
+    
+    Returns
+    -------
+    I_x, I_y: differential scattering intensities for an array of theta and phi
+                   (dimensionless). 
+    
+    References
+    ----------
+    C. F. Bohren and D. R. Huffman. Absorption and scattering of light by 
+    small particles. Wiley-VCH (2004), chapter 4.4.1.
+    Q. Fu and W. Sun, "Mie theory for light scattering by a spherical particle
+    in an absorbing medium". Applied Optics, 40, 9 (2001).
+    
+    '''
+    
+    # calculate the scattered fields for each theta
+    Es_theta = np.zeros(thetas.shape, dtype = complex)
+    Es_phi = np.zeros(thetas.shape, dtype = complex)
+    Hs_theta = np.zeros(thetas.shape, dtype = complex)
+    Hs_phi = np.zeros(thetas.shape, dtype = complex)
+    for i in range(thetas.shape[0]):# nevents
+        Es_theta[i,:], Es_phi[i,:], Hs_theta[i,:], Hs_phi[i,:] = _scat_fields_complex_medium(m,
+                                                            x, thetas[i,:], kd)
+    
+    # do a change of basis of E and H
+    basis_change_mat = np.array(([np.cos(phis), np.sin(phis)],[np.sin(phis), -np.cos(phis)])) 
+    print(basis_change_mat.shape)
+    Es_x = basis_change_mat[0,0,:,:]*Es_theta + basis_change_mat[0,1,:,:]*Es_phi
+    Es_y = basis_change_mat[1,0,:,:]*Es_theta + basis_change_mat[1,1,:,:]*Es_phi
+    Hs_x = basis_change_mat[0,0,:,:]*Hs_theta + basis_change_mat[0,1,:,:]*Hs_phi
+    Hs_y = basis_change_mat[1,0,:,:]*Hs_theta + basis_change_mat[1,1,:,:]*Hs_phi
+    
+    # calculate the scattered intensities 
+    I_x = Es_x * np.conj(Hs_y)
+    I_y = -Es_y * np.conj(Hs_x) 
+    return I_x.real, I_y.real
 
 def integrate_intensity_complex_medium(I_par, I_perp, distance, theta, k,
                                        phi_min=Quantity(0, 'rad'), 
@@ -695,6 +792,65 @@ def integrate_intensity_complex_medium(I_par, I_perp, distance, theta, k,
     
     return(sigma, sigma_par*factor, sigma_perp*factor, dsigma_par*factor/2, 
            dsigma_perp*factor/2)
+
+def integrate_intensity_complex_medium_xy(I_x, I_y, distance, theta, phi, k,
+                                       phi_min=Quantity(0, 'rad'), 
+                                       phi_max=Quantity(2*np.pi, 'rad')):
+    '''
+    Calculates the scattering cross section by integrating the differential 
+    scattered intensity obtained with the exact Mie solutions. The integration 
+    is done over scattering angles theta and azimuthal angles phi using the
+    trapezoid rule.  
+    
+    Parameters
+    ----------
+    I_x, I_y: 2d arrays 
+        differential scattered intensities, as a function of thet and phi
+    distance: distance away from the scatterer (Quantity in [length])
+    theta: array scattering angles (Quantity in rad)
+    phi: array of azimuthal angles (Quantity in rad)
+    k: wavevector given by 2 * pi * n_medium / wavelength 
+       (Quantity in [1/length])
+    
+    Returns
+    -------
+    sigma: integrated cross section (in units of length**2)
+    sigma_x, sigma_y: integrated cross sections in x and y
+    dsigma_x, dsigma_y: differential cross sections in x and y multiplied by a 
+        correction factor for absorption in the medium
+ 
+    '''
+    # convert to radians from whatever units the user specifies
+    theta = theta.to('rad').magnitude
+    phi = phi.to('rad').magnitude
+    
+    theta_2d, phi_2d = np.meshgrid(theta, phi)
+
+    dsigma_x = I_x * distance**2  
+    dsigma_y = I_y * distance**2 
+                  
+    # Integrate over theta and phi
+    sigma_x = np.trapz(np.trapz(dsigma_x * np.abs(np.sin(theta)), x=theta, axis=1),
+                           x=phi, axis=0) * dsigma_x.units
+    sigma_y = np.trapz(np.trapz(dsigma_y * np.abs(np.sin(theta)), x=theta, axis=1),
+                           x=phi, axis=0) * dsigma_y.units         
+                      
+    # multiply by factor that accounts for attenuation in the incident light
+    # (see Sudiarta and Chylek (2001), eq 10). 
+    # if the imaginary part of k is close to 0 (because the medium index is 
+    # close to 0), then use the limit value of factor for the calculations
+    if k.imag.magnitude <= 1e-8:
+        factor = 2
+    else:                  
+        exponent = np.exp(2*distance*k.imag)
+        factor = 1 / (exponent / (2*distance*k.imag)+
+                     (1 - exponent) / (2*distance*k.imag)**2)
+    
+    sigma = (sigma_x + sigma_y)/2 * factor
+    
+    return(sigma, sigma_x*factor, sigma_y*factor, dsigma_x*factor/2, 
+           dsigma_y*factor/2)
+
 
 def diff_abs_intensity_complex_medium(m, x, theta, ktd):
     '''   
@@ -785,6 +941,81 @@ def diff_abs_intensity_complex_medium(m, x, theta, ktd):
     I_perp = m* Et_phi * np.conj(Ht_theta)
     
     return I_par.real, I_perp.real
+
+def amp_scat_mat_2d_theta(m, x, thetas):
+    """
+    Calculates the amplitude scattering matrix for a 2d array of thetas
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample  
+    x: float
+        size parameter  
+    thetas: 2d array
+        theta angles 
+
+    Returns:
+    --------
+    asmat: 4d array, dimension lengths: thetas.shape[0], thetas.shape[1], 2, 2
+        amplitude scattering matrix for all theta
+    """
+    # calculate n-array 
+    nstop = _nstop(x)
+    n = np.arange(nstop)+1.
+    prefactor  = (2*n+1)/(n*(n+1))
+    
+    # calculate mie coefficients
+    coeffs = _scatcoeffs(m,x,nstop)
+    
+    # initialize  amplitude scatttering matrix 
+    asmat = np.zeros((thetas.shape[0], thetas.shape[1], 2, 2), dtype = complex) 
+    
+    # initialize 
+    for i in range(thetas.shape[0]):# 1st dim (nevents if called in mc)
+        for j in range(thetas.shape[1]): # 2nd dim (ntraj if called in mc)
+            S2, S1 = _amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas[i,j])
+            asmat[i,j,0,0] = S2
+            asmat[i,j,1,1] = S1
+    return asmat
+
+def amp_scat_vec_2d_theta_xy(m, x, thetas, phis):
+    """
+    Calculates the amplitude scattering vector for a 2d array of thetas and phis
+    in the xy basis
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample  
+    x: float
+        size parameter  
+    thetas: 2d array
+        theta angles
+    phis: 2d array (same shape as theta)
+        phi angles
+    Returns:
+    --------
+    as_vec_xy: 4d array, dimension lengths: 2, thetas.shape[0], thetas.shape[1]
+    """
+    # calculate the amplitude scattering matrix
+    asmat = amp_scat_mat_2d_theta(m, x, thetas)
+    print(asmat.shape)
+    
+    # define the change of basis matrix to convert to xy basis
+    basis_change_mat = np.array(([np.cos(phis), np.sin(phis)],[np.sin(phis), -np.cos(phis)])) 
+    basis_change_mat = np.swapaxes(np.swapaxes(basis_change_mat,0,2),1,3)
+    print(basis_change_mat.shape)
+    
+    # change asmat to xy basis
+    asmat_xy = np.matmul(basis_change_mat, np.matmul(asmat, basis_change_mat))
+    
+    # get the amplitude scattering in the xy basis vector from the asmat in xy
+    as_vec_xy = np.zeros((2,thetas.shape[0],thetas.shape[1]), dtype = complex)
+    as_vec_xy[0,:,:] = asmat_xy[:,:,0,0]#0,0
+    as_vec_xy[1,:,:] = asmat_xy[:,:,1,0]#1,0
+    
+    return as_vec_xy
     
 def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, theta):
     # amplitude scattering matrix from Mie coefficients
