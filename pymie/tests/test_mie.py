@@ -529,8 +529,7 @@ def test_amp_scat_vec_2d_theta_xy():
 def test_diff_scat_intensity_complex_medium_xy():
     '''
     Test that the magnitude of the differential scattered intensity is the 
-    same in the xy basis as it is in the parallel, perpendicular basis when
-    phi = 0
+    same in the xy basis as it is in the parallel, perpendicular basis
     
     This should be true because a rotation around phi brings the par/perp basis
     into the x,y basis
@@ -540,8 +539,8 @@ def test_diff_scat_intensity_complex_medium_xy():
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    thetas = Quantity(np.linspace(np.pi/2, np.pi, 3), 'rad')
-    phis = Quantity(np.linspace(0, 2*np.pi, 2), 'rad')
+    thetas = Quantity(np.linspace(np.pi/2, np.pi, 4), 'rad')
+    phis = Quantity(np.linspace(0, 2*np.pi, 3), 'rad')
     thetas_2d, phis_2d = np.meshgrid(thetas, phis)
     thetas_2d = Quantity(thetas_2d, 'rad')
     
@@ -562,6 +561,42 @@ def test_diff_scat_intensity_complex_medium_xy():
     
     assert_almost_equal(I_xy_mag[0], I_par_perp_mag)
     
-# TODO add test for integration of integration of diff_scat_intensity_complex_medium, x,y
+def test_integrate_intensity_complex_medium_xy():
+    '''
+    Test that when integrated over all theta and phi angles, the intensities
+    calculated in the par/perp basis match those calculated in the x/y basis
+    '''
+    # parameters of sample and source
+    wavelen = Quantity('658 nm')
+    radius = Quantity('0.85 um')
+    n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
+    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    thetas = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
+    phis = Quantity(np.linspace(0, 2*np.pi, 20), 'rad')
+    thetas_2d, phis_2d = np.meshgrid(thetas, phis)
+    thetas_2d = Quantity(thetas_2d, 'rad')
     
+    # parameters for calculating scattering
+    m = index_ratio(n_particle, n_matrix)
+    x = size_parameter(wavelen, n_matrix, radius)
+    k = 2*np.pi*n_matrix/wavelen
+    distance = Quantity(10000,'nm')
+    kd = k*distance
+    
+    # calculate the differenetial scattered intensities
+    I_x, I_y = mie.diff_scat_intensity_complex_medium_xy(m, x, thetas_2d, phis_2d, kd)
+    #print(np.sqrt(I_x**2 + I_y**2))
+    
+    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd)
+    #print(np.sqrt(I_par**2 + I_perp**2))
+    
+    # integrate the differential scattered intensities
+    cscat_xy = mie.integrate_intensity_complex_medium_xy(I_x, I_y, 
+                                                         distance, thetas, phis, k)[0]
+    cscat_parperp = mie.integrate_intensity_complex_medium(I_par, I_perp, 
+                                                         distance, thetas, k)[0]
+
+    assert_almost_equal(cscat_xy.magnitude, cscat_parperp.magnitude)
+
+
     

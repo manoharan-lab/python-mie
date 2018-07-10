@@ -718,18 +718,20 @@ def diff_scat_intensity_complex_medium_xy(m, x, thetas, phis, kd):
     for i in range(thetas.shape[0]):# nevents
         Es_theta[i,:], Es_phi[i,:], Hs_theta[i,:], Hs_phi[i,:] = _scat_fields_complex_medium(m,
                                                             x, thetas[i,:], kd)
+    # precalculate sines and cosines for speed
+    cosphi = np.cos(phis)
+    sinphi = np.sin(phis)
     
-    # do a change of basis of E and H
-    basis_change_mat = np.array(([np.cos(phis), np.sin(phis)],[np.sin(phis), -np.cos(phis)])) 
-    print(basis_change_mat.shape)
-    Es_x = basis_change_mat[0,0,:,:]*Es_theta + basis_change_mat[0,1,:,:]*Es_phi
-    Es_y = basis_change_mat[1,0,:,:]*Es_theta + basis_change_mat[1,1,:,:]*Es_phi
-    Hs_x = basis_change_mat[0,0,:,:]*Hs_theta + basis_change_mat[0,1,:,:]*Hs_phi
-    Hs_y = basis_change_mat[1,0,:,:]*Hs_theta + basis_change_mat[1,1,:,:]*Hs_phi
+    # change the basis of the fields
+    Es_x = Es_theta*cosphi - Es_phi*sinphi
+    Es_y = Es_theta*sinphi + Es_phi*cosphi
+    Hs_x = Hs_theta*cosphi - Hs_phi*sinphi
+    Hs_y = Hs_theta*sinphi + Hs_phi*cosphi
     
     # calculate the scattered intensities 
-    I_x = Es_x * np.conj(Hs_y)
-    I_y = -Es_y * np.conj(Hs_x) 
+    I_x = Es_x*np.conj(Hs_y)
+    I_y = -Es_y*np.conj(Hs_x)
+     
     return I_x.real, I_y.real
 
 def integrate_intensity_complex_medium(I_par, I_perp, distance, theta, k,
@@ -793,9 +795,7 @@ def integrate_intensity_complex_medium(I_par, I_perp, distance, theta, k,
     return(sigma, sigma_par*factor, sigma_perp*factor, dsigma_par*factor/2, 
            dsigma_perp*factor/2)
 
-def integrate_intensity_complex_medium_xy(I_x, I_y, distance, theta, phi, k,
-                                       phi_min=Quantity(0, 'rad'), 
-                                       phi_max=Quantity(2*np.pi, 'rad')):
+def integrate_intensity_complex_medium_xy(I_x, I_y, distance, theta, phi, k):
     '''
     Calculates the scattering cross section by integrating the differential 
     scattered intensity obtained with the exact Mie solutions. The integration 
@@ -846,7 +846,7 @@ def integrate_intensity_complex_medium_xy(I_x, I_y, distance, theta, phi, k,
         factor = 1 / (exponent / (2*distance*k.imag)+
                      (1 - exponent) / (2*distance*k.imag)**2)
     
-    sigma = (sigma_x + sigma_y)/2 * factor
+    sigma = (sigma_x + sigma_y)/4 * factor
     
     return(sigma, sigma_x*factor, sigma_y*factor, dsigma_x*factor/2, 
            dsigma_y*factor/2)
@@ -1000,12 +1000,10 @@ def amp_scat_vec_2d_theta_xy(m, x, thetas, phis):
     """
     # calculate the amplitude scattering matrix
     asmat = amp_scat_mat_2d_theta(m, x, thetas)
-    print(asmat.shape)
     
     # define the change of basis matrix to convert to xy basis
     basis_change_mat = np.array(([np.cos(phis), np.sin(phis)],[np.sin(phis), -np.cos(phis)])) 
     basis_change_mat = np.swapaxes(np.swapaxes(basis_change_mat,0,2),1,3)
-    print(basis_change_mat.shape)
     
     # change asmat to xy basis
     asmat_xy = np.matmul(basis_change_mat, np.matmul(asmat, basis_change_mat))
