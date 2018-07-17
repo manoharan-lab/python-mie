@@ -308,7 +308,20 @@ def _pis_and_taus(nstop, theta):
     taus = n*pis*mus - (n+1)*pishift
     return np.array([pis[1:nstop+1], taus[1:nstop+1]])
 
-_pis_and_taus_vtheta = np.vectorize(_pis_and_taus)
+def _pis_and_taus_vtheta(nstop, theta):
+    
+    mu = np.cos(theta)
+    legendre0 = _lpn_vectorized(nstop, mu)
+    pis = (legendre0[:,1,:])
+    pishift = np.concatenate((np.zeros((len(theta),1)), pis), axis=1)[:, :nstop+1]
+    n = np.arange(nstop+1)
+    
+    mus = np.swapaxes(np.tile(mu, (nstop+1,1)),0,1)
+    taus = n*pis*mus - (n+1)*pishift
+    return pis[:,1:nstop+1], taus[:,1:nstop+1]
+    
+    
+#_pis_and_taus_vtheta = np.vectorize(_pis_and_taus, otypes = [object, object])
 
 def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     # see B/H eqn 4.88
@@ -602,11 +615,13 @@ def _scat_fields_complex_medium(m, x, theta, kd):
     # sin(phi) and cos(phi) factors because they will be accounted for when
     # integrating to get the scattering cross section)
     th_shape = list(theta.shape)
-    En = np.broadcast_to(En, th_shape.append(len(En)))
-    an = np.broadcast_to(an, th_shape.append(len(an)))
-    bn = np.broadcast_to(bn, th_shape.append(len(bn)))
-    zn = np.broadcast_to(zn, th_shape.append(len(zn)))
-    bessel_deriv = np.broadcast_to(bessel_deriv,th_shape.append(len(bessel_deriv)))                  
+    th_shape.append(len(n))
+
+    En = np.broadcast_to(En, th_shape)
+    an = np.broadcast_to(an, th_shape)
+    bn = np.broadcast_to(bn, th_shape)
+    zn = np.broadcast_to(zn, th_shape)
+    bessel_deriv = np.broadcast_to(bessel_deriv, th_shape)                  
     
     Es_theta = np.sum(En* (1j * an * taus * bessel_deriv/kd - bn * pis * zn), 
                       axis=1) 
