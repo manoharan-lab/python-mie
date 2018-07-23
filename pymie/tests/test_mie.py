@@ -408,17 +408,18 @@ def test_pis_taus():
     # number of terms to keep
     nstop = 3
     
-    # check that the vectorized matches the non-vectorized for a single theta
-    theta = np.array(np.pi/4)
+    # check that result for a vector input matches the result for a scalar input
+    theta = np.pi/4
     pis, taus = mie._pis_and_taus(nstop,theta)
-    pis_v, taus_v = mie._pis_and_taus_vtheta(nstop, theta)
+    pis_v, taus_v = mie._pis_and_taus(nstop, np.array(theta))
     
     assert_almost_equal(pis, pis_v)
     assert_almost_equal(taus, taus_v)
 
-    # check that the vectorized matches non-vectorized for 1d array theta
+   # check that result for a vector input matches the result for a scalar input
+   # for a theta 1d array
     theta = np.array([np.pi/4, np.pi/2, np.pi/3])
-    pis_v, taus_v = mie._pis_and_taus_vtheta(nstop, theta)
+    pis_v, taus_v = mie._pis_and_taus(nstop, theta)
     pis = np.zeros((len(theta), nstop))
     taus = np.zeros((len(theta), nstop))
     for i in range(len(theta)):
@@ -427,9 +428,10 @@ def test_pis_taus():
     assert_almost_equal(pis, pis_v)
     assert_almost_equal(taus, taus_v)
     
-    # check that the vectorized matches non-vectorized for 2d array theta
+    # check that result for a vector input matches the result for a scalar input
+    # for a theta 2d array
     theta = np.array([[np.pi/4, np.pi/2, np.pi/3],[np.pi/6, np.pi/4, np.pi/2]])
-    pis_v, taus_v = mie._pis_and_taus_vtheta(nstop, theta)
+    pis_v, taus_v = mie._pis_and_taus(nstop, theta)
     pis = np.zeros((theta.shape[0], theta.shape[1], nstop))
     taus = np.zeros((theta.shape[0], theta.shape[1], nstop))
     for i in range(theta.shape[0]):
