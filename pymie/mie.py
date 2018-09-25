@@ -530,15 +530,23 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
                          
     return(Cscat, Cabs, Cext)
     
-def diff_scat_intensity_complex_medium(m, x, theta, kd):
+def diff_scat_intensity_complex_medium(m, x, theta, kd, near_field=False):
     '''
     Calculates the differential scattered intensity as a function of scattering
     angle theta using the exact Mie solutions. These solutions are valid both 
     in the near and far field. When the medium has a zero imaginary component
     of the refractive index (is non-absorbing), the exact solutions at the far
     field match the standard far-field Mie solutions given by 
-    calc_cross_sections.
-    
+    calc_cross_sections. This is not the case when there is absorption because
+    the far-field solutions assume an arbitrary distance far away, so they 
+    don't depend on the distance from the scatterer. And when the medium 
+    absorbs, the cross sections should really depend on the distance away at 
+    which we integrate the differential cross sections. The phase function, 
+    (diff cross section / total cross section) is the same when calculated with 
+    the exact Mie solutions in the far field as when calculated with the 
+    far-field Mie solutions because this ratio does not depend on how far we 
+    integrate from the scatterer. 
+
     The differential scattered intensity is computed by substituting the 
     scattered electric and magnetic fields into the radial component of the 
     Poynting vector:
@@ -557,6 +565,16 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd):
     kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
         distance away from the center of the particle. The far-field solution
         is obtained when distance >> radius. (Quantity, dimensionless)
+    near_field: boolean
+        Set to True to include the near-fields. Sometimes the exact solutions 
+        that include the near fields aren't wanted, for ex when the total cross 
+        section calculation includes the structure factor, and the combination 
+        of the angle-dependent differential cross section multiplied by the 
+        structure factor gives very high cross sections at the surface of the 
+        particle. When we want to neglect the effect of the near fields and 
+        still integrate at the surface of the particle, we use the asymptotic  
+        form of the spherical Hankel function in the far field (p. 94 of Bohren  
+        and Huffman).
     
     Returns
     -------
@@ -620,15 +638,32 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd):
     zn = np.broadcast_to(zn, [len(theta), len(zn)]) 
     bessel_deriv = np.broadcast_to(bessel_deriv,[len(theta),len(bessel_deriv)])                  
     
-    Es_theta = np.sum(En* (1j * an * taus * bessel_deriv/kd - bn * pis * zn), 
-                      axis=1) 
-    Es_phi = np.sum(En* (-1j * an * pis * bessel_deriv/kd + bn * taus * zn), 
-                    axis=1)   
-    Hs_phi = np.sum(En* (1j * bn * pis * bessel_deriv/kd - an * taus * zn), 
-                    axis=1)
-    Hs_theta = np.sum(En* (1j * bn * taus * bessel_deriv/kd - an * pis * zn), 
-                      axis=1) 
-    
+    # if exact Mie solutions are wanted (including the near field effects given
+    # by the spherical Hankel terms). The near fields don't change the total 
+    # cross section much, but the angle-dependence of the differential cross
+    # section will be very different from the ones obtained with the far-field 
+    # approximations. 
+    if near_field == True:     
+        Es_theta = np.sum(En* (1j * an * taus * bessel_deriv/kd - bn * pis * zn), 
+                          axis=1) 
+        Es_phi = np.sum(En* (-1j * an * pis * bessel_deriv/kd + bn * taus * zn), 
+                        axis=1)   
+        Hs_phi = np.sum(En* (1j * bn * pis * bessel_deriv/kd - an * taus * zn), 
+                        axis=1)
+        Hs_theta = np.sum(En* (1j * bn * taus * bessel_deriv/kd - an * pis * zn), 
+                          axis=1) 
+    # if the near field effects aren't desired, use the asymptotic form of the 
+    # spherical Hankel function in the far field (p. 94 of Bohren and Huffman)
+    else:
+        Es_theta = np.sum((2*n+1) / (n*(n+1)) * (an * taus + bn * pis), 
+                          axis=1) * np.exp(1j*kd)/(-1j*kd)
+        Es_phi = -np.sum((2*n+1) / (n*(n+1)) * (an * pis + bn * taus), 
+                         axis=1) * np.exp(1j*kd)/(-1j*kd)  
+        Hs_phi = np.sum((2*n+1) / (n*(n+1))*(bn * pis + an * taus), 
+                        axis=1)* np.exp(1j*kd)/(-1j*kd)
+        Hs_theta = np.sum((2*n+1) / (n*(n+1))* (bn *  taus + an * pis), 
+                          axis=1)* np.exp(1j*kd)/(-1j*kd) 
+                      
     # calculate the scattered intensities 
     I_par = Es_theta * np.conj(Hs_phi)
     I_perp = -Es_phi * np.conj(Hs_theta) 
@@ -687,6 +722,7 @@ def integrate_intensity_complex_medium(I_par, I_perp, distance, theta, k,
     # close to 0), then use the limit value of factor for the calculations
     if k.imag.magnitude <= 1e-8:
         factor = 2
+       
     else:                  
         exponent = np.exp(2*distance*k.imag)
         factor = 1 / (exponent / (2*distance*k.imag)+
@@ -801,6 +837,7 @@ def _amplitude_scattering_matrix_RG(prefactor, x, theta):
     S1 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u))
     S2 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u)) * np.cos(theta)
     return np.array([S2, S1])
+
 
 
 # TODO: copy multilayer code from multilayer_sphere_lib.py in holopy and
