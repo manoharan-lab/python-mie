@@ -941,6 +941,8 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
     [cosphi  sinphi]
     [sinphi -cosphi]
     
+    (from Bohren and Huffman, 3.2, page 61)
+    
     This matrix is equal to it's inverse, so we can get the scattering matrix 
     in the cartesian coordinate system by multiplying:
     
@@ -958,9 +960,7 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
     =   [S2*cosphi**2 + S1*sinphi**2       S2*sinphi*cosphi - S1*sinphi*cosphi]
         [S2*cosphi*sinphi-S1*cosphi*sinphi         S2*sinphi**2 + S1*cosphi**2]
      
-    
-    see pages 35,51-53 in Annie Stephenson lab notebook #3 for original 
-    derivations
+    see pages 22-23,51-53 in Annie Stephenson lab notebook #3 for orignal notes 
     
     Parameters:
     ----------
