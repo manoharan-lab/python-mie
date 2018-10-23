@@ -279,7 +279,7 @@ def _pis_and_taus(nstop, thetas):
     ----------
     nstop: float
         maximum order
-    thetas: ndarray
+    thetas: ndarray or float
         scattering angles
 
     Returns
@@ -936,7 +936,7 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
     
     Change of basis from scattering plane to lab frame cartesian is calculated 
     by multiplying M*S*(M^-1) where S is the amplitude scattering matrix and 
-    M is the change of basis matrix. The change of basis matrix is:
+    M is the change of basis matrix. The change of basis matrix M is:
         
     [cosphi  sinphi]
     [sinphi -cosphi]
@@ -946,9 +946,21 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
     
     [cosphi  sinphi] * [S2  S3] * [cosphi  sinphi]
     [sinphi -cosphi]   [S4  S1]   [sinphi -cosphi]
+    
+    in Mie theory, we have S3 = S4 = 0, so this simplifies to:
+        
+    =   [cosphi  sinphi] * [S2   0] * [cosphi  sinphi]
+        [sinphi -cosphi]   [0   S1]   [sinphi -cosphi]
+    
+    =   [cosphi  sinphi] * [S2*cosphi  S2*sinphi]
+        [sinphi -cosphi]   [S1*sinphi -S1*cosphi]
+        
+    =   [S2*cosphi**2 + S1*sinphi**2       S2*sinphi*cosphi - S1*sinphi*cosphi]
+        [S2*cosphi*sinphi-S1*cosphi*sinphi         S2*sinphi**2 + S1*cosphi**2]
      
     
-    see pages 35,51-53 in Annie Stephenson lab notebook #3 for details
+    see pages 35,51-53 in Annie Stephenson lab notebook #3 for original 
+    derivations
     
     Parameters:
     ----------
