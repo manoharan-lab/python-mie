@@ -407,8 +407,9 @@ def test_cross_section_complex_medium():
     n_particle = Quantity(1.5+0.01j,'') 
     n_matrix = Quantity(1.0,'') 
     radius = Quantity(150,'nm')
-    theta = Quantity(np.linspace(0, np.pi, 1000), 'rad')
+    theta = Quantity(np.linspace(0.0001, np.pi, 1000), 'rad')
     distance = Quantity(10000,'nm')
+
     
     m = index_ratio(n_particle, n_matrix)
     k = 2*np.pi*n_matrix/wavelen
@@ -418,6 +419,7 @@ def test_cross_section_complex_medium():
 
     # With far-field Mie solutions
     cscat_mie = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
+    
     # With Sudiarta
     cscat_sudiarta = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
                                                                  coeffs[1], x, 
@@ -471,9 +473,29 @@ def test_cross_section_complex_medium():
     # With exact Mie solutions
     rho_scat = k*distance
     I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
-                                                                     rho_scat)
+                                                                     rho_scat, near_field=True)
     cscat_exact2 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
                                                          distance, theta, k)[0]
 
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_sudiarta2.to('um^2').magnitude, decimal=4)
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_fu2.to('um^2').magnitude, decimal=4)
+    
+    
+    # test that the cross sections calculated with the exact Mie solutions 
+    # match the far-field Mie solutions when the matrix absorption is close to 0
+    n_matrix = Quantity(1.0+0.0000001j,'') 
+    m = index_ratio(n_particle, n_matrix)
+    k = 2*np.pi*n_matrix/wavelen
+    x = size_parameter(wavelen, n_matrix, radius)
+    rho_scat = k*distance
+    
+    # With exact Mie solutions
+    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
+                                                                     rho_scat)
+    cscat_exact3 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
+                                                         distance, theta, k)[0]
+    
+    # With far-field Mie solutions                                                     
+    cscat_mie3 = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
+    
+    assert_almost_equal(cscat_exact3.to('um^2').magnitude, cscat_mie3.to('um^2').magnitude, decimal=4)
