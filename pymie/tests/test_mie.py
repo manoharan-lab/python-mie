@@ -407,7 +407,7 @@ def test_cross_section_complex_medium():
     n_particle = Quantity(1.5+0.01j,'') 
     n_matrix = Quantity(1.0,'') 
     radius = Quantity(150,'nm')
-    theta = Quantity(np.linspace(0.0001, np.pi, 1000), 'rad')
+    theta = Quantity(np.linspace(0, np.pi, 1000), 'rad')
     distance = Quantity(10000,'nm')
 
     
