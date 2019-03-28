@@ -455,6 +455,7 @@ def test_cross_section_complex_medium():
     radius = Quantity(150,'nm')
     theta = Quantity(np.linspace(0, np.pi, 1000), 'rad')
     distance = Quantity(10000,'nm')
+
     
     m = index_ratio(n_particle, n_matrix)
     k = 2*np.pi*n_matrix/wavelen
@@ -464,6 +465,7 @@ def test_cross_section_complex_medium():
 
     # With far-field Mie solutions
     cscat_mie = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
+    
     # With Sudiarta
     cscat_sudiarta = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
                                                                  coeffs[1], x, 
@@ -517,14 +519,33 @@ def test_cross_section_complex_medium():
     # With exact Mie solutions
     rho_scat = k*distance
     I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
-                                                                     rho_scat)
+                                                                     rho_scat, near_field=True)
     cscat_exact2 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
                                                          distance, theta, k)[0]
 
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_sudiarta2.to('um^2').magnitude, decimal=4)
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_fu2.to('um^2').magnitude, decimal=4)
     
+    # test that the cross sections calculated with the exact Mie solutions 
+    # match the far-field Mie solutions when the matrix absorption is close to 0
+    n_matrix = Quantity(1.0+0.0000001j,'') 
+    m = index_ratio(n_particle, n_matrix)
+    k = 2*np.pi*n_matrix/wavelen
+    x = size_parameter(wavelen, n_matrix, radius)
+    rho_scat = k*distance
     
+    # With exact Mie solutions
+    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
+                                                                     rho_scat)
+    cscat_exact3 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
+                                                         distance, theta, k)[0]
+    
+    # With far-field Mie solutions                                                     
+    cscat_mie3 = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
+    
+    assert_almost_equal(cscat_exact3.to('um^2').magnitude, cscat_mie3.to('um^2').magnitude, decimal=4)
+
+
 def test_vector_scattering_amplitude_2d_theta_cartesian():
     '''
     Test that the amplitude scattering vector assuming x-polarized incident
@@ -572,7 +593,6 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     assert_almost_equal(as_vec_x0, as_vec_x)
     assert_almost_equal(as_vec_y0, as_vec_y)
     
-    
 def test_diff_scat_intensity_complex_medium_cartesian():
     '''
     Test that the magnitude of the differential scattered intensity is the 
@@ -598,10 +618,12 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     
     # calculate differential scattered intensity in xy basis
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
-                            coordinate_system = 'cartesian', phis = phis_2d)
+                            coordinate_system = 'cartesian', phis = phis_2d, 
+                            near_field=True)
     
     # calcualte differential scattered intensity in par/perp basis
-    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd)
+    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
+                                                           near_field=True)
     
     # assert equality of their magnitudes
     I_xy_mag = np.sqrt(I_x**2 + I_y**2)
@@ -634,9 +656,11 @@ def test_integrate_intensity_complex_medium_cartesian():
     
     # calculate the differenetial scattered intensities
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                            coordinate_system = 'cartesian', phis = phis_2d)
+                            coordinate_system = 'cartesian', phis = phis_2d,
+                            near_field=True)
     
-    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd)
+    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd, 
+                                                           near_field=True)
 
     
     # integrate the differential scattered intensities
@@ -674,13 +698,16 @@ def test_value_errors():
     with pytest.raises(ValueError):
         # try to calculate differential scattered intensity in weird coordinate system
         I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
-                            coordinate_system = 'weird', phis = phis_2d)
+                            coordinate_system = 'weird', phis = phis_2d, 
+                            near_field=True)
     
     # calculate the differenetial scattered intensities
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                            coordinate_system = 'cartesian', phis = phis_2d)
+                            coordinate_system = 'cartesian', phis = phis_2d, 
+                            near_field=True)
     
-    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd)
+    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd, 
+                            near_field=True)
     
     with pytest.raises(ValueError):
         # integrate the differential scattered intensities
@@ -695,19 +722,3 @@ def test_value_errors():
         
         as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d, 
                             coordinate_system = 'cartesian')
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-  
