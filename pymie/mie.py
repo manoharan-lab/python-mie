@@ -41,6 +41,7 @@ Small Particles" (1983)
 """
 import numpy as np
 from scipy.special import lpn, spherical_jn, spherical_yn
+import warnings
 from . import mie_specfuncs, ureg, Quantity
 from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2   # default tolerances
 from . import multilayer_sphere_lib as msl
@@ -62,7 +63,7 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
         array of angles. Must be entered as a Quantity to allow specifying
         units (degrees or radians) explicitly
     mie: Boolean (optional)
-        if true (default) does full Mie calculation; if false, )uses RG
+        if true (default) does full Mie calculation; if false, uses RG
         approximation
     check: Boolean (optional)
         if true, outputs scattering efficiencies
@@ -82,8 +83,6 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     ipar = np.array([])
     iperp = np.array([])
 
-    # TODO vectorize and remove loop
-    # loop over input angles
     if mie:
         # Mie scattering preliminaries
         nstop = _nstop(np.array(x).max())    
@@ -97,12 +96,9 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
         n = np.arange(nstop)+1.
         prefactor = (2*n+1.)/(n*(n+1.))
 
-        for theta in angles:
-            asmat = _amplitude_scattering_matrix(nstop, prefactor, coeffs, theta)
-            par = np.absolute(asmat[0])**2
-            ipar = np.append(ipar, par)
-            perp = np.absolute(asmat[1])**2
-            iperp = np.append(iperp, perp)
+        S2, S1 = _amplitude_scattering_matrix(nstop, prefactor, coeffs, angles)
+        ipar = np.absolute(S2)**2
+        iperp = np.absolute(S1)**2
 
         if check:
             opt = _amplitude_scattering_matrix(nstop, prefactor, coeffs, 0).real
@@ -118,10 +114,9 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
 
     else:
         prefactor = -1j * (2./3.) * x**3 * np.absolute(m - 1)
-        for theta in angles:
-            asmat = _amplitude_scattering_matrix_RG(prefactor, x, theta)
-            ipar = np.append(ipar, np.absolute(asmat[0])**2)
-            iperp = np.append(iperp, np.absolute(asmat[1])**2)
+        S2, S1 = _amplitude_scattering_matrix_RG(prefactor, x, angles)
+        ipar = np.absolute(S2)**2
+        iperp = np.absolute(S1)**2
 
     return ipar, iperp
 
@@ -276,36 +271,57 @@ def _lpn_vectorized(n, z):
     # the legendre polynomials and derivatives
     return np.array([lpn(nmax, z) for z in z])
 
-def _pis_and_taus(nstop, theta):
-    """
-    Calculate pi_n and tau angular functions at theta out to order n by up
-    recursion.
-
+def _pis_and_taus(nstop, thetas):
+    '''
+    Calculate pi and tau angular functions at an array of theta out to order n
+    
     Parameters
     ----------
-    nstop: maximum order
-    theta: angle
+    nstop: float
+        maximum order
+    thetas: ndarray or float
+        scattering angles
 
     Returns
     -------
-    pis, taus (order 1 to n)
+    pis, taus (order 1 to n): ndarray
+        angular functions, each has shape (thetas.shape, nstop)
 
     Notes
     -----
     Pure python version of mieangfuncs.pisandtaus in holopy.  See B/H eqn 4.46,
     Wiscombe eqns 3-4.
-    """
-    mu = np.cos(theta)
+    '''
+    # make n a float if it's not already by taking the maximum value given
+    nstop = np.max(nstop)
+    
+    # make theta an array if it's not already
+    thetas = np.atleast_1d(thetas)
+    
+    # get the shape of thetas to reshape arrays later
+    ang_shape = list(thetas.shape)
+    
+    # flatten to make calculations easier
+    thetas = np.ndarray.flatten(thetas)
+    
+    mu = np.cos(thetas)
+    
     # returns P_n and derivative, as a list of 2 arrays, the second
     # being the derivative
-    legendre0 = lpn(nstop, mu)
-    # use definition in terms of d/dmu (P_n(mu)), where mu = cos theta
-    pis = (legendre0[1])[0:nstop+1]
-    pishift = np.concatenate((np.zeros(1), pis))[0:nstop+1]
+    legendre0 = _lpn_vectorized(nstop, mu)
+    
+    # perform calculations on pis to get taus
+    pis = (legendre0[:,1,0:nstop+1])
+    pishift = np.concatenate((np.zeros((len(thetas),1)), pis), axis=1)[:, :nstop+1]
     n = np.arange(nstop+1)
-    mus = mu*np.ones(nstop+1)
+    mus = np.swapaxes(np.tile(mu, (nstop+1,1)),0,1)
     taus = n*pis*mus - (n+1)*pishift
-    return np.array([pis[1:nstop+1], taus[1:nstop+1]])
+ 
+    # reshape to match thetas original shape
+    ang_shape.append(nstop+1)
+    pis = np.reshape(pis, ang_shape)
+    taus = np.reshape(taus, ang_shape)
+    return pis[...,1:nstop+1], taus[...,1:nstop+1]
 
 def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     # see B/H eqn 4.88
@@ -530,9 +546,10 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
                          
     return(Cscat, Cabs, Cext)
     
-def diff_scat_intensity_complex_medium(m, x, theta, kd, near_field=False):
+    
+def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     '''
-    Calculates the differential scattered intensity as a function of scattering
+    Calculates the scattered fields as a function of scattering
     angle theta using the exact Mie solutions. These solutions are valid both 
     in the near and far field. When the medium has a zero imaginary component
     of the refractive index (is non-absorbing), the exact solutions at the far
@@ -561,7 +578,7 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd, near_field=False):
     ----------
     m: complex relative refractive index 
     x: size parameter using the medium's refractive index 
-    theta: array of scattering angles (Quantity in rad)
+    thetas: array of scattering angles (Quantity in rad)
     kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
         distance away from the center of the particle. The far-field solution
         is obtained when distance >> radius. (Quantity, dimensionless)
@@ -578,8 +595,8 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd, near_field=False):
     
     Returns
     -------
-    I_par, I_perp: differential scattering intensities for an array of theta
-                   (dimensionless). 
+    Es_theta, Es_phi, Hs_phi, Hs_theta: arrays
+        scattered field components for an array of theta
     
     References
     ----------
@@ -587,10 +604,9 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd, near_field=False):
     small particles. Wiley-VCH (2004), chapter 4.4.1.
     Q. Fu and W. Sun, "Mie theory for light scattering by a spherical particle
     in an absorbing medium". Applied Optics, 40, 9 (2001).
-    
     '''
     # convert units from whatever units the user specifies
-    theta = theta.to('rad').magnitude
+    thetas = thetas.to('rad').magnitude
     kd = kd.to('').magnitude
     
     # calculate mie coefficients
@@ -622,22 +638,20 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd, near_field=False):
     bessel_deriv = xishift - n*xi/kd
     
     # calculate pis and taus at the scattering angles theta
-    pis = np.empty([len(theta), len(an)])
-    taus = np.empty([len(theta), len(an)])
-    for t in np.arange(len(theta)): 
-        angfuncs = _pis_and_taus(nstop, theta[t])
-        pis[t,:] = angfuncs[0] 
-        taus[t,:] = angfuncs[1]
+    pis, taus = _pis_and_taus(nstop, thetas)
     
     # calculate the scattered electric and magnetic fields (omitting the 
     # sin(phi) and cos(phi) factors because they will be accounted for when
-    # integrating to get the scattering cross section)
-    En = np.broadcast_to(En, [len(theta), len(En)])
-    an = np.broadcast_to(an, [len(theta), len(an)])
-    bn = np.broadcast_to(bn, [len(theta), len(bn)])
-    zn = np.broadcast_to(zn, [len(theta), len(zn)]) 
-    bessel_deriv = np.broadcast_to(bessel_deriv,[len(theta),len(bessel_deriv)])                  
-    
+    # integrating to get the scattering cross section)                
+    th_shape = list(thetas.shape) # required for calculations with polarized light
+    th_shape.append(len(n))
+
+    En = np.broadcast_to(En, th_shape)
+    an = np.broadcast_to(an, th_shape)
+    bn = np.broadcast_to(bn, th_shape)
+    zn = np.broadcast_to(zn, th_shape)
+    bessel_deriv = np.broadcast_to(bessel_deriv, th_shape)  
+
     # if exact Mie solutions are wanted (including the near field effects given
     # by the spherical Hankel terms). The near fields don't change the total 
     # cross section much, but the angle-dependence of the differential cross
@@ -645,34 +659,125 @@ def diff_scat_intensity_complex_medium(m, x, theta, kd, near_field=False):
     # approximations. 
     if near_field == True:     
         Es_theta = np.sum(En* (1j * an * taus * bessel_deriv/kd - bn * pis * zn), 
-                          axis=1) 
+                          axis=-1) 
         Es_phi = np.sum(En* (-1j * an * pis * bessel_deriv/kd + bn * taus * zn), 
-                        axis=1)   
+                        axis=-1)   
         Hs_phi = np.sum(En* (1j * bn * pis * bessel_deriv/kd - an * taus * zn), 
-                        axis=1)
+                        axis=-1)
         Hs_theta = np.sum(En* (1j * bn * taus * bessel_deriv/kd - an * pis * zn), 
-                          axis=1) 
+                          axis=-1) 
     # if the near field effects aren't desired, use the asymptotic form of the 
     # spherical Hankel function in the far field (p. 94 of Bohren and Huffman)
     else:
         Es_theta = np.sum((2*n+1) / (n*(n+1)) * (an * taus + bn * pis), 
-                          axis=1) * np.exp(1j*kd)/(-1j*kd)
+                          axis=-1) * np.exp(1j*kd)/(-1j*kd)
         Es_phi = -np.sum((2*n+1) / (n*(n+1)) * (an * pis + bn * taus), 
-                         axis=1) * np.exp(1j*kd)/(-1j*kd)  
+                         axis=-1) * np.exp(1j*kd)/(-1j*kd)  
         Hs_phi = np.sum((2*n+1) / (n*(n+1))*(bn * pis + an * taus), 
-                        axis=1)* np.exp(1j*kd)/(-1j*kd)
+                        axis=-1)* np.exp(1j*kd)/(-1j*kd)
         Hs_theta = np.sum((2*n+1) / (n*(n+1))* (bn *  taus + an * pis), 
-                          axis=1)* np.exp(1j*kd)/(-1j*kd) 
+                          axis=-1)* np.exp(1j*kd)/(-1j*kd) 
                       
-    # calculate the scattered intensities 
-    I_par = Es_theta * np.conj(Hs_phi)
-    I_perp = -Es_phi * np.conj(Hs_theta) 
+    return Es_theta, Es_phi, Hs_theta, Hs_phi
+    
+def diff_scat_intensity_complex_medium(m, x, thetas, kd, 
+        coordinate_system = 'scattering plane', phis = None, near_field=False):
+    '''
+    Calculates the differential scattered intensity. These solutions are valid 
+    both in the near and far field. When the medium has a zero imaginary component
+    of the refractive index (is non-absorbing), the exact solutions at the far 
+    field match the standard far-field Mie solutions given by calc_cross_sections.
+    
+    When coordinate_system == 'scattering plane':. 
+       The solutions are given as a function of scattering angle theta. 
+       
+       The differential scattered intensity is computed by substituting the
+       scattered electric and magnetic fields into the radial component of the 
+       Poynting vector:
+           
+            I_par = Es_theta * conj(Hs_phi) 
+            I_perp = Es_phi * conj(Hs_theta)
+    
+        where conj() indicates the complex conjugate. The radial component of the 
+        Poynting vector is then 1/2 * Re(I_par - I_perp). 
+    
+    When coordinate_system == 'cartesian':
+        The solutions are given as a function of scattering angle theta and 
+        azimuthal angle phi
+      
+        The differential scattered intensity is computing by substituting the
+        scattered electric and magnetic fields into the z-component of the Poynting
+        vector:
+            
+            I_x = Es_x * conj(Hs_x) 
+            I_y = -Es_y * conj(Hs_y)
+    
+        where conj() indicates the complex conjugate. The radial component of the 
+        Poynting vector is then 1/2 * Re(I_x - I_y). 
 
-    return I_par.real, I_perp.real
+    Parameters
+    ----------
+    m: complex relative refractive index 
+    x: size parameter using the medium's refractive index 
+    thetas: array of scattering angles (Quantity in rad)
+    kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
+        distance away from the center of the particle. The far-field solution
+        is obtained when distance >> radius. (Quantity, dimensionless)
+    
+    Returns
+    -------
+    I components: tuple
+        tuple of the two orthogonal components of scattered intensity. If in
+        cartesian coordinate system, each component is a function of theta and
+        phi values. If in scattering plane coordinate system, each component 
+        is an array of theta values (dimensionless).
+    
+    References
+    ----------
+    C. F. Bohren and D. R. Huffman. Absorption and scattering of light by 
+    small particles. Wiley-VCH (2004), chapter 4.4.1.
+    Q. Fu and W. Sun, "Mie theory for light scattering by a spherical particle
+    in an absorbing medium". Applied Optics, 40, 9 (2001).
+    
+    '''
+    # calculate scattered fields in scattering plane coordinate system
+    Es_theta, Es_phi, Hs_theta, Hs_phi = _scat_fields_complex_medium(m, x, thetas, 
+                                                                     kd, near_field=near_field)
+    
+    if coordinate_system == 'scattering plane':
+        # calculate the scattered intensities 
+        I_par = Es_theta * np.conj(Hs_phi)
+        I_perp = -Es_phi * np.conj(Hs_theta) 
 
-def integrate_intensity_complex_medium(I_par, I_perp, distance, theta, k,
+        return I_par.real, I_perp.real
+    
+    elif coordinate_system == 'cartesian':
+        
+        # precalculate sines and cosines for speed
+        cosphi = np.cos(phis)
+        sinphi = np.sin(phis)
+        
+        # change the basis of the fields
+        Es_x = Es_theta*cosphi - Es_phi*sinphi
+        Es_y = Es_theta*sinphi + Es_phi*cosphi
+        Hs_x = Hs_theta*cosphi - Hs_phi*sinphi
+        Hs_y = Hs_theta*sinphi + Hs_phi*cosphi
+        
+        # calculate the scattered intensities 
+        I_x = Es_x*np.conj(Hs_y)
+        I_y = -Es_y*np.conj(Hs_x)
+        
+        return I_x.real, I_y.real
+    
+    else:
+        raise ValueError('The coordinate system specified has not yet been \
+                implemented. Change to \'cartesian\' or \'scattering plane\'')
+
+def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                                        phi_min=Quantity(0, 'rad'), 
-                                       phi_max=Quantity(2*np.pi, 'rad')):
+                                       phi_max=Quantity(2*np.pi, 'rad'),
+                                       coordinate_system = 'scattering plane',
+                                       phis = None):
     '''
     Calculates the scattering cross section by integrating the differential 
     scattered intensity obtained with the exact Mie solutions. The integration 
@@ -681,41 +786,87 @@ def integrate_intensity_complex_medium(I_par, I_perp, distance, theta, k,
     
     Parameters
     ----------
-    I_par, I_perp: differential scattered intensities
-    distance: distance away from the scatterer (Quantity in [length])
-    theta: array scattering angles (Quantity in rad)
+    I_1, I_2: nd arrays 
+        differential scattered intensities, can be functions of theta or of
+        theta and phi
+    distance: float (Quantity in [length])
+        distance away from the scatterer 
+    thetas: nd array (Quantity in rad)
+        scattering angles
     k: wavevector given by 2 * pi * n_medium / wavelength 
        (Quantity in [1/length])
-    phi_min: minimum azimuthal angle, default set to 0 (Quantity in rad).
-    phi_max: maximum azimuthal angle, default set to 2pi (Quantity in rad).
+    phi_min: float (Quantity in rad).
+        minimum azimuthal angle, default set to 0 
+        optional, only necessary if coordinate_system is 'scattering plane'
+    phi_max: float (Quantity in rad).
+        maximum azimuthal angle, default set to 2pi 
+        optional, only necessary if coordinate_system is 'scattering plane'
+    phis: None or ndarray
+        azimuthal angles
     
     Returns
     -------
-    sigma: integrated cross section (in units of length**2)
- 
+    sigma: float (in units of length**2)
+        integrated cross section 
+    sigma_1: float (in units of length**2)
+        integrated cross section for first component of basis
+    sigma_2: float (in units of length**2)
+        integrated cross section for second component of basis
+    dsigma_1: ndarray (in units of length**2)
+        differential cross section for first component of basis
+    dsigma_2: ndarray (in units of length**2)
+        differential cross section for second component of basis
+
     '''
     # convert to radians from whatever units the user specifies
-    theta = theta.to('rad').magnitude
-    phi_min = phi_min.to('rad').magnitude
-    phi_max = phi_max.to('rad').magnitude
+    thetas = thetas.to('rad').magnitude
+    
+    dsigma_1 = I_1 * distance**2  
+    dsigma_2 = I_2 * distance**2 
+    
+    if coordinate_system == 'scattering plane':
+        if phis != None:
+            warnings.warn('''azimuthal angles specified for scattering plane
+                          calculations. Scattering plane calculations do not
+                          depend on azimuthal angle, so specified values will
+                          be ignored''')
 
-    dsigma_par = I_par * distance**2  
-    dsigma_perp = I_perp * distance**2 
-                  
-    # Integrate over theta 
-    integrand_par = np.trapz(dsigma_par * np.abs(np.sin(theta)), 
-                             x=theta) * dsigma_par.units
-    integrand_perp = np.trapz(dsigma_perp * np.abs(np.sin(theta)), 
-                              x=theta) * dsigma_perp.units
- 
-    # integrate over phi: multiply by factor to integrate over phi
-    # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel 
-    # and perpendicular polarizations, respectively) 
-    sigma_par = (integrand_par * (phi_max/2 + np.sin(2*phi_max)/4 - 
-                     phi_min/2 - np.sin(2*phi_min)/4))     
-    sigma_perp = (integrand_perp * (phi_max/2 - np.sin(2*phi_max)/4 - 
-                      phi_min/2 + np.sin(2*phi_min)/4))
+        # convert to radians
+        phi_min = phi_min.to('rad').magnitude
+        phi_max = phi_max.to('rad').magnitude
                       
+        # Integrate over theta 
+        integrand_par = np.trapz(dsigma_1 * np.abs(np.sin(thetas)), 
+                                 x=thetas) * dsigma_1.units
+        integrand_perp = np.trapz(dsigma_2 * np.abs(np.sin(thetas)), 
+                                  x=thetas) * dsigma_2.units
+     
+        # integrate over phi: multiply by factor to integrate over phi
+        # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel 
+        # and perpendicular polarizations, respectively) 
+        sigma_1 = (integrand_par * (phi_max/2 + np.sin(2*phi_max)/4 - 
+                         phi_min/2 - np.sin(2*phi_min)/4))     
+        sigma_2 = (integrand_perp * (phi_max/2 - np.sin(2*phi_max)/4 - 
+                          phi_min/2 + np.sin(2*phi_min)/4))
+        
+    elif coordinate_system == 'cartesian':
+        if phis is None:
+            raise ValueError('phis set to None, but azimuthal angle must be \
+                        specified for scattering calculations in \
+                        cartesian coordinate system')
+            
+        # convert to radians
+        phis = phis.to('rad').magnitude
+                  
+        # Integrate over theta and phi
+        sigma_1 = np.trapz(np.trapz(dsigma_1 * np.abs(np.sin(thetas)), x=thetas, axis=1),
+                               x=phis, axis=0) * dsigma_1.units
+        sigma_2 = np.trapz(np.trapz(dsigma_2 * np.abs(np.sin(thetas)), x=thetas, axis=1),
+                               x=phis, axis=0) * dsigma_2.units
+    else:
+        raise ValueError('The coordinate system specified has not yet been \
+                implemented. Change to \'cartesian\' or \'scattering plane\'')
+                          
     # multiply by factor that accounts for attenuation in the incident light
     # (see Sudiarta and Chylek (2001), eq 10). 
     # if the imaginary part of k is close to 0 (because the medium index is 
@@ -727,12 +878,17 @@ def integrate_intensity_complex_medium(I_par, I_perp, distance, theta, k,
         exponent = np.exp(2*distance*k.imag)
         factor = 1 / (exponent / (2*distance*k.imag)+
                      (1 - exponent) / (2*distance*k.imag)**2)
-    sigma = (sigma_par + sigma_perp)/2 * factor
     
-    return(sigma, sigma_par*factor, sigma_perp*factor, dsigma_par*factor/2, 
-           dsigma_perp*factor/2)
+    # calculate the averaged sigma
+    sigma = (sigma_1 + sigma_2)/2 * factor
+    
+    if coordinate_system == 'cartesian':
+        sigma = sigma/2
+    
+    return(sigma, sigma_1*factor, sigma_2*factor, dsigma_1*factor/2, 
+           dsigma_2*factor/2)
 
-def diff_abs_intensity_complex_medium(m, x, theta, ktd):
+def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     '''   
     Calculates the differential absorbed intensity as a function of scattering
     angle theta when the medium has a non-zero imaginary component of the 
@@ -750,14 +906,14 @@ def diff_abs_intensity_complex_medium(m, x, theta, ktd):
     ----------
     m: complex relative refractive index 
     x: size parameter using the medium's refractive index 
-    theta: array of scattering angles (Quantity in rad)
+    thetas: array of scattering angles (Quantity in rad)
     ktd: kt * distance, where kt = 2*np.pi*n_particle/wavelen, and distance is 
         the distance away from the center of the particle. The far-field 
         solution is obtained when distance >> radius. (Quantity, dimensionless)
     
     Returns
     -------
-    I_par, I_perp: differential absoption intensities for an array of theta
+    I_par, I_perp: differential absorption intensities for an array of theta
                    (dimensionless).
     
     Reference
@@ -767,7 +923,7 @@ def diff_abs_intensity_complex_medium(m, x, theta, ktd):
     
     '''
     # convert units from whatever units the user specifies
-    theta = theta.to('rad').magnitude
+    thetas = thetas.to('rad').magnitude
     ktd = ktd.to('').magnitude
     
     # calculate mie coefficients
@@ -791,21 +947,16 @@ def diff_abs_intensity_complex_medium(m, x, theta, ktd):
     bessel_deriv = psishift - n*psi/ktd
     
     # calculate pis and taus at the scattering angles theta
-    pis = np.empty([len(theta), len(cn)])
-    taus = np.empty([len(theta), len(cn)])
-    for t in np.arange(len(theta)): 
-        angfuncs = _pis_and_taus(nstop, theta[t])
-        pis[t,:] = angfuncs[0]
-        taus[t,:] = angfuncs[1]
+    pis, taus = _pis_and_taus(nstop, thetas)
     
     # calculate the scattered electric and magnetic fields (omitting the 
     # sin(phi) and cos(phi) factors because they will be accounted for when
     # integrating to get the scattering cross section)
-    En = np.broadcast_to(En, [len(theta), len(En)])
-    cn = np.broadcast_to(cn, [len(theta), len(cn)])
-    dn = np.broadcast_to(dn, [len(theta), len(dn)])
-    zn = np.broadcast_to(zn, [len(theta), len(zn)]) 
-    bessel_deriv = np.broadcast_to(bessel_deriv,[len(theta),len(bessel_deriv)])                  
+    En = np.broadcast_to(En, [len(thetas), len(En)])
+    cn = np.broadcast_to(cn, [len(thetas), len(cn)])
+    dn = np.broadcast_to(dn, [len(thetas), len(dn)])
+    zn = np.broadcast_to(zn, [len(thetas), len(zn)]) 
+    bessel_deriv = np.broadcast_to(bessel_deriv,[len(thetas),len(bessel_deriv)])                  
     
     Et_theta = np.sum(En* (cn * pis * zn - 1j * dn * taus * bessel_deriv/ktd), 
                       axis=1)  # * cos(phi)
@@ -821,22 +972,211 @@ def diff_abs_intensity_complex_medium(m, x, theta, ktd):
     I_perp = m* Et_phi * np.conj(Ht_theta)
     
     return I_par.real, I_perp.real
-    
-def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, theta):
-    # amplitude scattering matrix from Mie coefficients
-    angfuncs = _pis_and_taus(n_stop, theta)
-    pis = angfuncs[0]
-    taus = angfuncs[1]
-    S1 = (prefactor*(coeffs[0]*pis + coeffs[1]*taus)).sum()
-    S2 = (prefactor*(coeffs[0]*taus + coeffs[1]*pis)).sum()
-    return np.array([S2,S1])
 
-def _amplitude_scattering_matrix_RG(prefactor, x, theta):
+def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering plane', 
+                        phis = None):
+    """
+    Calculates the amplitude scattering matrix for an n-dim array of thetas 
+    (and phis if in cartesian coordinate system)
+    
+    Elements of the amplitude scattering matrix are arranged as:
+    [S2  S3]
+    [S4  S1]    
+    
+    Change of basis from scattering plane to lab frame cartesian is calculated 
+    by multiplying M*S*(M^-1) where S is the amplitude scattering matrix and 
+    M is the change of basis matrix. The change of basis matrix M is:
+        
+    [cosphi  sinphi]
+    [sinphi -cosphi]
+    
+    (from Bohren and Huffman, 3.2, page 61)
+    
+    This matrix is equal to it's inverse, so we can get the scattering matrix 
+    in the cartesian coordinate system by multiplying:
+    
+    [cosphi  sinphi] * [S2  S3] * [cosphi  sinphi]
+    [sinphi -cosphi]   [S4  S1]   [sinphi -cosphi]
+    
+    in Mie theory, we have S3 = S4 = 0, so this simplifies to:
+        
+    =   [cosphi  sinphi] * [S2   0] * [cosphi  sinphi]
+        [sinphi -cosphi]   [0   S1]   [sinphi -cosphi]
+    
+    =   [cosphi  sinphi] * [S2*cosphi  S2*sinphi]
+        [sinphi -cosphi]   [S1*sinphi -S1*cosphi]
+        
+    =   [S2*cosphi**2 + S1*sinphi**2       S2*sinphi*cosphi - S1*sinphi*cosphi]
+        [S2*cosphi*sinphi-S1*cosphi*sinphi         S2*sinphi**2 + S1*cosphi**2]
+     
+    see pages 22-23,51-53 in Annie Stephenson lab notebook #3 for orignal notes 
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample  
+    x: float
+        size parameter  
+    thetas: nd array
+        theta angles 
+    coordinate_system: string
+        default value 'scattering plane' means scattering calculations will be 
+        carried out in the basis defined by basis vectors parallel and 
+        perpendicular to scattering plane. Variable also accepts value 
+        'cartesian' which scattering calculations will be carried out in the 
+        basis defined by basis vectors x and y in the lab frame, with z 
+        as the direction of propagation.
+    phis: None or ndarray
+        azimuthal angles for which to calculate the scattering matrix. In the
+        'scattering plane' coordinate system, the scattering matrix does not
+        depend on phi, so phi should be set to None. In the 'cartesian' 
+        coordinate system, the scattering matrix does depend on phi, so an 
+        array of values should be provided.
+
+    Returns:
+    --------
+    S1, S2, S3, S4: tuple of nd arrays 
+       amplitude scattering matrix elements for all theta. S2 and S1 have the 
+       same shape as theta. 
+    """
+    # calculate n-array 
+    nstop = _nstop(x)
+    n = np.arange(nstop)+1.
+    prefactor  = (2*n+1)/(n*(n+1))
+    
+    # calculate mie coefficients
+    coeffs = _scatcoeffs(m,x,nstop)
+    
+    # calculate amplitude scattering matrix in 'scattering plane' coordinate system 
+    S2_sp, S1_sp = _amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas)
+    S3_sp = 0
+    S4_sp = 0
+    
+    if coordinate_system == 'cartesian':
+        # raise error if no phis are specified
+        if phis is None:
+            raise ValueError('phis set to None, but azimuthal angle must be \
+                             specified for scattering calculations in \
+                             cartesian coordinate system')
+        
+        # calculate sines and cosines
+        cosphi = np.cos(phis)
+        sinphi = np.sin(phis)
+        
+        # calculate elements of scattering matrix
+        S1_xy = S2_sp*(sinphi)**2 + S1_sp*(cosphi)**2
+        S2_xy = S2_sp*(cosphi)**2 + S1_sp*(sinphi)**2 
+        S3_xy = S2_sp*sinphi*cosphi - S1_sp*sinphi*cosphi
+        S4_xy = S2_sp*cosphi*sinphi - S1_sp*cosphi*sinphi
+
+        return S1_xy, S2_xy, S3_xy, S4_xy
+    elif coordinate_system == 'scattering plane':
+        if phis != None:
+            warnings.warn('azimuthal angles specified for scattering plane \
+                          calculations. Scattering plane calculations do not \
+                          depend on azimuthal angle, so specified values will \
+                          be ignored')
+        return S1_sp, S2_sp, S3_sp, S4_sp
+    else:
+        raise ValueError('The coordinate system specified has not yet been \
+                implemented. Change to \'cartesian\' or \'scattering plane\'')
+
+    
+def vector_scattering_amplitude(m, x, thetas, incident_vector = None, coordinate_system = 'scattering plane', 
+                    phis = None):
+    '''
+    Calculates the vector scattering amplitude  for an nd array of thetas and 
+    phis
+    
+    When coordinate_system == 'scattering plane', the default incident 
+    electric field vector assumes that the incident light is unpolarized, 
+    so it is equally split between the parallel and perpendicular components 
+    of the electric field, so the vector scattering amplitude can be 
+    calculated by:
+        
+            [S2   0] * [1]  = [S2]
+            [0   S1]   [1]    [S1]
+            
+    where the vector is normalized after the multiplication
+    
+    When coordinate_system == 'cartesian', the default incident electric field 
+    vector assumes that the incident light is unpolarized, so it is equally 
+    split between the x and y components of the electric field, so the vector
+    scattering amplitude can be calculated by:
+        
+        [S2 S3] * [1] = [S2 + S3]
+        [S4 S1]   [1]   [S4 + S1]
+        
+    however, in most cases, if we are in the 'cartesian' coordinate system,
+    we are more interested in calculating the the scattered light given 
+    and initial polarization of the initial light, since this calculation cannot
+    be done in the 'scattering plane' coordinate system. If we assume the initial
+    polarization is in the +x direction, the vector scattering amplitude will
+    be:
+    
+        [S2 S3] * [1] = [S2]
+        [S4 S1]   [0] = [S4] 
+        
+    where the vector is normalized after the multiplication 
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample  
+    x: float
+        size parameter  
+    thetas: nd array
+        scattering angles
+    incident_vector: tuple
+        vector describing the incident electric field
+    coordinate_system: string
+        describes the coordinate system. Can be either 'scattering plane' or
+        'cartesian'
+    phis: nd array or None
+        azimuthal angles
+        
+        
+    Returns:
+    --------
+    vector scattering amplitude: tuple
+        tuple describing the vector scattering amplitude in the specified 
+        coordinate system. not normalized. 
+    '''
+    # calculate the amplitude scattering matrix
+    S1, S2, S3, S4 = amplitude_scattering_matrix(m, x, thetas, 
+                                                 coordinate_system = coordinate_system, 
+                                                 phis = phis)
+    
+    if coordinate_system == 'scattering plane':
+        if incident_vector is None:
+            incident_vector = (1,1) # assume unpolarized
+        vec_scat_amp_par = S2*incident_vector[0]
+        vec_scat_amp_perp = S1*incident_vector[1]
+        
+        return vec_scat_amp_par, vec_scat_amp_perp
+    
+    else:
+        if incident_vector is None:
+            incident_vector = (1,0) # assume x-polarized
+        vec_scat_amp_x = S2*incident_vector[0] + S3*incident_vector[1]
+        vec_scat_amp_y = S4*incident_vector[0] + S1*incident_vector[1]
+        
+        return vec_scat_amp_x, vec_scat_amp_y
+        
+
+def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, thetas):
+    # amplitude scattering matrix from Mie coefficients
+    pis, taus = _pis_and_taus(n_stop, thetas)
+    S1 = np.sum(prefactor*(coeffs[0]*pis + coeffs[1]*taus), axis=-1)
+    S2 = np.sum(prefactor*(coeffs[0]*taus + coeffs[1]*pis), axis=-1)
+    return S2, S1
+
+def _amplitude_scattering_matrix_RG(prefactor, x, thetas):
     # amplitude scattering matrix from Rayleigh-Gans approximation
-    u = 2 * x * np.sin(theta/2.)
+    u = 2 * x * np.sin(thetas/2.)
     S1 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u))
-    S2 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u)) * np.cos(theta)
-    return np.array([S2, S1])
+    S2 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u)) * np.cos(thetas)
+    return S2, S1
 
 
 
