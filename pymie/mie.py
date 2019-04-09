@@ -606,8 +606,10 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     in an absorbing medium". Applied Optics, 40, 9 (2001).
     '''
     # convert units from whatever units the user specifies
-    thetas = thetas.to('rad').magnitude
-    kd = kd.to('').magnitude
+    if isinstance(thetas, Quantity):
+        thetas = thetas.to('rad').magnitude
+    if isinstance(kd, Quantity):
+        kd = kd.to('').magnitude
     
     # calculate mie coefficients
     nstop = _nstop(np.array(x).max())   
@@ -788,7 +790,8 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     ----------
     I_1, I_2: nd arrays 
         differential scattered intensities, can be functions of theta or of
-        theta and phi
+        theta and phi. If a function of theta and phi, the theta dimension MUST
+        come first
     distance: float (Quantity in [length])
         distance away from the scatterer 
     thetas: nd array (Quantity in rad)
@@ -819,7 +822,8 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
 
     '''
     # convert to radians from whatever units the user specifies
-    thetas = thetas.to('rad').magnitude
+    if isinstance(thetas, Quantity):
+        thetas = thetas.to('rad').magnitude
     
     dsigma_1 = I_1 * distance**2  
     dsigma_2 = I_2 * distance**2 
@@ -835,9 +839,10 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         phi_min = phi_min.to('rad').magnitude
         phi_max = phi_max.to('rad').magnitude
                       
-        # Integrate over theta 
+        # Integrate over theta  
         integrand_par = np.trapz(dsigma_1 * np.abs(np.sin(thetas)), 
                                  x=thetas) * dsigma_1.units
+                                 
         integrand_perp = np.trapz(dsigma_2 * np.abs(np.sin(thetas)), 
                                   x=thetas) * dsigma_2.units
      
@@ -845,7 +850,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel 
         # and perpendicular polarizations, respectively) 
         sigma_1 = (integrand_par * (phi_max/2 + np.sin(2*phi_max)/4 - 
-                         phi_min/2 - np.sin(2*phi_min)/4))     
+                         phi_min/2 - np.sin(2*phi_min)/4))    
         sigma_2 = (integrand_perp * (phi_max/2 - np.sin(2*phi_max)/4 - 
                           phi_min/2 + np.sin(2*phi_min)/4))
         
@@ -856,13 +861,17 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                         cartesian coordinate system')
             
         # convert to radians
-        phis = phis.to('rad').magnitude
-                  
+        if isinstance(phis, Quantity):
+            phis = phis.to('rad').magnitude
+            
         # Integrate over theta and phi
-        sigma_1 = np.trapz(np.trapz(dsigma_1 * np.abs(np.sin(thetas)), x=thetas, axis=1),
-                               x=phis, axis=0) * dsigma_1.units
-        sigma_2 = np.trapz(np.trapz(dsigma_2 * np.abs(np.sin(thetas)), x=thetas, axis=1),
-                               x=phis, axis=0) * dsigma_2.units
+        thetas_bc = thetas.reshape((len(thetas),1)) # reshape for broadcasting
+        
+        sigma_1 = np.trapz(np.trapz(dsigma_1 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
+                               x=phis) * dsigma_1.units
+        sigma_2 = np.trapz(np.trapz(dsigma_2 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
+                               x=phis) * dsigma_2.units
+        
     else:
         raise ValueError('The coordinate system specified has not yet been \
                 implemented. Change to \'cartesian\' or \'scattering plane\'')
@@ -884,7 +893,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     
     if coordinate_system == 'cartesian':
         sigma = sigma/2
-    
+
     return(sigma, sigma_1*factor, sigma_2*factor, dsigma_1*factor/2, 
            dsigma_2*factor/2)
 

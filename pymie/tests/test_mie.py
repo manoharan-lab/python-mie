@@ -574,7 +574,7 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     n_particle = Quantity(1.59, '')
     thetas = Quantity(np.linspace(np.pi/2, np.pi, 2), 'rad')
     phis = Quantity(np.linspace(0, 2*np.pi, 4), 'rad')
-    thetas_2d, phis_2d = np.meshgrid(thetas, phis) 
+    thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape. 
     
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
@@ -608,7 +608,9 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
     thetas = Quantity(np.linspace(np.pi/2, np.pi, 4), 'rad')
     phis = Quantity(np.linspace(0, 2*np.pi, 3), 'rad')
-    thetas_2d, phis_2d = np.meshgrid(thetas, phis)
+    thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape. 
+                                                   # for integration, theta dimension must always come first,
+                                                   # which is not how it is done here
     thetas_2d = Quantity(thetas_2d, 'rad')
     
     # parameters for calculating scattering
@@ -642,11 +644,10 @@ def test_integrate_intensity_complex_medium_cartesian():
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    thetas = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
-    phis = Quantity(np.linspace(0, 2*np.pi, 20), 'rad')
-    thetas_2d, phis_2d = np.meshgrid(thetas, phis)
-    thetas_2d = Quantity(thetas_2d, 'rad')
-    
+    thetas = Quantity(np.linspace(0, np.pi, 20), 'rad')
+    phis = Quantity(np.linspace(0, 2*np.pi, 25), 'rad')
+    phis_2d, thetas_2d = np.meshgrid(phis, thetas) # remember, meshgrid shape is (len(thetas), len(phis))
+                                                   # and theta dimension MUST come first in these calculations
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
@@ -658,12 +659,11 @@ def test_integrate_intensity_complex_medium_cartesian():
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                             coordinate_system = 'cartesian', phis = phis_2d,
                             near_field=True)
-    
     I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd, 
                                                            near_field=True)
-
     
     # integrate the differential scattered intensities
+    print(I_x.shape)
     cscat_xy = mie.integrate_intensity_complex_medium(I_x, I_y, distance, thetas, k,
                          coordinate_system = 'cartesian', phis = phis)[0]
     
