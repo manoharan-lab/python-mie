@@ -625,19 +625,6 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     # calculate prefactor (omitting the incident electric field because it
     # cancels out when calculating the scattered intensity)
     En = 1j**n * (2*n+1) / (n*(n+1))
-
-    # calculate spherical Bessel function and derivative
-    nstop_array = np.arange(0,nstop+1)
-    jn = spherical_jn(nstop_array, kd)
-    yn = spherical_yn(nstop_array, kd)
-    zn = jn + 1j*yn
-    zn = zn[1:]
-    
-    _, xi = mie_specfuncs.riccati_psi_xi(kd, nstop)
-    xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
-    xi = xi[1:]
-    xishift = xishift[1:]
-    bessel_deriv = xishift - n*xi/kd
     
     # calculate pis and taus at the scattering angles theta
     pis, taus = _pis_and_taus(nstop, thetas)
@@ -651,15 +638,29 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     En = np.broadcast_to(En, th_shape)
     an = np.broadcast_to(an, th_shape)
     bn = np.broadcast_to(bn, th_shape)
-    zn = np.broadcast_to(zn, th_shape)
-    bessel_deriv = np.broadcast_to(bessel_deriv, th_shape)  
+
 
     # if exact Mie solutions are wanted (including the near field effects given
     # by the spherical Hankel terms). The near fields don't change the total 
     # cross section much, but the angle-dependence of the differential cross
     # section will be very different from the ones obtained with the far-field 
     # approximations. 
-    if near_field == True:     
+    if near_field == True:  
+        # calculate spherical Bessel function and derivative
+        nstop_array = np.arange(0,nstop+1)
+        jn = spherical_jn(nstop_array, kd)
+        yn = spherical_yn(nstop_array, kd)
+        zn = jn + 1j*yn
+        zn = zn[1:]
+    
+        _, xi = mie_specfuncs.riccati_psi_xi(kd, nstop)
+        xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
+        xi = xi[1:]
+        xishift = xishift[1:]
+        bessel_deriv = xishift - n*xi/kd
+        zn = np.broadcast_to(zn, th_shape)
+        bessel_deriv = np.broadcast_to(bessel_deriv, th_shape)  
+        
         Es_theta = np.sum(En* (1j * an * taus * bessel_deriv/kd - bn * pis * zn), 
                           axis=-1) 
         Es_phi = np.sum(En* (-1j * an * pis * bessel_deriv/kd + bn * taus * zn), 
@@ -670,11 +671,18 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
                           axis=-1) 
     # if the near field effects aren't desired, use the asymptotic form of the 
     # spherical Hankel function in the far field (p. 94 of Bohren and Huffman)
+    # note that these solutions are not currently used anywhere in mie.py. 
+    # They have been removed from the intensity calculations because it is 
+    # not necessary to include the full fields in intensity calculations for 
+    # far_field and the exponential term (which should cancel out in intensity
+    # calculatsion) can introduce rounding errors. We leave the expressions here
+    # in case users ever have a need to know the actual fields, rather than 
+    # the intensities.
     else:
         Es_theta = np.sum((2*n+1) / (n*(n+1)) * (an * taus + bn * pis), 
-                          axis=-1) * np.exp(1j*kd)/(-1j*kd)
+                          axis=-1)* np.exp(1j*kd)/(-1j*kd)
         Es_phi = -np.sum((2*n+1) / (n*(n+1)) * (an * pis + bn * taus), 
-                         axis=-1) * np.exp(1j*kd)/(-1j*kd)  
+                         axis=-1)* np.exp(1j*kd)/(-1j*kd)  
         Hs_phi = np.sum((2*n+1) / (n*(n+1))*(bn * pis + an * taus), 
                         axis=-1)* np.exp(1j*kd)/(-1j*kd)
         Hs_theta = np.sum((2*n+1) / (n*(n+1))* (bn *  taus + an * pis), 
@@ -683,7 +691,8 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     return Es_theta, Es_phi, Hs_theta, Hs_phi
     
 def diff_scat_intensity_complex_medium(m, x, thetas, kd, 
-        coordinate_system = 'scattering plane', phis = None, near_field=False):
+        coordinate_system = 'scattering plane', phis = None, near_field=False,
+        incident_vector=None):
     '''
     Calculates the differential scattered intensity. These solutions are valid 
     both in the near and far field. When the medium has a zero imaginary component
@@ -725,6 +734,52 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
         distance away from the center of the particle. The far-field solution
         is obtained when distance >> radius. (Quantity, dimensionless)
+    coordinate_system: string
+        default value 'scattering plane' means scattering calculations will be 
+        carried out in the basis defined by basis vectors parallel and 
+        perpendicular to scattering plane. Variable also accepts value 
+        'cartesian' which scattering calculations will be carried out in the 
+        basis defined by basis vectors x and y in the lab frame, with z 
+        as the direction of propagation.
+    phis: None or ndarray
+        azimuthal angles for which to calculate the diff scat intensity. In the
+        'scattering plane' coordinate system, the scattering matrix does not
+        depend on phi, so phi should be set to None. In the 'cartesian' 
+        coordinate system, the scattering matrix does depend on phi, so an 
+        array of values should be provided.
+    near_field: boolean
+        Set to True to include the near-fields. Cannot be set to True
+        while using coordinate_system='cartesian' because near field solutions 
+        are not implemented for cartesian coordinate system. Also cannot be set
+        to True if using an incident_vector that is not None (unpolarized for
+        'scattering plane' coordinate system). Often, the exact solutions 
+        that include the near fields aren't wanted, for ex when the total cross 
+        section calculation includes the structure factor, and the combination 
+        of the angle-dependent differential cross section multiplied by the 
+        structure factor gives very high cross sections at the surface of the 
+        particle. When we want to neglect the effect of the near fields and 
+        still integrate at the surface of the particle, we use the asymptotic  
+        form of the spherical Hankel function in the far field (p. 94 of Bohren  
+        and Huffman).
+    incident_vector: None or tuple
+        vector describing the incident electric field. It is multiplied by the 
+        amplitude scattering matrix to find the vector scattering amplitude. If
+        coordinate_system is 'scattering plane', then this vector should be in 
+        the 'scattering plane' basis, where the first element is the parallel 
+        component and the second element is the perpendicular component. If 
+        coordinate_system is 'cartesian', then this vector should be in the 
+        'cartesian' basis, where the first element is the x-component and the 
+        second element is the y-component. Note that the vector for unpolarized
+        light is the same in either basis, since either way it should be an 
+        equal mix between the two othogonal polarizations: (1,1). Note that if 
+        indicent_vector is None, the function assigns a value based on the 
+        coordinate system. For 'scattering plane', the assigned value is (1,1) 
+        because most scattering plane calculations we're interested in involve 
+        unpolarized light. For 'cartesian', the assigned value is (1,0) because
+        if we are going to the trouble to use the cartesian coordinate system, 
+        it is usually because we want to do calculations using polarization, 
+        and these calculations are much easier to convert to measured 
+        quantities when in the cartesian coordinate system.
     
     Returns
     -------
@@ -732,8 +787,13 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         tuple of the two orthogonal components of scattered intensity. If in
         cartesian coordinate system, each component is a function of theta and
         phi values. If in scattering plane coordinate system, each component 
-        is an array of theta values (dimensionless).
-    
+        is an array of theta values (dimensionless).These intensities are 
+        technically 'unitless.' The intensities would get their units from 
+        the E_n term in the fields, which gets its units from an E_0 term,
+        which is taken to be 1 here. To get an intensity with real units
+        you would need to multiply these by |E_0|**2 where E_0 is the amplitude
+        of the incident wave at the origin. 
+        
     References
     ----------
     C. F. Bohren and D. R. Huffman. Absorption and scattering of light by 
@@ -742,38 +802,44 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     in an absorbing medium". Applied Optics, 40, 9 (2001).
     
     '''
-    # calculate scattered fields in scattering plane coordinate system
-    Es_theta, Es_phi, Hs_theta, Hs_phi = _scat_fields_complex_medium(m, x, thetas, 
-                                                                     kd, near_field=near_field)
-    
-    if coordinate_system == 'scattering plane':
-        # calculate the scattered intensities 
-        I_par = Es_theta * np.conj(Hs_phi)
-        I_perp = -Es_phi * np.conj(Hs_theta) 
-
-        return I_par.real, I_perp.real
-    
-    elif coordinate_system == 'cartesian':
-        
-        # precalculate sines and cosines for speed
-        cosphi = np.cos(phis)
-        sinphi = np.sin(phis)
-        
-        # change the basis of the fields
-        Es_x = Es_theta*cosphi - Es_phi*sinphi
-        Es_y = Es_theta*sinphi + Es_phi*cosphi
-        Hs_x = Hs_theta*cosphi - Hs_phi*sinphi
-        Hs_y = Hs_theta*sinphi + Hs_phi*cosphi
-        
-        # calculate the scattered intensities 
-        I_x = Es_x*np.conj(Hs_y)
-        I_y = -Es_y*np.conj(Hs_x)
-        
-        return I_x.real, I_y.real
+    if near_field==True:
+        if coordinate_system == 'scattering plane':
+            # calculate scattered fields in scattering plane coordinate system
+            Es_theta, Es_phi, Hs_theta, Hs_phi = _scat_fields_complex_medium(m,
+                                        x,thetas, kd, near_field=near_field)
+            I_1 = Es_theta * np.conj(Hs_phi) # I_par
+            I_2 = -Es_phi * np.conj(Hs_theta) # I_perp
+        else:
+            raise ValueError('Near fields have not been implemented for the \
+                specified coordinate system. set near_field to False to\
+                calcalate scattered intensity')
     
     else:
-        raise ValueError('The coordinate system specified has not yet been \
-                implemented. Change to \'cartesian\' or \'scattering plane\'')
+    # If near field is not true, we don't actually need to calculate the fields
+    # to find the intensities. The field equations contain an imaginary 
+    # exponential term that cancels out when we multiply by the complex conjugate
+    # in Es_theta * np.conj(Hs_phi) to find the intensity. Testing has shown 
+    # that this exponential term can introduce rounding errors, particularly
+    # when the diff scat intensity is integrated to find a total cross section. 
+    # These rounding errors can be avoided by simply calculating the intensities
+    # using the vector scattering amplitude. These two methods are mathematically
+    # exactly the same. The difference is that the vector_scattering_amplitude
+    # does not include the exponential terms, so there is no rounding error. 
+        
+        # calculate vector scattering amplitude
+        vec_scat_amp_1, vec_scat_amp_2 = vector_scattering_amplitude(m, x, 
+                                            thetas,
+                                            coordinate_system=coordinate_system,
+                                            phis=phis, 
+                                            incident_vector = incident_vector)
+        
+        # calculate the intensities
+        # note that we divide by a factor of kd because the intensities
+        # calculated using the fields include this factor. 
+        I_1 = np.abs(vec_scat_amp_1/kd)**2 # par or x
+        I_2 = np.abs(vec_scat_amp_2/kd)**2 # perp or y
+
+    return I_1.real, I_2.real # real or abs?
 
 def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                                        phi_min=Quantity(0, 'rad'), 
@@ -825,6 +891,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     if isinstance(thetas, Quantity):
         thetas = thetas.to('rad').magnitude
     
+    # this line converts the unitless intensities to cross section
     dsigma_1 = I_1 * distance**2  
     dsigma_2 = I_2 * distance**2 
     
@@ -890,9 +957,6 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
-    
-    if coordinate_system == 'cartesian':
-        sigma = sigma/2
 
     return(sigma, sigma_1*factor, sigma_2*factor, dsigma_1*factor/2, 
            dsigma_2*factor/2)
@@ -1022,10 +1086,10 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
     
     Parameters:
     ----------
-    m: float
-        index ratio between the particle and sample  
-    x: float
-        size parameter  
+    m: float, or array 
+        index ratio between the particle and sample, array if multilayer particle  
+    x: float, or array
+        size parameter, array if multilayer particle  
     thetas: nd array
         theta angles 
     coordinate_system: string
@@ -1049,12 +1113,17 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
        same shape as theta. 
     """
     # calculate n-array 
-    nstop = _nstop(x)
+    nstop = _nstop(np.array(x).max())
     n = np.arange(nstop)+1.
     prefactor  = (2*n+1)/(n*(n+1))
     
     # calculate mie coefficients
-    coeffs = _scatcoeffs(m,x,nstop)
+    # if the index ratio m is an array with more than 1 element, it's a 
+    # multilayer particle
+    if len(np.atleast_1d(m)) > 1:
+        coeffs = msl.scatcoeffs_multi(m, x)
+    else:
+        coeffs = _scatcoeffs(m, x, nstop)
     
     # calculate amplitude scattering matrix in 'scattering plane' coordinate system 
     S2_sp, S1_sp = _amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas)
@@ -1095,7 +1164,9 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None, coordinate
                     phis = None):
     '''
     Calculates the vector scattering amplitude  for an nd array of thetas and 
-    phis
+    phis. For more info on the vector scattering amplitude and how to 
+    calculate it, see Bohren and Huffman, pg 70-73 of section 3.4 Extinction, 
+    Scattering, and Absorption.
     
     When coordinate_system == 'scattering plane', the default incident 
     electric field vector assumes that the incident light is unpolarized, 
@@ -1108,8 +1179,8 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None, coordinate
             
     where the vector is normalized after the multiplication
     
-    When coordinate_system == 'cartesian', the default incident electric field 
-    vector assumes that the incident light is unpolarized, so it is equally 
+    When coordinate_system == 'cartesian', if the incident electric field 
+    vector indicates the incident light is unpolarized, it is equally 
     split between the x and y components of the electric field, so the vector
     scattering amplitude can be calculated by:
         
@@ -1126,7 +1197,8 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None, coordinate
         [S2 S3] * [1] = [S2]
         [S4 S1]   [0] = [S4] 
         
-    where the vector is normalized after the multiplication 
+    where the vector is normalized after the multiplication. The default value
+    is then +x when set to incident_vector is set to None. 
     
     Parameters:
     ----------
@@ -1136,8 +1208,25 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None, coordinate
         size parameter  
     thetas: nd array
         scattering angles
-    incident_vector: tuple
-        vector describing the incident electric field
+    incident_vector: None or tuple
+        vector describing the incident electric field. It is multiplied by the 
+        amplitude scattering matrix to find the vector scattering amplitude. If
+        coordinate_system is 'scattering plane', then this vector should be in 
+        the 'scattering plane' basis, where the first element is the parallel 
+        component and the second element is the perpendicular component. If 
+        coordinate_system is 'cartesian', then this vector should be in the 
+        'cartesian' basis, where the first element is the x-component and the 
+        second element is the y-component. Note that the vector for unpolarized
+        light is the same in either basis, since either way it should be an 
+        equal mix between the two othogonal polarizations: (1,1). Note that if 
+        incident_vector is None, the function assigns a value based on the 
+        coordinate system. For 'scattering plane', the assigned value is (1,1) 
+        because most scattering plane calculations we're interested in involve 
+        unpolarized light. For 'cartesian', the assigned value is (1,0) because
+        if we are going to the trouble to use the cartesian coordinate system, 
+        it is usually because we want to do calculations using polarization, 
+        and these calculations are much easier to convert to measured 
+        quantities when in the cartesian coordinate system.
     coordinate_system: string
         describes the coordinate system. Can be either 'scattering plane' or
         'cartesian'

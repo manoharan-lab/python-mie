@@ -453,7 +453,7 @@ def test_cross_section_complex_medium():
     n_particle = Quantity(1.5+0.01j,'') 
     n_matrix = Quantity(1.0,'') 
     radius = Quantity(150,'nm')
-    theta = Quantity(np.linspace(0, np.pi, 1000), 'rad')
+    theta = Quantity(np.linspace(0, np.pi, 1000), 'rad')#1000
     distance = Quantity(10000,'nm')
 
     
@@ -485,7 +485,12 @@ def test_cross_section_complex_medium():
                                                                      rho_scat)
     cscat_exact = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
                                                          distance, theta, k)[0]
-
+    
+    # check that new equations without expontential term matches old result
+    # exponential term which should cancel out was removed due to rounding errors
+    cscat_exact_old = 0.15417313385938064
+    assert_almost_equal(cscat_exact_old, cscat_exact.to('um^2').magnitude)
+    
     assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_mie.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_sudiarta.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_fu.to('um^2').magnitude, decimal=6)
@@ -522,6 +527,11 @@ def test_cross_section_complex_medium():
                                                                      rho_scat, near_field=True)
     cscat_exact2 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
                                                          distance, theta, k)[0]
+    
+    # check that new equations without expontential term matches old result
+    # exponential term which should cancel out was removed due to rounding errors
+    cscat_exact_old2 =0.15367853013627647
+    assert_almost_equal(cscat_exact_old2, cscat_exact2.to('um^2').magnitude)
 
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_sudiarta2.to('um^2').magnitude, decimal=4)
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_fu2.to('um^2').magnitude, decimal=4)
@@ -537,13 +547,48 @@ def test_cross_section_complex_medium():
     # With exact Mie solutions
     I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
                                                                      rho_scat)
+    
     cscat_exact3 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
                                                          distance, theta, k)[0]
     
     # With far-field Mie solutions                                                     
     cscat_mie3 = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
     
+    # check that new equations without expontential term matches old result
+    # exponential term which should cancel out was removed due to rounding errors
+    cscat_exact_old3 = 0.15417310571064319
+    assert_almost_equal(cscat_exact_old3, cscat_exact3.to('um^2').magnitude)
+    
     assert_almost_equal(cscat_exact3.to('um^2').magnitude, cscat_mie3.to('um^2').magnitude, decimal=4)
+
+
+def test_multilayer_complex_medium():
+    # test that the form factor and cross sections are the same for a real 
+    # index ratio m and a complex index ratio with a 0 imaginary component
+    marray = [1.15, 1.2]  
+    n_sample = Quantity(1.5 + 0j, '')
+    wavelen = Quantity('500 nm')
+    multi_radius = Quantity(np.array([100, 110]),'nm')   
+    xarray = size_parameter(wavelen, n_sample, multi_radius)
+    angles = Quantity(np.linspace(0, np.pi, 10000), 'rad')
+    distance = Quantity(110,'nm')
+    k =  2*np.pi*n_sample/wavelen
+    kd = k*distance
+    
+    # With far-field Mie solutions
+    cscat_real = mie.calc_cross_sections(marray, xarray, wavelen/n_sample)[0]
+    
+    # with imag solutions
+    I_par_multi, I_perp_multi = mie.diff_scat_intensity_complex_medium(marray, xarray, angles, kd)
+    cscat_imag = mie.integrate_intensity_complex_medium(I_par_multi, I_perp_multi, 
+                                                         distance, angles, k)[0]
+    
+    # check that new equations without expontential term matches old result
+    # exponential term which should cancel out was removed due to rounding errors
+    cscat_imag_old = 6275.240019849266
+    assert_almost_equal(cscat_imag_old, cscat_imag.magnitude)
+    
+    assert_array_almost_equal(cscat_real, cscat_imag, decimal=3)
 
 
 def test_vector_scattering_amplitude_2d_theta_cartesian():
@@ -596,7 +641,8 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
 def test_diff_scat_intensity_complex_medium_cartesian():
     '''
     Test that the magnitude of the differential scattered intensity is the 
-    same in the xy basis as it is in the parallel, perpendicular basis
+    same in the xy basis as it is in the parallel, perpendicular basis, as 
+    long as the incident light is unpolarized for both
     
     This should be true because a rotation around phi brings the par/perp basis
     into the x,y basis
@@ -618,21 +664,23 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     x = size_parameter(wavelen, n_matrix, radius)
     kd = 2*np.pi*n_matrix/wavelen*Quantity(10000,'nm')
     
-    # calculate differential scattered intensity in xy basis
-    I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
-                            coordinate_system = 'cartesian', phis = phis_2d, 
-                            near_field=True)
-    
     # calcualte differential scattered intensity in par/perp basis
     I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
-                                                           near_field=True)
+                                                           near_field=False)
+    
+    # calculate differential scattered intensity in xy basis
+    # if incident vector is unpolarized (1,1), then the resulting differential
+    # scattered intensity should be the same as I_par, I_perp
+    I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
+                            coordinate_system = 'cartesian', phis = phis_2d, 
+                            near_field=False, incident_vector = (1, 1))
     
     # assert equality of their magnitudes
     I_xy_mag = np.sqrt(I_x**2 + I_y**2)
     I_par_perp_mag = np.sqrt(I_par**2 + I_perp**2)
     
     # check that the magnitudes are equal
-    assert_almost_equal(I_xy_mag, I_par_perp_mag)
+    assert_array_almost_equal(I_xy_mag, I_par_perp_mag, decimal=16)
    
 def test_integrate_intensity_complex_medium_cartesian():
     '''
@@ -644,8 +692,8 @@ def test_integrate_intensity_complex_medium_cartesian():
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    thetas = Quantity(np.linspace(0, np.pi, 20), 'rad')
-    phis = Quantity(np.linspace(0, 2*np.pi, 25), 'rad')
+    thetas = Quantity(np.linspace(0, np.pi, 500), 'rad')
+    phis = Quantity(np.linspace(0, 2*np.pi, 550), 'rad')
     phis_2d, thetas_2d = np.meshgrid(phis, thetas) # remember, meshgrid shape is (len(thetas), len(phis))
                                                    # and theta dimension MUST come first in these calculations
     # parameters for calculating scattering
@@ -658,17 +706,25 @@ def test_integrate_intensity_complex_medium_cartesian():
     # calculate the differenetial scattered intensities
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                             coordinate_system = 'cartesian', phis = phis_2d,
-                            near_field=True)
+                            near_field=False)
     I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd, 
-                                                           near_field=True)
+                                                           near_field=False)
     
     # integrate the differential scattered intensities
-    print(I_x.shape)
     cscat_xy = mie.integrate_intensity_complex_medium(I_x, I_y, distance, thetas, k,
                          coordinate_system = 'cartesian', phis = phis)[0]
     
+    # check that new equations without expontential term matches old result
+    # exponential term which should cancel out was removed due to rounding errors
+    cscat_xy_old = 6126591.1040017959
+    assert_almost_equal(cscat_xy_old, cscat_xy.magnitude)
+    
     cscat_parperp = mie.integrate_intensity_complex_medium(I_par, I_perp, 
                                                          distance, thetas, k)[0]
+    
+    # The old value for this result: cscat_parperp_old = 6010696.7108612377
+    # should not be equal to the current value because we removed an exponential
+    # term due to rounding errors 
     
     # check that the integrated cross sections are equal
     assert_almost_equal(cscat_xy.magnitude, cscat_parperp.magnitude)
@@ -701,10 +757,14 @@ def test_value_errors():
                             coordinate_system = 'weird', phis = phis_2d, 
                             near_field=True)
     
+        # try to calculate new
+        I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
+                                coordinate_system = 'cartesian', phis = phis_2d, 
+                                near_field=True)
     # calculate the differenetial scattered intensities
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                            coordinate_system = 'cartesian', phis = phis_2d, 
-                            near_field=True)
+                                coordinate_system = 'cartesian', phis = phis_2d, 
+                                near_field=False)
     
     I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd, 
                             near_field=True)
