@@ -77,7 +77,8 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     Bohren & Huffman ch. 3 for details.)
     """
     # convert to radians from whatever units the user specifies
-    angles = angles.to('rad').magnitude
+    if isinstance(angles, Quantity):
+        angles = angles.to('rad').magnitude
 
     #initialize arrays for holding ipar and iperp
     ipar = np.array([])
