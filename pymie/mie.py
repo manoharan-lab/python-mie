@@ -639,22 +639,28 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     En = np.broadcast_to(En, th_shape)
     an = np.broadcast_to(an, th_shape)
     bn = np.broadcast_to(bn, th_shape)
-    zn = np.broadcast_to(zn, th_shape)
-    bessel_deriv = np.broadcast_to(bessel_deriv, th_shape)  
 
     # if exact Mie solutions are wanted (including the near field effects given
     # by the spherical Hankel terms). The near fields don't change the total 
     # cross section much, but the angle-dependence of the differential cross
     # section will be very different from the ones obtained with the far-field 
     # approximations. 
-    # Note that these solutions are not currently used anywhere in mie.py. 
-    # They have been removed from the intensity calculations because it is 
-    # not necessary to include the full fields in intensity calculations for 
-    # far_field, and the exponential term (which should cancel out in intensity
-    # calculation) can introduce rounding errors. We leave the expressions here
-    # in case users ever have a need to know the actual fields, rather than 
-    # the intensities.
-    if near_field == True:     
+    if near_field == True:  
+        # calculate spherical Bessel function and derivative
+        nstop_array = np.arange(0,nstop+1)
+        jn = spherical_jn(nstop_array, kd)
+        yn = spherical_yn(nstop_array, kd)
+        zn = jn + 1j*yn
+        zn = zn[1:]
+    
+        _, xi = mie_specfuncs.riccati_psi_xi(kd, nstop)
+        xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
+        xi = xi[1:]
+        xishift = xishift[1:]
+        bessel_deriv = xishift - n*xi/kd
+        zn = np.broadcast_to(zn, th_shape)
+        bessel_deriv = np.broadcast_to(bessel_deriv, th_shape)  
+        
         Es_theta = np.sum(En* (1j * an * taus * bessel_deriv/kd - bn * pis * zn), 
                           axis=-1) 
         Es_phi = np.sum(En* (-1j * an * pis * bessel_deriv/kd + bn * taus * zn), 
@@ -663,8 +669,16 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
                         axis=-1)
         Hs_theta = np.sum(En* (1j * bn * taus * bessel_deriv/kd - an * pis * zn), 
                           axis=-1) 
+    # note that these solutions are not currently used anywhere in mie.py. 
+    # They have been removed from the intensity calculations because it is 
+    # not necessary to include the full fields in intensity calculations for 
+    # far_field and the exponential term (which should cancel out in intensity
+    # calculatsion) can introduce rounding errors. We leave the expressions here
+    # in case users ever have a need to know the actual fields, rather than 
+    # the intensities.
+                          
     # if the near field effects aren't desired, use the asymptotic form of the 
-    # spherical Hankel function in the far field (p. 94 of Bohren and Huffman).
+    # spherical Hankel function in the far field (p. 94 of Bohren and Huffman)
     else:
         Es_theta = np.sum((2*n+1) / (n*(n+1)) * (an * taus + bn * pis), 
                           axis=-1)* np.exp(1j*kd)/(-1j*kd)
@@ -800,6 +814,8 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
             raise ValueError('Near fields have not been implemented for the \
                 specified coordinate system. set near_field to False to\
                 calculate scattered intensity')
+
+    
     else:
     # If near field is not true, we don't actually need to calculate the fields
     # to find the intensities. The field equations contain an imaginary 
