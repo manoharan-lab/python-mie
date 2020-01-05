@@ -547,17 +547,17 @@ def test_cross_section_complex_medium():
     # With exact Mie solutions
     I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
                                                                      rho_scat)
-    
+
     cscat_exact3 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
                                                          distance, theta, k)[0]
     
     # With far-field Mie solutions                                                     
     cscat_mie3 = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
-    
-    # check that new equations without expontential term matches old result
+
+    # check that new equations without expontential term matches old result.
     # exponential term which should cancel out was removed due to rounding errors
     cscat_exact_old3 = 0.15417310571064319
-    assert_almost_equal(cscat_exact_old3, cscat_exact3.to('um^2').magnitude)
+    assert_almost_equal(cscat_exact_old3, cscat_exact3.to('um^2').magnitude)    
     
     assert_almost_equal(cscat_exact3.to('um^2').magnitude, cscat_mie3.to('um^2').magnitude, decimal=4)
 
@@ -583,7 +583,7 @@ def test_multilayer_complex_medium():
     cscat_imag = mie.integrate_intensity_complex_medium(I_par_multi, I_perp_multi, 
                                                          distance, angles, k)[0]
     
-    # check that new equations without expontential term matches old result
+    # check that new equations without expontential term matches old result.
     # exponential term which should cancel out was removed due to rounding errors
     cscat_imag_old = 6275.240019849266
     assert_almost_equal(cscat_imag_old, cscat_imag.magnitude)
@@ -664,7 +664,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     x = size_parameter(wavelen, n_matrix, radius)
     kd = 2*np.pi*n_matrix/wavelen*Quantity(10000,'nm')
     
-    # calcualte differential scattered intensity in par/perp basis
+    # calculate differential scattered intensity in par/perp basis
     I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
                                                            near_field=False)
     
@@ -703,7 +703,7 @@ def test_integrate_intensity_complex_medium_cartesian():
     distance = Quantity(10000,'nm')
     kd = k*distance
     
-    # calculate the differenetial scattered intensities
+    # calculate the differential scattered intensities
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                             coordinate_system = 'cartesian', phis = phis_2d,
                             near_field=False)

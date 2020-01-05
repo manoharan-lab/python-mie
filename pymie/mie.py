@@ -640,7 +640,6 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     an = np.broadcast_to(an, th_shape)
     bn = np.broadcast_to(bn, th_shape)
 
-
     # if exact Mie solutions are wanted (including the near field effects given
     # by the spherical Hankel terms). The near fields don't change the total 
     # cross section much, but the angle-dependence of the differential cross
@@ -670,8 +669,6 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
                         axis=-1)
         Hs_theta = np.sum(En* (1j * bn * taus * bessel_deriv/kd - an * pis * zn), 
                           axis=-1) 
-    # if the near field effects aren't desired, use the asymptotic form of the 
-    # spherical Hankel function in the far field (p. 94 of Bohren and Huffman)
     # note that these solutions are not currently used anywhere in mie.py. 
     # They have been removed from the intensity calculations because it is 
     # not necessary to include the full fields in intensity calculations for 
@@ -679,6 +676,9 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     # calculatsion) can introduce rounding errors. We leave the expressions here
     # in case users ever have a need to know the actual fields, rather than 
     # the intensities.
+                          
+    # if the near field effects aren't desired, use the asymptotic form of the 
+    # spherical Hankel function in the far field (p. 94 of Bohren and Huffman)
     else:
         Es_theta = np.sum((2*n+1) / (n*(n+1)) * (an * taus + bn * pis), 
                           axis=-1)* np.exp(1j*kd)/(-1j*kd)
@@ -813,7 +813,8 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         else:
             raise ValueError('Near fields have not been implemented for the \
                 specified coordinate system. set near_field to False to\
-                calcalate scattered intensity')
+                calculate scattered intensity')
+
     
     else:
     # If near field is not true, we don't actually need to calculate the fields
