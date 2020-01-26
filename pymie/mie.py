@@ -806,6 +806,9 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     in an absorbing medium". Applied Optics, 40, 9 (2001).
     
     '''
+    if isinstance(kd, Quantity):
+        kd = kd.to('')
+        
     if near_field==True:
         if coordinate_system == 'scattering plane':
             # calculate scattered fields in scattering plane coordinate system
@@ -839,7 +842,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         factor = np.exp(-2*kd.imag) / ((kd.real)**2 + (kd.imag)**2) 
         I_1 = (np.abs(vec_scat_amp_1)**2)*factor.to('') # par or x  
         I_2 = (np.abs(vec_scat_amp_2)**2)*factor.to('') # perp or y
-        
+
     return I_1.real, I_2.real # the intensities should be real
 
 def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
@@ -960,7 +963,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         exponent = np.exp(2*distance*k.imag)
         factor = 1 / (exponent / (2*distance*k.imag)+
                      (1 - exponent) / (2*distance*k.imag)**2)
-    
+
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
 
