@@ -22,8 +22,9 @@ multilayer_sphere_lib.py
 Author:
 Jerome Fung (fung@physics.harvard.edu)
 
-Copied from holopy on 12 Sept 2017. Functions to calculate the scattering from a spherically symmetric particle 
-with an arbitrary number of layers with different refractive indices. 
+Copied from holopy on 12 Sept 2017. Functions to calculate the scattering from 
+a spherically symmetric particle with an arbitrary number of layers with 
+different refractive indices. 
 
 Key reference for multilayer algorithm:
 Yang, "Improved recursive algorithm for light scattering by a multilayered 

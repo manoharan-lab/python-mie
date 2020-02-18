@@ -551,17 +551,17 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
 def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     '''
     Calculates the scattered fields as a function of scattering
-    angle theta using the exact Mie solutions. These solutions are valid both 
+    angle theta using the full Mie solutions. These solutions are valid both 
     in the near and far field. When the medium has a zero imaginary component
-    of the refractive index (is non-absorbing), the exact solutions at the far
+    of the refractive index (is non-absorbing), the full solutions at the far
     field match the standard far-field Mie solutions given by 
     calc_cross_sections. This is not the case when there is absorption because
-    the far-field solutions assume an arbitrary distance far away, so they 
+    the standard far-field solutions assume an arbitrary distance far away, so they 
     don't depend on the distance from the scatterer. And when the medium 
     absorbs, the cross sections should really depend on the distance away at 
     which we integrate the differential cross sections. The phase function, 
     (diff cross section / total cross section) is the same when calculated with 
-    the exact Mie solutions in the far field as when calculated with the 
+    the full Mie solutions in the far field as when calculated with the 
     far-field Mie solutions because this ratio does not depend on how far we 
     integrate from the scatterer. 
 
@@ -581,10 +581,11 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     x: size parameter using the medium's refractive index 
     thetas: array of scattering angles (Quantity in rad)
     kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
-        distance away from the center of the particle. The far-field solution
-        is obtained when distance >> radius. (Quantity, dimensionless)
+        distance away from the center of the particle. The standard far-field 
+        solution is obtained when distance >> radius in a non absorbing medium. 
+        (Quantity, dimensionless)
     near_field: boolean
-        Set to True to include the near-fields. Sometimes the exact solutions 
+        Set to True to include the near-fields. Sometimes the full solutions 
         that include the near fields aren't wanted, for ex when the total cross 
         section calculation includes the structure factor, and the combination 
         of the angle-dependent differential cross section multiplied by the 
@@ -640,11 +641,13 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     an = np.broadcast_to(an, th_shape)
     bn = np.broadcast_to(bn, th_shape)
 
-    # if exact Mie solutions are wanted (including the near field effects given
+    # if full Mie solutions are wanted (including the near field effects given
     # by the spherical Hankel terms). The near fields don't change the total 
     # cross section much, but the angle-dependence of the differential cross
     # section will be very different from the ones obtained with the far-field 
-    # approximations. 
+    # approximations. If kd is large (if we're in the far field) in a non 
+    # absorbing medium, then the full solutions reduce down to the standard 
+    # far-field solutions given by calc_cross_sections().
     if near_field == True:  
         # calculate spherical Bessel function and derivative
         nstop_array = np.arange(0,nstop+1)
@@ -669,13 +672,6 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
                         axis=-1)
         Hs_theta = np.sum(En* (1j * bn * taus * bessel_deriv/kd - an * pis * zn), 
                           axis=-1) 
-    # note that these solutions are not currently used anywhere in mie.py. 
-    # They have been removed from the intensity calculations because it is 
-    # not necessary to include the full fields in intensity calculations for 
-    # far_field and the exponential term (which should cancel out in intensity
-    # calculatsion) can introduce rounding errors. We leave the expressions here
-    # in case users ever have a need to know the actual fields, rather than 
-    # the intensities.
                           
     # if the near field effects aren't desired, use the asymptotic form of the 
     # spherical Hankel function in the far field (p. 94 of Bohren and Huffman)
@@ -688,17 +684,23 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
                         axis=-1)* np.exp(1j*kd)/(-1j*kd)
         Hs_theta = np.sum((2*n+1) / (n*(n+1))* (bn *  taus + an * pis), 
                           axis=-1)* np.exp(1j*kd)/(-1j*kd) 
-                      
+        # note that these solutions are not currently used anywhere in mie.py. 
+        # When the fields are multiplied to calculate the intensity, the 
+        # exponential terms reduce down to a term that depends on kd (see
+        # diff_scat_intensity_complex_medium(). So these equations lead to 
+        # intensities that are the same as those calculated with the scattering 
+        # matrix in diff_scat_intensity_complex_medium().
+        # We leave the expressions here in case users ever have a need to know 
+        # the actual fields, rather than the intensities.
+                          
     return Es_theta, Es_phi, Hs_theta, Hs_phi
     
 def diff_scat_intensity_complex_medium(m, x, thetas, kd, 
         coordinate_system = 'scattering plane', phis = None, near_field=False,
         incident_vector=None):
     '''
-    Calculates the differential scattered intensity. These solutions are valid 
-    both in the near and far field. When the medium has a zero imaginary component
-    of the refractive index (is non-absorbing), the exact solutions at the far 
-    field match the standard far-field Mie solutions given by calc_cross_sections.
+    Calculates the differential scattered intensity in an absorbing medium. 
+    User can choose whether to include near fields. 
     
     When coordinate_system == 'scattering plane':. 
        The solutions are given as a function of scattering angle theta. 
@@ -715,9 +717,9 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     
     When coordinate_system == 'cartesian':
         The solutions are given as a function of scattering angle theta and 
-        azimuthal angle phi
+        azimuthal angle phi.
       
-        The differential scattered intensity is computing by substituting the
+        The differential scattered intensity is computed by substituting the
         scattered electric and magnetic fields into the z-component of the Poynting
         vector:
             
@@ -733,8 +735,9 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     x: size parameter using the medium's refractive index 
     thetas: array of scattering angles (Quantity in rad)
     kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
-        distance away from the center of the particle. The far-field solution
-        is obtained when distance >> radius. (Quantity, dimensionless)
+        distance away from the center of the particle. The standard far-field 
+        solutions are obtained when distance >> radius in a non-absorbing 
+        medium. (Quantity, dimensionless)
     coordinate_system: string
         default value 'scattering plane' means scattering calculations will be 
         carried out in the basis defined by basis vectors parallel and 
@@ -749,11 +752,11 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         coordinate system, the scattering matrix does depend on phi, so an 
         array of values should be provided.
     near_field: boolean
-        Set to True to include the near-fields. Cannot be set to True
+        True to include the near-fields (default is False). Cannot be set to True
         while using coordinate_system='cartesian' because near field solutions 
         are not implemented for cartesian coordinate system. Also cannot be set
         to True if using an incident_vector that is not None (unpolarized for
-        'scattering plane' coordinate system). Often, the exact solutions 
+        'scattering plane' coordinate system). Often, the full solutions 
         that include the near fields aren't wanted, for ex when the total cross 
         section calculation includes the structure factor, and the combination 
         of the angle-dependent differential cross section multiplied by the 
@@ -773,7 +776,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         second element is the y-component. Note that the vector for unpolarized
         light is the same in either basis, since either way it should be an 
         equal mix between the two othogonal polarizations: (1,1). Note that if 
-        indicent_vector is None, the function assigns a value based on the 
+        incident_vector is None, the function assigns a value based on the 
         coordinate system. For 'scattering plane', the assigned value is (1,1) 
         because most scattering plane calculations we're interested in involve 
         unpolarized light. For 'cartesian', the assigned value is (1,0) because
@@ -803,6 +806,9 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     in an absorbing medium". Applied Optics, 40, 9 (2001).
     
     '''
+    if isinstance(kd, Quantity):
+        kd = kd.to('')
+        
     if near_field==True:
         if coordinate_system == 'scattering plane':
             # calculate scattered fields in scattering plane coordinate system
@@ -817,17 +823,6 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
 
     
     else:
-    # If near field is not true, we don't actually need to calculate the fields
-    # to find the intensities. The field equations contain an imaginary 
-    # exponential term that cancels out when we multiply by the complex conjugate
-    # in Es_theta * np.conj(Hs_phi) to find the intensity. Testing has shown 
-    # that this exponential term can introduce rounding errors, particularly
-    # when the diff scat intensity is integrated to find a total cross section. 
-    # These rounding errors can be avoided by simply calculating the intensities
-    # using the vector scattering amplitude. These two methods are mathematically
-    # exactly the same. The difference is that the vector_scattering_amplitude
-    # does not include the exponential terms, so there is no rounding error. 
-        
         # calculate vector scattering amplitude
         vec_scat_amp_1, vec_scat_amp_2 = vector_scattering_amplitude(m, x, 
                                             thetas,
@@ -835,13 +830,20 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
                                             phis=phis, 
                                             incident_vector = incident_vector)
         
-        # calculate the intensities
-        # note that we divide by a factor of kd because the intensities
-        # calculated using the fields include this factor. 
-        I_1 = np.abs(vec_scat_amp_1/kd)**2 # par or x
-        I_2 = np.abs(vec_scat_amp_2/kd)**2 # perp or y
+        # calculate the intensities. We multiply by a factor that accounts for
+        # the dependence of the intensity on the distance away d from the scatterer,
+        # which is necessary when the medium is absorbing. The factor is derived
+        # from the multiplication of the exponential term (the asymptotic
+        # form at large d of the spherical Hankel equations, which account for
+        # near fields, see _scat_fields_complex_medium()) with its conjugate, 
+        # assuming that k can be complex. The form reduces down to 1/(kd)^2 
+        # when k is real, which is the factor usually used to get the final 
+        # intensity in a non-absorbing medium (p. 113 of Bohren and Huffman).
+        factor = np.exp(-2*kd.imag) / ((kd.real)**2 + (kd.imag)**2) 
+        I_1 = (np.abs(vec_scat_amp_1)**2)*factor.to('') # par or x  
+        I_2 = (np.abs(vec_scat_amp_2)**2)*factor.to('') # perp or y
 
-    return I_1.real, I_2.real # real or abs?
+    return I_1.real, I_2.real # the intensities should be real
 
 def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                                        phi_min=Quantity(0, 'rad'), 
@@ -850,9 +852,11 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                                        phis = None):
     '''
     Calculates the scattering cross section by integrating the differential 
-    scattered intensity obtained with the exact Mie solutions. The integration 
-    is done over scattering angles theta and azimuthal angles phi using the
-    trapezoid rule.  
+    scattered intensity at a distance of our choice in an absorbing medium. 
+    Choosing the right distance is essential in an absorbing medium because the 
+    differential scattering intensities decrease with increasing distance.  
+    The integration is done over scattering angles theta and azimuthal angles 
+    phi using the trapezoid rule.  
     
     Parameters
     ----------
@@ -894,9 +898,12 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         thetas = thetas.to('rad').magnitude
     
     # this line converts the unitless intensities to cross section
+    # Multiply by distance (= to radius of particle in montecarlo.py) because
+    # this is the integration factor over solid angles (see eq. 4.58 in 
+    # Bohren and Huffman). 
     dsigma_1 = I_1 * distance**2  
     dsigma_2 = I_2 * distance**2 
-    
+
     if coordinate_system == 'scattering plane':
         if phis != None:
             warnings.warn('''azimuthal angles specified for scattering plane
@@ -914,7 +921,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                                  
         integrand_perp = np.trapz(dsigma_2 * np.abs(np.sin(thetas)), 
                                   x=thetas) * dsigma_2.units
-     
+
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel 
         # and perpendicular polarizations, respectively) 
@@ -952,11 +959,11 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     if k.imag.magnitude <= 1e-8:
         factor = 2
        
-    else:                  
+    else:                                     
         exponent = np.exp(2*distance*k.imag)
         factor = 1 / (exponent / (2*distance*k.imag)+
                      (1 - exponent) / (2*distance*k.imag)**2)
-    
+
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
 
