@@ -256,6 +256,105 @@ def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
 
     # multiply by 1/k**2 to get the dimensional value
     return wavelen_media**2/4/np.pi/np.pi * (integral_par + integral_perp)/2.0
+    
+def calc_energy(radius, n_medium, E_0, m, x, nstop, 
+           eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    '''
+    Calculates the electromagnetic energy inside a dielectric sphere   
+    according to equation 11 in 
+    Bott and Zdunkowski, J. Opt. Soc. Am. A, vol 4, no. 8, 1987
+    
+    Parameters
+    ----------
+    radius: float
+        radius of the scatterer (Quantity in [length])
+    n_medium: float
+        refractive index of the medium in which scatterer is embedded 
+              (Quantity, dimensionless)
+    E_0: float (Quantity in [V/m or N/C])
+        incident electric field
+    m: float
+        complex relative refractive index
+    x: float
+        size parameter
+    nstop: float
+        maximum order
+    
+    Returns
+    -------
+    W: float (Quantity in [energy])
+        electromagnetic eenrgy inside the dielectic sphere    
+    
+    '''
+    W0 = _W0(radius, n_medium, E_0)
+    gamma_n, An = _time_coeffs(m, x, nstop, eps1 = eps1, eps2 = eps2)
+    n = np.arange(nstop+1)
+    y = m*x
+    W = 3/4*W0*np.sum((2*n + 1)/y**2 *gamma_n*(1+An**2-n*(n+1)/y**2))
+    
+    return W
+    
+def calc_dwell_time(radius, n_medium, E_0, m, x, nstop, wavelen_media,
+                    min_angle=0.01, num_angles=200, 
+                    eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    '''
+    Calculates the dwell time, the time 
+    according to 3.37 in 
+    Lagendijk and van Tiggelen, Physics Reports 270 (1996) 143-215
+    
+    Parameters
+    ----------
+    radius: float
+        radius of the scatterer (Quantity in [length])
+    n_medium: float
+        refractive index of the medium in which scatterer is embedded 
+              (Quantity, dimensionless)
+    E_0: float (Quantity in [V/m or N/C])
+        incident electric field
+    m: float
+        complex relative refractive index
+    x: float
+        size parameter
+    nstop: float
+        maximum order
+    wavelen_media: structcol.Quantity [length]
+        wavelength of incident light *in media*
+    min_angle: float (in radians)
+        minimum angle to integrate over for total cross section
+    num_angles: float
+        number of angles to integrate over for total cross section
+    Returns
+    -------
+    dwell_time: float (Quantity in [to,e])
+        time wave spends inside the dielectic sphere   
+    '''
+    # calculate the energy contained in sphere
+    W = calc_energy(radius, n_medium, E_0, m, x, nstop, eps1 = eps1, eps2 = eps2)
+    
+    # define speed of light
+    c = Quantity(2.99792e8,'m/s')
+    
+    # calculate total cross section
+    if np.imag(x)>0:
+        angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad') 
+        distance = radius.max()
+        k = 2*np.pi/wavelen_media 
+        (diff_cscat_par, 
+         diff_cscat_perp) = diff_scat_intensity_complex_medium(m,
+                                        x, angles, 
+                                        k*distance) 
+                                        
+        cscat = integrate_intensity_complex_medium(diff_cscat_par,
+                                                   diff_cscat_perp,
+                                                   distance,
+                                                   angles, k)
+    else:
+        cscat = calc_cross_sections(m, x, wavelen_media, eps1 = eps1, eps2 = eps2) 
+        
+    # calculate dwell time
+    dwell_time = W/(cscat*c)
+    
+    return dwell_time
 
 # Mie functions used internally
 
@@ -358,6 +457,44 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     cl = m * ratio * (D3x - D1x) / (D3x - m * D1mx)
     dl = m * ratio * (D3x - D1x) / (m * D3x - D1mx)
     return np.array([cl[1:], dl[1:]]) # start from l = 1
+    
+def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    '''
+    Calculate what we refer to as the time Mie coefficients gamma_n and An, 
+    given the relative inted, size parameter, maximum order of expansion.
+    
+    We follow the convention of equation 11 in 
+    Bott and Zdunkowski, J. Opt. Soc. Am. A, vol 4, no. 8, 1987
+    
+    using the recurrence relation in Bohren & Huffman's eq 4.88 for psi prime.
+    '''
+    n = np.arange(nstop+1)
+    n_max = np.max(n)
+    psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop, eps1=eps1, eps2=eps2)
+    psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
+    cn, dn = _internal_coeffs(m,x, n_max, eps1=eps1, eps2=eps2)    
+    
+    # calculate gamma_n and An
+    gamma_n = m**2*(m*cn*psi)*np.conj(m*cn*psi) + m**2*(m*dn*psi)*np.conj(m*dn*psi)
+    An = (psishift-n*psi/x)/psi
+    
+    return gamma_n, An
+    
+def _W0(radius, n_medium, E_0):
+    '''
+    Calculates the time-averaged electromagnetic energy of a sphere having the
+    electromagnetic properties of the surrounding medium, according to eq. 9
+    of Bott and Zdunkowski, J. Opt. Soc. Am. A, vol 4, no. 8, 1987
+    
+    W0=2/3*E0^2*np.pi*radius^3*n_medium^2 
+    
+    where radius is the radius of the scatterer, n_medium is the index of the 
+    medium surrounding the scatterer, and E_0 is the field incident on the 
+    scatterer
+    '''
+    W0=2/3*np.abs(E_0)**2*np.pi*radius**3*n_medium**2   
+    
+    return W0
 
 def _nstop(x):
     # takes size parameter, outputs order to compute to according to
