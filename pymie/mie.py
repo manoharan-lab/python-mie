@@ -486,13 +486,23 @@ def _W0(radius, n_medium, E_0):
     electromagnetic properties of the surrounding medium, according to eq. 9
     of Bott and Zdunkowski, J. Opt. Soc. Am. A, vol 4, no. 8, 1987
     
-    W0=2/3*E0^2*np.pi*radius^3*n_medium^2 
+    W0=2/3*np.pi*radius^3*E0^2*permittivity_medium
     
-    where radius is the radius of the scatterer, n_medium is the index of the 
-    medium surrounding the scatterer, and E_0 is the field incident on the 
+    where radius is the radius of the scatterer, permittivity_medium is the 
+    permittivity of the surrounding medium, and E_0 is the field incident on the 
     scatterer
+    
+    We use units such that the energy density in vacuum is 1, 
+    where energy density in vacuum is expressed as:
+    
+    energy_density = 1/2*E0^2*permitttivity_medium
+    
+    So plugging this expression into the equation for W0, we have:
+    W0 = 2/3*pi*radius^3*2*energy_density
+    
     '''
-    W0=2/3*np.abs(E_0)**2*np.pi*radius**3*n_medium**2   
+    energy_density = 1    
+    W0=2/3*np.pi*radius**3*2*energy_density 
     
     return W0
 
