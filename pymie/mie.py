@@ -476,7 +476,7 @@ def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     
     # calculate gamma_n and An
     gamma_n = m**2*(m*cn*psi)*np.conj(m*cn*psi) + m**2*(m*dn*psi)*np.conj(m*dn*psi)
-    An = (psishift-n*psi/x)/psi
+    An = (psishift-n*psi/(m*x))/psi
     
     return gamma_n, An
     
