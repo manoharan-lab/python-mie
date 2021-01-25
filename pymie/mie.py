@@ -288,13 +288,13 @@ def calc_energy(radius, n_medium, E_0, m, x, nstop,
     '''
     W0 = _W0(radius, n_medium, E_0)
     gamma_n, An = _time_coeffs(m, x, nstop, eps1 = eps1, eps2 = eps2)
-    n = np.arange(nstop+1)
+    n = np.arange(1,nstop+1)
     y = m*x
     W = 3/4*W0*np.sum((2*n + 1)/y**2 *gamma_n*(1+An**2-n*(n+1)/y**2))
     
     return W
     
-def calc_dwell_time(radius, n_medium, E_0, m, x, nstop, wavelen_media,
+def calc_dwell_time(radius, n_medium, E_0, m, x, wavelen_media,
                     min_angle=0.01, num_angles=200, 
                     eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
@@ -315,8 +315,6 @@ def calc_dwell_time(radius, n_medium, E_0, m, x, nstop, wavelen_media,
         complex relative refractive index
     x: float
         size parameter
-    nstop: float
-        maximum order
     wavelen_media: structcol.Quantity [length]
         wavelength of incident light *in media*
     min_angle: float (in radians)
@@ -328,6 +326,8 @@ def calc_dwell_time(radius, n_medium, E_0, m, x, nstop, wavelen_media,
     dwell_time: float (Quantity in [to,e])
         time wave spends inside the dielectic sphere   
     '''
+    nstop = _nstop(x)     
+    
     # calculate the energy contained in sphere
     W = calc_energy(radius, n_medium, E_0, m, x, nstop, eps1 = eps1, eps2 = eps2)
     
@@ -347,9 +347,9 @@ def calc_dwell_time(radius, n_medium, E_0, m, x, nstop, wavelen_media,
         cscat = integrate_intensity_complex_medium(diff_cscat_par,
                                                    diff_cscat_perp,
                                                    distance,
-                                                   angles, k)
+                                                   angles, k)[0]
     else:
-        cscat = calc_cross_sections(m, x, wavelen_media, eps1 = eps1, eps2 = eps2) 
+        cscat = calc_cross_sections(m, x, wavelen_media, eps1 = eps1, eps2 = eps2)[0] 
         
     # calculate dwell time
     dwell_time = W/(cscat*c)
@@ -502,8 +502,10 @@ def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
     n = np.arange(nstop+1)
     n_max = np.max(n)
-    psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop, eps1=eps1, eps2=eps2)
-    psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
+    psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop)
+    psishift = np.concatenate((np.zeros(1), psi))[1:nstop+1]
+    psi = psi[1:nstop+1]
+    n = n[1:nstop+1]
     cn, dn = _trans_coeffs(m,x, n_max, eps1=eps1, eps2=eps2)    
     
     # calculate gamma_n and An
