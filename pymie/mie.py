@@ -479,15 +479,19 @@ def _trans_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop)
     psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
     psi_prime = psishift - n*psi/(m*x)
+    psi = psi[1:nstop+1]
+    psi_prime = psi_prime[1:nstop+1]
     
     _, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
     xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
     xi_prime = xishift - n*xi/x
+    xi = xi[1:nstop+1]
+    xi_prime = xi_prime[1:nstop+1]
     
     cn = 1j/(xi*psi_prime - m*psi*xi_prime)
     dn = 1j/(m*psi_prime*xi - psi*xi_prime)
     
-    return np.array([cn[1:], dn[1:]])
+    return np.array([cn, dn])
     
 def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''

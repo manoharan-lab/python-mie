@@ -22,7 +22,7 @@ Tests for the mie module
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie
 from nose.tools import assert_raises, assert_equal
-from numpy.testing import assert_almost_equal, assert_array_almost_equal
+from numpy.testing import assert_almost_equal, assert_array_almost_equal, assert_approx_equal
 from pint.errors import DimensionalityError
 import pytest
 
@@ -777,3 +777,64 @@ def test_value_errors():
         
         as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d, 
                             coordinate_system = 'cartesian')
+                            
+def test_dwell_time():
+    #Test that the dwell time function matches example given in 
+    #Lagendijk and van Tiggelen, Physics Reports 270 (1996) 143-215 pg 169
+    #The example given is for 440 nm titania particles in vacuum,
+    #where: 
+    #
+    #size parameter: x = 4.59
+    #radius = 220 nm
+    #c = speed of light in vacuum
+    #
+    #and the dwell time can be expressed as:
+    #
+    #td = 850*(220 nm)/ c 
+    #
+    #so the corresponding distance travelled in a vacuum is:
+    #distance = c*td ~ 190 um
+
+    
+    # parameters given in  Lagendijk and van Tiggelen
+    radius = Quantity('220 nm')
+    n_medium = Quantity(1, '')
+    c = Quantity(2.99792e8,'m/s')
+    E_0 = 1
+    m = 2.73
+    x = 4.59
+    wavelen_media = 2*np.pi*radius/x
+    
+    dwell_time = mie.calc_dwell_time(radius, 
+                                    n_medium, 
+                                    E_0, 
+                                    m, x, 
+                                    wavelen_media)
+                                    
+     
+    nstop = mie._nstop(x)       
+    gamma_n, An = mie._time_coeffs(m, x, nstop)
+    n = np.arange(1,nstop+1)
+    y = m*x
+    W_star_calc = 3/4*np.sum((2*n + 1)/y**2 *gamma_n*(1+An**2-n*(n+1)/y**2))
+    W_star_reported = 2500                               
+                                    
+    W_reported = 2500*4/3*np.pi*radius**3
+    W_reported = W_reported.to('um^3')
+    # calculate the energy contained in sphere
+    W_calc = mie.calc_energy(radius, n_medium, E_0, m, x, nstop)
+    W_calc = W_calc.to('um^3')
+    
+    cscat_reported = 3.9*np.pi*radius**2
+    cscat_reported = cscat_reported.to('um^2')
+    cscat_calc = mie.calc_cross_sections(m, x, wavelen_media)[0]
+    cscat_calc = cscat_calc.to('um^2')
+                                    
+    distance_reported = Quantity('190 um')
+    distance_calc = dwell_time*c
+    distance_calc = distance_calc.to('um')
+    
+    assert_approx_equal(cscat_reported.magnitude, cscat_calc.magnitude, significant=2)
+    assert_approx_equal(W_star_reported, np.real(W_star_calc), significant=2)
+    assert_approx_equal(W_reported.magnitude, np.real(W_calc.magnitude), significant=2)
+    assert_approx_equal(distance_reported.magnitude, np.real(distance_calc.magnitude), significant=2)
