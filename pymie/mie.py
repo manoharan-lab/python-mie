@@ -458,6 +458,37 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     dl = m * ratio * (D3x - D1x) / (m * D3x - D1mx)
     return np.array([cl[1:], dl[1:]]) # start from l = 1
     
+def _trans_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    '''
+    Calculate the transmission Mie coefficients c_n and d_n given
+    relative index, size parameter, and maximum order of expansion.
+    
+    Note that the implementation here follows van de Hulst [1], 
+    in accordance with equation 3 from Bott and Zdunkowski [2]. 
+    These coefficients are implemented in this convention for use in 
+    calculating the electromagnetic energy in the sphere, 
+    which is needed to calculate dwell times. 
+    
+    [1] H. C. van de Hulst, Light Scattering by Small Particles 
+    (Wiley, New York, 1957), pp. 119-130.
+    
+    [2] Bott and Zdunkowski [2], J. Opt. Soc. Am. A, vol 4, no. 8, 1987.
+    '''
+    nstop=n_max
+    n = np.arange(nstop+1)
+    psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop)
+    psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
+    psi_prime = psishift - n*psi/(m*x)
+    
+    _, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
+    xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
+    xi_prime = xishift - n*xi/x
+    
+    cn = 1j/(xi*psi_prime - m*psi*xi_prime)
+    dn = 1j/(m*psi_prime*xi - psi*xi_prime)
+    
+    return np.array([cn[1:], dn[1:]])
+    
 def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
     Calculate what we refer to as the time Mie coefficients gamma_n and An, 
@@ -467,12 +498,13 @@ def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     Bott and Zdunkowski, J. Opt. Soc. Am. A, vol 4, no. 8, 1987
     
     using the recurrence relation in Bohren & Huffman's eq 4.88 for psi prime.
+    and the expressions for cn and dn from equation 3 in Bott and Zdunkowski.
     '''
     n = np.arange(nstop+1)
     n_max = np.max(n)
     psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop, eps1=eps1, eps2=eps2)
     psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
-    cn, dn = _internal_coeffs(m,x, n_max, eps1=eps1, eps2=eps2)    
+    cn, dn = _trans_coeffs(m,x, n_max, eps1=eps1, eps2=eps2)    
     
     # calculate gamma_n and An
     gamma_n = m**2*(m*cn*psi)*np.conj(m*cn*psi) + m**2*(m*dn*psi)*np.conj(m*dn*psi)
