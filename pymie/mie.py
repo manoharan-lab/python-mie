@@ -257,7 +257,7 @@ def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
     # multiply by 1/k**2 to get the dimensional value
     return wavelen_media**2/4/np.pi/np.pi * (integral_par + integral_perp)/2.0
     
-def calc_energy(radius, n_medium, E_0, m, x, nstop, 
+def calc_energy(radius, n_medium, m, x, nstop,
            eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
     Calculates the electromagnetic energy inside a dielectric sphere   
@@ -271,8 +271,6 @@ def calc_energy(radius, n_medium, E_0, m, x, nstop,
     n_medium: float
         refractive index of the medium in which scatterer is embedded 
               (Quantity, dimensionless)
-    E_0: float (Quantity in [V/m or N/C])
-        incident electric field
     m: float
         complex relative refractive index
     x: float
@@ -286,7 +284,7 @@ def calc_energy(radius, n_medium, E_0, m, x, nstop,
         electromagnetic eenrgy inside the dielectic sphere    
     
     '''
-    W0 = _W0(radius, n_medium, E_0)
+    W0 = _W0(radius, n_medium)
     gamma_n, An = _time_coeffs(m, x, nstop, eps1 = eps1, eps2 = eps2)
     n = np.arange(1,nstop+1)
     y = m*x
@@ -294,8 +292,8 @@ def calc_energy(radius, n_medium, E_0, m, x, nstop,
     
     return W
     
-def calc_dwell_time(radius, n_medium, n_particle, E_0, wavelen,
-                    min_angle=0.01, num_angles=200, 
+def calc_dwell_time(radius, n_medium, n_particle, wavelen,
+                    min_angle=0.01, num_angles=200,
                     eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
     Calculates the dwell time, the time 
@@ -306,17 +304,12 @@ def calc_dwell_time(radius, n_medium, n_particle, E_0, wavelen,
     ----------
     radius: float
         radius of the scatterer (Quantity in [length])
-    n_medium: float
+    n_medium: float (Quantity, dimensionless)
         refractive index of the medium in which scatterer is embedded 
-              (Quantity, dimensionless)
-    E_0: float (Quantity in [V/m or N/C])
-        incident electric field
-    m: float
-        complex relative refractive index
-    x: float
-        size parameter
-    wavelen_media: structcol.Quantity [length]
-        wavelength of incident light *in media*
+    n_particle: float (Quantity, dimensionless)
+        refractive index of the scatterer 
+    wavelen: structcol.Quantity [length]
+        wavelength of incident light in vacuum
     min_angle: float (in radians)
         minimum angle to integrate over for total cross section
     num_angles: float
@@ -332,7 +325,7 @@ def calc_dwell_time(radius, n_medium, n_particle, E_0, wavelen,
     wavelen_media = wavelen/n_medium    
     
     # calculate the energy contained in sphere
-    W = calc_energy(radius, n_medium, E_0, m, x, nstop, eps1 = eps1, eps2 = eps2)
+    W = calc_energy(radius, n_medium, m, x, nstop, eps1 = eps1, eps2 = eps2)
     
     # define speed of light
     c = Quantity(2.99792e8,'m/s')
@@ -522,7 +515,7 @@ def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     
     return gamma_n, An
     
-def _W0(radius, n_medium, E_0):
+def _W0(radius, n_medium):
     '''
     Calculates the time-averaged electromagnetic energy of a sphere having the
     electromagnetic properties of the surrounding medium, according to eq. 9

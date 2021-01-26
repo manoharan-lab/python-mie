@@ -801,7 +801,6 @@ def test_dwell_time():
     n_medium = Quantity(1, '')
     n_particle = Quantity(2.73, '')
     c = Quantity(2.99792e8,'m/s')
-    E_0 = 1
     x = 4.59
     m = 2.73
     wavelen = 2*np.pi*radius*n_medium/x
@@ -810,7 +809,6 @@ def test_dwell_time():
     dwell_time = mie.calc_dwell_time(radius, 
                                     n_medium,
                                     n_particle,
-                                    E_0, 
                                     wavelen)
                                     
      
@@ -824,7 +822,7 @@ def test_dwell_time():
     W_reported = 2500*4/3*np.pi*radius**3
     W_reported = W_reported.to('um^3')
     # calculate the energy contained in sphere
-    W_calc = mie.calc_energy(radius, n_medium, E_0, m, x, nstop)
+    W_calc = mie.calc_energy(radius, n_medium, m, x, nstop)
     W_calc = W_calc.to('um^3')
     
     cscat_reported = 3.9*np.pi*radius**2
