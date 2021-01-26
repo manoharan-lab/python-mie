@@ -799,17 +799,19 @@ def test_dwell_time():
     # parameters given in  Lagendijk and van Tiggelen
     radius = Quantity('220 nm')
     n_medium = Quantity(1, '')
+    n_particle = Quantity(2.73, '')
     c = Quantity(2.99792e8,'m/s')
     E_0 = 1
-    m = 2.73
     x = 4.59
+    m = 2.73
+    wavelen = 2*np.pi*radius*n_medium/x
     wavelen_media = 2*np.pi*radius/x
     
     dwell_time = mie.calc_dwell_time(radius, 
-                                    n_medium, 
+                                    n_medium,
+                                    n_particle,
                                     E_0, 
-                                    m, x, 
-                                    wavelen_media)
+                                    wavelen)
                                     
      
     nstop = mie._nstop(x)       

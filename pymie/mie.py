@@ -42,7 +42,7 @@ Small Particles" (1983)
 import numpy as np
 from scipy.special import lpn, spherical_jn, spherical_yn
 import warnings
-from . import mie_specfuncs, ureg, Quantity
+from . import mie_specfuncs, ureg, Quantity, size_parameter, index_ratio
 from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2   # default tolerances
 from . import multilayer_sphere_lib as msl
 
@@ -294,7 +294,7 @@ def calc_energy(radius, n_medium, E_0, m, x, nstop,
     
     return W
     
-def calc_dwell_time(radius, n_medium, E_0, m, x, wavelen_media,
+def calc_dwell_time(radius, n_medium, n_particle, E_0, wavelen,
                     min_angle=0.01, num_angles=200, 
                     eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
@@ -325,8 +325,11 @@ def calc_dwell_time(radius, n_medium, E_0, m, x, wavelen_media,
     -------
     dwell_time: float (Quantity in [to,e])
         time wave spends inside the dielectic sphere   
-    '''
-    nstop = _nstop(x)     
+    '''  
+    m = index_ratio(n_particle, n_medium)
+    x = size_parameter(wavelen, n_medium, radius)
+    nstop = _nstop(x) 
+    wavelen_media = wavelen/n_medium    
     
     # calculate the energy contained in sphere
     W = calc_energy(radius, n_medium, E_0, m, x, nstop, eps1 = eps1, eps2 = eps2)
@@ -504,6 +507,7 @@ def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     using the recurrence relation in Bohren & Huffman's eq 4.88 for psi prime.
     and the expressions for cn and dn from equation 3 in Bott and Zdunkowski.
     '''
+    
     n = np.arange(nstop+1)
     n_max = np.max(n)
     psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop)
