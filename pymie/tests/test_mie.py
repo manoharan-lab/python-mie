@@ -54,7 +54,7 @@ def test_cross_sections():
     assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
     assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
     assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
-    assert_almost_equal(g, g2)
+    assert_almost_equal(g, g2.magnitude)
 
     # test that calc_cross_sections throws an exception when given an argument
     # with the wrong dimensions
@@ -633,8 +633,8 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     as_vec_x = S2_sp*np.cos(phis_2d)**2 + S1_sp*np.sin(phis_2d)**2
     as_vec_y = S2_sp*np.cos(phis_2d)*np.sin(phis_2d) - S1_sp*np.cos(phis_2d)*np.sin(phis_2d)
     
-    assert_almost_equal(as_vec_x0, as_vec_x)
-    assert_almost_equal(as_vec_y0, as_vec_y)
+    assert_almost_equal(as_vec_x0.magnitude, as_vec_x.magnitude)
+    assert_almost_equal(as_vec_y0.magnitude, as_vec_y.magnitude)
     
 def test_diff_scat_intensity_complex_medium_cartesian():
     '''

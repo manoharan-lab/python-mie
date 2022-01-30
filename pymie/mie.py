@@ -49,7 +49,7 @@ from . import multilayer_sphere_lib as msl
 # User-facing functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
 
-@ureg.check('[]', '[]', '[]') # all arguments should be dimensionless
+@ureg.check('[]', '[]', '[]', None, None) # all arguments should be dimensionless
 def calc_ang_dist(m, x, angles, mie = True, check = False):
     """
     Calculates the angular distribution of light intensity for parallel and
@@ -79,6 +79,9 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     # convert to radians from whatever units the user specifies
     if isinstance(angles, Quantity):
         angles = angles.to('rad').magnitude
+        
+    if isinstance(x, Quantity):
+        x = x.to('').magnitude
 
     #initialize arrays for holding ipar and iperp
     ipar = np.array([])
@@ -86,7 +89,7 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
 
     if mie:
         # Mie scattering preliminaries
-        nstop = _nstop(np.array(x).max())    
+        nstop = _nstop(np.array(x).max())
 
         # if the index ratio m is an array with more than 1 element, it's a 
         # multilayer particle
@@ -251,8 +254,8 @@ def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
 
     # np.trapz does not preserve units, so need to state explicitly that we are
     # in the same units as the integrand
-    integral_par = 2 * np.pi * np.trapz(integrand_par, x=angles)*integrand_par.units
-    integral_perp = 2 * np.pi * np.trapz(integrand_perp, x=angles)*integrand_perp.units
+    integral_par = 2 * np.pi * np.trapz(integrand_par, x=angles.magnitude)#*integrand_par.units new pint preserves units
+    integral_perp = 2 * np.pi * np.trapz(integrand_perp, x=angles.magnitude)#*integrand_perp.units new pint preserves units
 
     # multiply by 1/k**2 to get the dimensional value
     return wavelen_media**2/4/np.pi/np.pi * (integral_par + integral_perp)/2.0
@@ -351,6 +354,40 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
     dwell_time = W/(cscat*c)
     
     return dwell_time
+    
+def calc_reflectance(radius, n_medium, n_particle, wavelen,
+                     min_angle=np.pi/2, num_angles=50,
+                     eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+                        
+    m = index_ratio(n_particle, n_medium)
+    x = size_parameter(wavelen, n_medium, radius)
+    wavelen_media = wavelen/n_medium    
+    geometric_cross_sec = np.pi*radius**2
+    
+    thetas = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad') 
+    
+    # calculate reflectance cross section
+    if np.imag(x)>0:
+        angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad') 
+        distance = radius.max()
+        k = 2*np.pi/wavelen_media 
+        (diff_cscat_par, 
+         diff_cscat_perp) = diff_scat_intensity_complex_medium(m,
+                                        x, thetas, 
+                                        k*distance) 
+                                        
+        refl_cscat = integrate_intensity_complex_medium(diff_cscat_par,
+                                                   diff_cscat_perp,
+                                                   distance,
+                                                   angles, k)[0]
+    else:
+
+        refl_cscat = calc_integrated_cross_section(m, x, wavelen_media, (thetas[0], thetas[-1], num_angles))
+        
+    reflectance = refl_cscat/geometric_cross_sec/wavelen_media.magnitude**2
+    reflectance = reflectance.magnitude
+    
+    return reflectance
 
 # Mie functions used internally
 
@@ -398,6 +435,10 @@ def _pis_and_taus(nstop, thetas):
     ang_shape = list(thetas.shape)
     
     # flatten to make calculations easier
+    if isinstance(thetas, Quantity):
+        thetas = thetas.to('rad').magnitude
+        if isinstance(thetas, Quantity):
+            thetas = thetas.to('rad').magnitude
     thetas = np.ndarray.flatten(thetas)
     
     mu = np.cos(thetas)
@@ -1085,7 +1126,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     # Bohren and Huffman). 
     dsigma_1 = I_1 * distance**2  
     dsigma_2 = I_2 * distance**2 
-
+  
     if coordinate_system == 'scattering plane':
         if phis != None:
             warnings.warn('''azimuthal angles specified for scattering plane
@@ -1099,10 +1140,10 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                       
         # Integrate over theta  
         integrand_par = np.trapz(dsigma_1 * np.abs(np.sin(thetas)), 
-                                 x=thetas) * dsigma_1.units
+                                 x=thetas) #* dsigma_1.units #removed added units for new numpy version
                                  
         integrand_perp = np.trapz(dsigma_2 * np.abs(np.sin(thetas)), 
-                                  x=thetas) * dsigma_2.units
+                                  x=thetas) #* dsigma_2.units #removed added units for new numpy version
 
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel 
@@ -1126,9 +1167,9 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         thetas_bc = thetas.reshape((len(thetas),1)) # reshape for broadcasting
         
         sigma_1 = np.trapz(np.trapz(dsigma_1 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis) * dsigma_1.units
+                               x=phis) #* dsigma_1.units #don't need units for new numpy
         sigma_2 = np.trapz(np.trapz(dsigma_2 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis) * dsigma_2.units
+                               x=phis) #* dsigma_2.units #don't need units for new numpy
         
     else:
         raise ValueError('The coordinate system specified has not yet been \
@@ -1148,7 +1189,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
 
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
-
+    print(sigma)
     return(sigma, sigma_1*factor, sigma_2*factor, dsigma_1*factor/2, 
            dsigma_2*factor/2)
 
@@ -1315,7 +1356,7 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
         coeffs = msl.scatcoeffs_multi(m, x)
     else:
         coeffs = _scatcoeffs(m, x, nstop)
-    
+
     # calculate amplitude scattering matrix in 'scattering plane' coordinate system 
     S2_sp, S1_sp = _amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas)
     S3_sp = 0

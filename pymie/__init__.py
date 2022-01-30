@@ -110,4 +110,8 @@ def size_parameter(wavelen, n_matrix, radius):
     # must use to('dimensionless') in case the wavelength and radius are
     # specified in different units; pint doesn't automatically make
     # ratios such as 'nm'/'um' dimensionless 
-    return (2*np.pi*n_matrix/wavelen * radius).to('dimensionless').magnitude
+    sp = (2*np.pi*n_matrix/wavelen * radius).to('dimensionless').magnitude
+    if isinstance(sp, Quantity):
+        sp = sp.magnitude
+    
+    return sp
