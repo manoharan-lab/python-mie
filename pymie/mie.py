@@ -1124,6 +1124,9 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     # Multiply by distance (= to radius of particle in montecarlo.py) because
     # this is the integration factor over solid angles (see eq. 4.58 in 
     # Bohren and Huffman). 
+    if isinstance(distance.magnitude,(list, np.ndarray)):
+        if distance[0]==distance[1]:
+            distance = distance[0]
     dsigma_1 = I_1 * distance**2  
     dsigma_2 = I_2 * distance**2 
   
@@ -1189,7 +1192,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
 
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
-    print(sigma)
+
     return(sigma, sigma_1*factor, sigma_2*factor, dsigma_1*factor/2, 
            dsigma_2*factor/2)
 
@@ -1289,7 +1292,7 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
     [S4  S1]    
     
     Change of basis from scattering plane to lab frame cartesian is calculated 
-    by multiplying M*S*(M^-1) where S is the amplitude scattering matrix and 
+    by multiplying (M^-1)*S*M where S is the amplitude scattering matrix and 
     M is the change of basis matrix. The change of basis matrix M is:
         
     [cosphi  sinphi]
