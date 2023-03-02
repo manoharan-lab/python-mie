@@ -317,6 +317,8 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
         minimum angle to integrate over for total cross section
     num_angles: float
         number of angles to integrate over for total cross section
+    eps1, eps2: needed for calculating scattcoeffs 
+    
     Returns
     -------
     dwell_time: float (Quantity in [to,e])
