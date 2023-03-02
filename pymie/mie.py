@@ -716,7 +716,7 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     particles embedded in an absorbing medium", J. Opt. Soc. Am. A, 18, 6(2001).
     
     '''
-    radius = np.array(radius).max() * radius.units
+    radius = np.array(radius.magnitude).max() * radius.units
     x = np.array(x).max()
     
     k = x/radius
