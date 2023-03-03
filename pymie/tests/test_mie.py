@@ -22,7 +22,7 @@ Tests for the mie module
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie
 from nose.tools import assert_raises, assert_equal
-from numpy.testing import assert_almost_equal, assert_array_almost_equal
+from numpy.testing import assert_almost_equal, assert_array_almost_equal, assert_approx_equal
 from pint.errors import DimensionalityError
 import pytest
 
@@ -54,7 +54,7 @@ def test_cross_sections():
     assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
     assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
     assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
-    assert_almost_equal(g, g2)
+    assert_almost_equal(g, g2.magnitude)
 
     # test that calc_cross_sections throws an exception when given an argument
     # with the wrong dimensions
@@ -200,11 +200,11 @@ def test_multilayer_spheres():
     
     assert_array_almost_equal(f_par, f_par_multi)
     assert_array_almost_equal(f_perp, f_perp_multi)
-    assert_array_almost_equal(cscat, cscat_multi)
-    assert_array_almost_equal(cext, cext_multi)
-    assert_array_almost_equal(cabs, cabs_multi)
-    assert_array_almost_equal(cback, cback_multi)
-    assert_array_almost_equal(asym, asym_multi)
+    assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi.to('um^2').magnitude)
+    assert_array_almost_equal(cext.to('um^2').magnitude, cext_multi.to('um^2').magnitude)
+    assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi.to('um^2').magnitude)
+    assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi.to('um^2').magnitude)
+    assert_array_almost_equal(asym.magnitude, asym_multi.magnitude)
     
     # form factor and cross section for a multilayer particle with a core that 
     # is the same as the non-multilayer and a shell index matched with the 
@@ -218,11 +218,11 @@ def test_multilayer_spheres():
     
     assert_array_almost_equal(f_par, f_par_multi2)
     assert_array_almost_equal(f_perp, f_perp_multi2)
-    assert_array_almost_equal(cscat, cscat_multi2)
-    assert_array_almost_equal(cext, cext_multi2)
-    assert_array_almost_equal(cabs, cabs_multi2)
-    assert_array_almost_equal(cback, cback_multi2)
-    assert_array_almost_equal(asym, asym_multi2)
+    assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi2.to('um^2').magnitude)
+    assert_array_almost_equal(cext.to('um^2').magnitude, cext_multi2.to('um^2').magnitude)
+    assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi2.to('um^2').magnitude)
+    assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi2.to('um^2').magnitude)
+    assert_array_almost_equal(asym.magnitude, asym_multi2.magnitude)
     
     # form factor and cross section for a 3-layer-particle with a core that 
     # is the same as the non-multilayer and shell thicknesses of zero
@@ -235,11 +235,11 @@ def test_multilayer_spheres():
     
     assert_array_almost_equal(f_par, f_par_multi3)
     assert_array_almost_equal(f_perp, f_perp_multi3)
-    assert_array_almost_equal(cscat, cscat_multi3)
-    assert_array_almost_equal(cext, cext_multi3)
-    assert_array_almost_equal(cabs, cabs_multi3)
-    assert_array_almost_equal(cback, cback_multi3)
-    assert_array_almost_equal(asym, asym_multi3)
+    assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi3.to('um^2').magnitude)
+    assert_array_almost_equal(cext.to('um^2').magnitude, cext_multi3.to('um^2').magnitude)
+    assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi3.to('um^2').magnitude)
+    assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi3.to('um^2').magnitude)
+    assert_array_almost_equal(asym.magnitude, asym_multi3.magnitude)
     
     # form factor and cross section for a 3-layer-particle with a core that 
     # is the same as the non-multilayer and a shell index matched with the 
@@ -253,11 +253,11 @@ def test_multilayer_spheres():
     
     assert_array_almost_equal(f_par, f_par_multi4)
     assert_array_almost_equal(f_perp, f_perp_multi4)
-    assert_array_almost_equal(cscat, cscat_multi4)
-    assert_array_almost_equal(cext, cext_multi4)
-    assert_array_almost_equal(cabs, cabs_multi4)
-    assert_array_almost_equal(cback, cback_multi4)
-    assert_array_almost_equal(asym, asym_multi4)
+    assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi4.to('um^2').magnitude)
+    assert_array_almost_equal(cext.to('um^2').magnitude, cext_multi4.to('um^2').magnitude)
+    assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi4.to('um^2').magnitude)
+    assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi4.to('um^2').magnitude)
+    assert_array_almost_equal(asym.magnitude, asym_multi4.magnitude)
     
 def test_multilayer_absorbing_spheres():
     # test that the form factor and cross sections are the same for a real 
@@ -278,11 +278,11 @@ def test_multilayer_absorbing_spheres():
     
     assert_array_almost_equal(f_par_multi_real, f_par_multi_imag)
     assert_array_almost_equal(f_perp_multi_real, f_perp_multi_imag)
-    assert_array_almost_equal(cross_sections_multi_real[0], cross_sections_multi_imag[0])
-    assert_array_almost_equal(cross_sections_multi_real[1], cross_sections_multi_imag[1])
-    assert_array_almost_equal(cross_sections_multi_real[2], cross_sections_multi_imag[2])
-    assert_array_almost_equal(cross_sections_multi_real[3], cross_sections_multi_imag[3])
-    assert_array_almost_equal(cross_sections_multi_real[4], cross_sections_multi_imag[4])
+    assert_array_almost_equal(cross_sections_multi_real[0].to('um^2').magnitude, cross_sections_multi_imag[0].to('um^2').magnitude)
+    assert_array_almost_equal(cross_sections_multi_real[1].to('um^2').magnitude, cross_sections_multi_imag[1].to('um^2').magnitude)
+    assert_array_almost_equal(cross_sections_multi_real[2].to('um^2').magnitude, cross_sections_multi_imag[2].to('um^2').magnitude)
+    assert_array_almost_equal(cross_sections_multi_real[3].to('um^2').magnitude, cross_sections_multi_imag[3].to('um^2').magnitude)
+    assert_array_almost_equal(cross_sections_multi_real[4].magnitude, cross_sections_multi_imag[4].magnitude)
     
 def test_cross_section_Fu():
     # Test that the cross sections match the Mie cross sections when there is 
@@ -586,7 +586,7 @@ def test_multilayer_complex_medium():
     cscat_imag_old = 6275.240019849266
     assert_almost_equal(cscat_imag_old, cscat_imag.magnitude, decimal=11)
     
-    assert_array_almost_equal(cscat_real, cscat_imag, decimal=3)
+    assert_array_almost_equal(cscat_real.magnitude, cscat_imag.magnitude, decimal=3)
 
 
 def test_vector_scattering_amplitude_2d_theta_cartesian():
@@ -633,8 +633,8 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     as_vec_x = S2_sp*np.cos(phis_2d)**2 + S1_sp*np.sin(phis_2d)**2
     as_vec_y = S2_sp*np.cos(phis_2d)*np.sin(phis_2d) - S1_sp*np.cos(phis_2d)*np.sin(phis_2d)
     
-    assert_almost_equal(as_vec_x0, as_vec_x)
-    assert_almost_equal(as_vec_y0, as_vec_y)
+    assert_almost_equal(as_vec_x0.magnitude, as_vec_x.magnitude)
+    assert_almost_equal(as_vec_y0.magnitude, as_vec_y.magnitude)
     
 def test_diff_scat_intensity_complex_medium_cartesian():
     '''
@@ -678,7 +678,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     I_par_perp_mag = np.sqrt(I_par**2 + I_perp**2)
     
     # check that the magnitudes are equal
-    assert_array_almost_equal(I_xy_mag, I_par_perp_mag, decimal=16)
+    assert_array_almost_equal(I_xy_mag.magnitude, I_par_perp_mag.magnitude, decimal=16)
    
 def test_integrate_intensity_complex_medium_cartesian():
     '''
@@ -777,3 +777,65 @@ def test_value_errors():
         
         as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d, 
                             coordinate_system = 'cartesian')
+                            
+def test_dwell_time_and_energy():
+    #Test that the dwell time function matches example given in 
+    #Lagendijk and van Tiggelen, Physics Reports 270 (1996) 143-215 pg 169
+    #The example given is for 440 nm titania particles in vacuum,
+    #where: 
+    #
+    #size parameter: x = 4.59
+    #radius = 220 nm
+    #c = speed of light in vacuum
+    #
+    #and the dwell time can be expressed as:
+    #
+    #td = 850*(220 nm)/ c 
+    #
+    #so the corresponding distance travelled in a vacuum is:
+    #distance = c*td ~ 190 um
+
+    
+    # parameters given in  Lagendijk and van Tiggelen
+    radius = Quantity('220 nm')
+    n_medium = Quantity(1, '')
+    n_particle = Quantity(2.73, '')
+    c = Quantity(2.99792e8,'m/s')
+    x = 4.59
+    m = 2.73
+    wavelen = 2*np.pi*radius*n_medium/x
+    wavelen_media = 2*np.pi*radius/x
+    
+    dwell_time = mie.calc_dwell_time(radius, 
+                                    n_medium,
+                                    n_particle,
+                                    wavelen)
+                                    
+     
+    nstop = mie._nstop(x)       
+    gamma_n, An = mie._time_coeffs(m, x, nstop)
+    n = np.arange(1,nstop+1)
+    y = m*x
+    W_star_calc = 3/4*np.sum((2*n + 1)/y**2 *gamma_n*(1+An**2-n*(n+1)/y**2))
+    W_star_reported = 2500                               
+                                    
+    W_reported = 2500*4/3*np.pi*radius**3
+    W_reported = W_reported.to('um^3')
+
+    # calculate the energy contained in sphere
+    W_calc = mie.calc_energy(radius, n_medium, m, x, nstop)
+    W_calc = W_calc.to('um^3')
+    
+    cscat_reported = 3.9*np.pi*radius**2
+    cscat_reported = cscat_reported.to('um^2')
+    cscat_calc = mie.calc_cross_sections(m, x, wavelen_media)[0]
+    cscat_calc = cscat_calc.to('um^2')
+                                    
+    distance_reported = Quantity('190 um')
+    distance_calc = dwell_time*c
+    distance_calc = distance_calc.to('um')
+    
+    assert_approx_equal(cscat_reported.magnitude, cscat_calc.magnitude, significant=2)
+    assert_approx_equal(W_star_reported, np.real(W_star_calc), significant=2)
+    assert_approx_equal(W_reported.magnitude, np.real(W_calc.magnitude), significant=2)
+    assert_approx_equal(distance_reported.magnitude, np.real(distance_calc.magnitude), significant=2)

@@ -42,14 +42,14 @@ Small Particles" (1983)
 import numpy as np
 from scipy.special import lpn, spherical_jn, spherical_yn
 import warnings
-from . import mie_specfuncs, ureg, Quantity
+from . import mie_specfuncs, ureg, Quantity, size_parameter, index_ratio
 from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2   # default tolerances
 from . import multilayer_sphere_lib as msl
 
 # User-facing functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
 
-@ureg.check('[]', '[]', '[]') # all arguments should be dimensionless
+@ureg.check('[]', '[]', '[]', None, None) # all arguments should be dimensionless
 def calc_ang_dist(m, x, angles, mie = True, check = False):
     """
     Calculates the angular distribution of light intensity for parallel and
@@ -79,6 +79,9 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     # convert to radians from whatever units the user specifies
     if isinstance(angles, Quantity):
         angles = angles.to('rad').magnitude
+        
+    if isinstance(x, Quantity):
+        x = x.to('').magnitude
 
     #initialize arrays for holding ipar and iperp
     ipar = np.array([])
@@ -86,7 +89,7 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
 
     if mie:
         # Mie scattering preliminaries
-        nstop = _nstop(np.array(x).max())    
+        nstop = _nstop(np.array(x).max())
 
         # if the index ratio m is an array with more than 1 element, it's a 
         # multilayer particle
@@ -251,11 +254,142 @@ def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
 
     # np.trapz does not preserve units, so need to state explicitly that we are
     # in the same units as the integrand
-    integral_par = 2 * np.pi * np.trapz(integrand_par, x=angles)*integrand_par.units
-    integral_perp = 2 * np.pi * np.trapz(integrand_perp, x=angles)*integrand_perp.units
+    integral_par = 2 * np.pi * np.trapz(integrand_par, x=angles.magnitude) # new pint preserves units
+    integral_perp = 2 * np.pi * np.trapz(integrand_perp, x=angles.magnitude) # new pint preserves units
 
     # multiply by 1/k**2 to get the dimensional value
     return wavelen_media**2/4/np.pi/np.pi * (integral_par + integral_perp)/2.0
+    
+def calc_energy(radius, n_medium, m, x, nstop,
+           eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    '''
+    Calculates the electromagnetic energy inside a dielectric sphere   
+    according to equation 11 in 
+    Bott and Zdunkowski, J. Opt. Soc. Am. A, vol 4, no. 8, 1987
+    
+    Parameters
+    ----------
+    radius: float
+        radius of the scatterer (Quantity in [length])
+    n_medium: float
+        refractive index of the medium in which scatterer is embedded 
+              (Quantity, dimensionless)
+    m: float
+        complex relative refractive index
+    x: float
+        size parameter
+    nstop: float
+        maximum order
+    
+    Returns
+    -------
+    W: float (Quantity in [energy])
+        electromagnetic energy inside the dielectic sphere    
+    
+    '''
+    W0 = _W0(radius, n_medium)
+    gamma_n, An = _time_coeffs(m, x, nstop, eps1 = eps1, eps2 = eps2)
+    n = np.arange(1,nstop+1)
+    y = m*x
+    W = 3/4*W0*np.sum((2*n + 1)/y**2 *gamma_n*(1+An**2-n*(n+1)/y**2))
+    
+    return W
+    
+def calc_dwell_time(radius, n_medium, n_particle, wavelen,
+                    min_angle=0.01, num_angles=200,
+                    eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    '''
+    Calculates the dwell time, the time 
+    according to 3.37 in 
+    Lagendijk and van Tiggelen, Physics Reports 270 (1996) 143-215
+    
+    Parameters
+    ----------
+    radius: float
+        radius of the scatterer (Quantity in [length])
+    n_medium: float (Quantity, dimensionless)
+        refractive index of the medium in which scatterer is embedded 
+    n_particle: float (Quantity, dimensionless)
+        refractive index of the scatterer 
+    wavelen: structcol.Quantity [length]
+        wavelength of incident light in vacuum
+    min_angle: float (in radians)
+        minimum angle to integrate over for total cross section
+    num_angles: float
+        number of angles to integrate over for total cross section
+    eps1, eps2: needed for calculating scattcoeffs 
+    
+    Returns
+    -------
+    dwell_time: float (Quantity in [to,e])
+        time wave spends inside the dielectic sphere   
+    '''  
+    m = index_ratio(n_particle, n_medium)
+    x = size_parameter(wavelen, n_medium, radius)
+    nstop = _nstop(x) 
+    wavelen_media = wavelen/n_medium    
+    
+    # calculate the energy contained in sphere
+    W = calc_energy(radius, n_medium, m, x, nstop, eps1 = eps1, eps2 = eps2)
+    
+    # define speed of light
+    c = Quantity(2.99792e8,'m/s')
+    
+    # calculate total cross section
+    if np.imag(x)>0:
+        angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad') 
+        distance = radius.max()
+        k = 2*np.pi/wavelen_media 
+        (diff_cscat_par, 
+         diff_cscat_perp) = diff_scat_intensity_complex_medium(m,
+                                        x, angles, 
+                                        k*distance) 
+                                        
+        cscat = integrate_intensity_complex_medium(diff_cscat_par,
+                                                   diff_cscat_perp,
+                                                   distance,
+                                                   angles, k)[0]
+    else:
+        cscat = calc_cross_sections(m, x, wavelen_media, eps1 = eps1, eps2 = eps2)[0] 
+        
+    # calculate dwell time
+    dwell_time = W/(cscat*c)
+    
+    return dwell_time
+    
+def calc_reflectance(radius, n_medium, n_particle, wavelen,
+                     min_angle=np.pi/2, num_angles=50,
+                     eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+                        
+    m = index_ratio(n_particle, n_medium)
+    x = size_parameter(wavelen, n_medium, radius)
+    wavelen_media = wavelen/n_medium    
+    geometric_cross_sec = np.pi*radius**2
+    
+    thetas = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad') 
+    
+    # calculate reflectance cross section
+    if np.imag(x)>0:
+        angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad') 
+        distance = radius.max()
+        k = 2*np.pi/wavelen_media 
+        (diff_cscat_par, 
+         diff_cscat_perp) = diff_scat_intensity_complex_medium(m,
+                                        x, thetas, 
+                                        k*distance) 
+                                        
+        refl_cscat = integrate_intensity_complex_medium(diff_cscat_par,
+                                                   diff_cscat_perp,
+                                                   distance,
+                                                   angles, k)[0]
+    else:
+
+        refl_cscat = calc_integrated_cross_section(m, x, wavelen_media, (thetas[0], thetas[-1], num_angles))
+        
+    reflectance = refl_cscat/geometric_cross_sec/wavelen_media.magnitude**2
+    reflectance = reflectance.magnitude
+    
+    return reflectance
 
 # Mie functions used internally
 
@@ -303,6 +437,8 @@ def _pis_and_taus(nstop, thetas):
     ang_shape = list(thetas.shape)
     
     # flatten to make calculations easier
+    if isinstance(thetas, Quantity):
+        thetas = thetas.to('rad').magnitude
     thetas = np.ndarray.flatten(thetas)
     
     mu = np.cos(thetas)
@@ -358,6 +494,93 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     cl = m * ratio * (D3x - D1x) / (D3x - m * D1mx)
     dl = m * ratio * (D3x - D1x) / (m * D3x - D1mx)
     return np.array([cl[1:], dl[1:]]) # start from l = 1
+    
+def _trans_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    '''
+    Calculate the transmission Mie coefficients c_n and d_n given
+    relative index, size parameter, and maximum order of expansion.
+    
+    Note that the implementation here follows van de Hulst [1], 
+    in accordance with equation 3 from Bott and Zdunkowski [2]. 
+    These coefficients are implemented in this convention for use in 
+    calculating the electromagnetic energy in the sphere, 
+    which is needed to calculate dwell times. 
+    
+    [1] H. C. van de Hulst, Light Scattering by Small Particles 
+    (Wiley, New York, 1957), pp. 119-130.
+    
+    [2] Bott and Zdunkowski [2], J. Opt. Soc. Am. A, vol 4, no. 8, 1987.
+    '''
+    nstop=n_max
+    n = np.arange(nstop+1)
+    psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop)
+    psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
+    psi_prime = psishift - n*psi/(m*x)
+    psi = psi[1:nstop+1]
+    psi_prime = psi_prime[1:nstop+1]
+    
+    _, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
+    xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
+    xi_prime = xishift - n*xi/x
+    xi = xi[1:nstop+1]
+    xi_prime = xi_prime[1:nstop+1]
+    
+    cn = 1j/(xi*psi_prime - m*psi*xi_prime)
+    dn = 1j/(m*psi_prime*xi - psi*xi_prime)
+    
+    return np.array([cn, dn])
+    
+def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    '''
+    Calculate what we refer to as the time Mie coefficients gamma_n and An, 
+    given the relative inted, size parameter, maximum order of expansion.
+    
+    We follow the convention of equation 11 in 
+    Bott and Zdunkowski, J. Opt. Soc. Am. A, vol 4, no. 8, 1987
+    
+    using the recurrence relation in Bohren & Huffman's eq 4.88 for psi prime.
+    and the expressions for cn and dn from equation 3 in Bott and Zdunkowski.
+    '''
+    
+    n = np.arange(nstop+1)
+    n_max = np.max(n)
+    psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop)
+    psishift = np.concatenate((np.zeros(1), psi))[1:nstop+1]
+    psi = psi[1:nstop+1]
+    n = n[1:nstop+1]
+    cn, dn = _trans_coeffs(m,x, n_max, eps1=eps1, eps2=eps2)    
+    
+    # calculate gamma_n and An
+    gamma_n = m**2*(m*cn*psi)*np.conj(m*cn*psi) + m**2*(m*dn*psi)*np.conj(m*dn*psi)
+    An = (psishift-n*psi/(m*x))/psi
+    
+    return gamma_n, An
+    
+def _W0(radius, n_medium):
+    '''
+    Calculates the time-averaged electromagnetic energy of a sphere having the
+    electromagnetic properties of the surrounding medium, according to eq. 9
+    of Bott and Zdunkowski, J. Opt. Soc. Am. A, vol 4, no. 8, 1987
+    
+    W0=2/3*np.pi*radius^3*E0^2*permittivity_medium
+    
+    where radius is the radius of the scatterer, permittivity_medium is the 
+    permittivity of the surrounding medium, and E_0 is the field incident on the 
+    scatterer
+    
+    We use units such that the energy density in vacuum is 1, 
+    where energy density in vacuum is expressed as:
+    
+    energy_density = 1/2*E0^2*permitttivity_medium
+    
+    So plugging this expression into the equation for W0, we have:
+    W0 = 2/3*pi*radius^3*2*energy_density
+    
+    '''
+    energy_density = 1    
+    W0=2/3*np.pi*radius**3*2*energy_density 
+    
+    return W0
 
 def _nstop(x):
     # takes size parameter, outputs order to compute to according to
@@ -493,7 +716,7 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     particles embedded in an absorbing medium", J. Opt. Soc. Am. A, 18, 6(2001).
     
     '''
-    radius = np.array(radius).max() * radius.units
+    radius = np.array(radius.magnitude).max() * radius.units
     x = np.array(x).max()
     
     k = x/radius
@@ -901,9 +1124,12 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     # Multiply by distance (= to radius of particle in montecarlo.py) because
     # this is the integration factor over solid angles (see eq. 4.58 in 
     # Bohren and Huffman). 
+    if isinstance(distance.magnitude,(list, np.ndarray)):
+        if distance[0]==distance[1]:
+            distance = distance[0]
     dsigma_1 = I_1 * distance**2  
     dsigma_2 = I_2 * distance**2 
-
+  
     if coordinate_system == 'scattering plane':
         if phis != None:
             warnings.warn('''azimuthal angles specified for scattering plane
@@ -917,10 +1143,10 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                       
         # Integrate over theta  
         integrand_par = np.trapz(dsigma_1 * np.abs(np.sin(thetas)), 
-                                 x=thetas) * dsigma_1.units
+                                 x=thetas) 
                                  
         integrand_perp = np.trapz(dsigma_2 * np.abs(np.sin(thetas)), 
-                                  x=thetas) * dsigma_2.units
+                                  x=thetas) 
 
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel 
@@ -944,9 +1170,9 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         thetas_bc = thetas.reshape((len(thetas),1)) # reshape for broadcasting
         
         sigma_1 = np.trapz(np.trapz(dsigma_1 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis) * dsigma_1.units
+                               x=phis) 
         sigma_2 = np.trapz(np.trapz(dsigma_2 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis) * dsigma_2.units
+                               x=phis) 
         
     else:
         raise ValueError('The coordinate system specified has not yet been \
@@ -1066,7 +1292,7 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
     [S4  S1]    
     
     Change of basis from scattering plane to lab frame cartesian is calculated 
-    by multiplying M*S*(M^-1) where S is the amplitude scattering matrix and 
+    by multiplying (M^-1)*S*M where S is the amplitude scattering matrix and 
     M is the change of basis matrix. The change of basis matrix M is:
         
     [cosphi  sinphi]
@@ -1133,7 +1359,7 @@ def amplitude_scattering_matrix(m, x, thetas, coordinate_system = 'scattering pl
         coeffs = msl.scatcoeffs_multi(m, x)
     else:
         coeffs = _scatcoeffs(m, x, nstop)
-    
+
     # calculate amplitude scattering matrix in 'scattering plane' coordinate system 
     S2_sp, S1_sp = _amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas)
     S3_sp = 0
