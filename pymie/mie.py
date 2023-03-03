@@ -439,8 +439,6 @@ def _pis_and_taus(nstop, thetas):
     # flatten to make calculations easier
     if isinstance(thetas, Quantity):
         thetas = thetas.to('rad').magnitude
-        if isinstance(thetas, Quantity):
-            thetas = thetas.to('rad').magnitusionde
     thetas = np.ndarray.flatten(thetas)
     
     mu = np.cos(thetas)
