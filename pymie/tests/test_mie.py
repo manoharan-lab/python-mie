@@ -778,7 +778,7 @@ def test_value_errors():
         as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d, 
                             coordinate_system = 'cartesian')
                             
-def test_dwell_time():
+def test_dwell_time_and_energy():
     #Test that the dwell time function matches example given in 
     #Lagendijk and van Tiggelen, Physics Reports 270 (1996) 143-215 pg 169
     #The example given is for 440 nm titania particles in vacuum,
@@ -821,6 +821,7 @@ def test_dwell_time():
                                     
     W_reported = 2500*4/3*np.pi*radius**3
     W_reported = W_reported.to('um^3')
+
     # calculate the energy contained in sphere
     W_calc = mie.calc_energy(radius, n_medium, m, x, nstop)
     W_calc = W_calc.to('um^3')
