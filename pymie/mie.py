@@ -254,8 +254,8 @@ def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
 
     # np.trapz does not preserve units, so need to state explicitly that we are
     # in the same units as the integrand
-    integral_par = 2 * np.pi * np.trapz(integrand_par, x=angles.magnitude)#*integrand_par.units new pint preserves units
-    integral_perp = 2 * np.pi * np.trapz(integrand_perp, x=angles.magnitude)#*integrand_perp.units new pint preserves units
+    integral_par = 2 * np.pi * np.trapz(integrand_par, x=angles.magnitude) # new pint preserves units
+    integral_perp = 2 * np.pi * np.trapz(integrand_perp, x=angles.magnitude) # new pint preserves units
 
     # multiply by 1/k**2 to get the dimensional value
     return wavelen_media**2/4/np.pi/np.pi * (integral_par + integral_perp)/2.0
@@ -284,7 +284,7 @@ def calc_energy(radius, n_medium, m, x, nstop,
     Returns
     -------
     W: float (Quantity in [energy])
-        electromagnetic eenrgy inside the dielectic sphere    
+        electromagnetic energy inside the dielectic sphere    
     
     '''
     W0 = _W0(radius, n_medium)
@@ -440,7 +440,7 @@ def _pis_and_taus(nstop, thetas):
     if isinstance(thetas, Quantity):
         thetas = thetas.to('rad').magnitude
         if isinstance(thetas, Quantity):
-            thetas = thetas.to('rad').magnitude
+            thetas = thetas.to('rad').magnitusionde
     thetas = np.ndarray.flatten(thetas)
     
     mu = np.cos(thetas)
@@ -1145,10 +1145,10 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                       
         # Integrate over theta  
         integrand_par = np.trapz(dsigma_1 * np.abs(np.sin(thetas)), 
-                                 x=thetas) #* dsigma_1.units #removed added units for new numpy version
+                                 x=thetas) 
                                  
         integrand_perp = np.trapz(dsigma_2 * np.abs(np.sin(thetas)), 
-                                  x=thetas) #* dsigma_2.units #removed added units for new numpy version
+                                  x=thetas) 
 
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel 
@@ -1172,9 +1172,9 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         thetas_bc = thetas.reshape((len(thetas),1)) # reshape for broadcasting
         
         sigma_1 = np.trapz(np.trapz(dsigma_1 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis) #* dsigma_1.units #don't need units for new numpy
+                               x=phis) 
         sigma_2 = np.trapz(np.trapz(dsigma_2 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis) #* dsigma_2.units #don't need units for new numpy
+                               x=phis) 
         
     else:
         raise ValueError('The coordinate system specified has not yet been \
