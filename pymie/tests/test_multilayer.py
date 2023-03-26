@@ -29,29 +29,29 @@ import yaml
 def test_scatcoeffs_multi():
     # test that the scattering coefficients are the same for a non-multilayer
     # particle and for an equivalent multilayer particle
-    
+
     # calculate coefficients for the non-multilayer
     m = 1.15
     n_sample = Quantity(1.5, '')
     wavelen = Quantity('500 nm')
-    radius = Quantity('100 nm')    
-    x = size_parameter(wavelen, n_sample, radius) 
+    radius = Quantity('100 nm')
+    x = size_parameter(wavelen, n_sample, radius)
     nstop = mie._nstop(x)
     coeffs = mie._scatcoeffs(m, x, nstop)
-    
-    # calculate coefficients for a multilayer particle with a core that 
+
+    # calculate coefficients for a multilayer particle with a core that
     # is the same as the non-multilayer and a shell thickness of zero
     marray = [1.15, 1.15]  # layer index ratios, innermost first
-    multi_radius = Quantity(np.array([100, 100]),'nm')   
+    multi_radius = Quantity(np.array([100, 100]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
     coeffs_multi = msl.scatcoeffs_multi(marray, xarray)
 
     assert_array_almost_equal(coeffs, coeffs_multi)
-       
-    # calculate coefficients for a 3-layer particle with a core that 
+
+    # calculate coefficients for a 3-layer particle with a core that
     # is the same as the non-multilayer and shell thicknesses of zero
     marray2 = [1.15, 1.15, 1.15]  # layer index ratios, innermost first
-    multi_radius2 = Quantity(np.array([100, 100, 100]),'nm')   
+    multi_radius2 = Quantity(np.array([100, 100, 100]),'nm')
     xarray2 = size_parameter(wavelen, n_sample, multi_radius2)
     coeffs_multi2 = msl.scatcoeffs_multi(marray2, xarray2)
 
@@ -59,19 +59,19 @@ def test_scatcoeffs_multi():
 
 def test_scatcoeffs_multi_absorbing_particle():
     # test that the scattering coefficients are the same for a real index ratio
-    # and a complex index ratio with a 0 imaginary component. 
-    marray_real = [1.15, 1.2]  
-    marray_imag = [1.15 + 0j, 1.2 + 0j] 
+    # and a complex index ratio with a 0 imaginary component.
+    marray_real = [1.15, 1.2]
+    marray_imag = [1.15 + 0j, 1.2 + 0j]
     n_sample = Quantity(1.5, '')
     wavelen = Quantity('500 nm')
-    multi_radius = Quantity(np.array([100, 110]),'nm')   
+    multi_radius = Quantity(np.array([100, 110]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
-    
+
     coeffs_multi_real = msl.scatcoeffs_multi(marray_real, xarray)
     coeffs_multi_imag = msl.scatcoeffs_multi(marray_imag, xarray)
-    
+
     assert_array_almost_equal(coeffs_multi_real, coeffs_multi_imag)
-    
+
 def test_sooty_particles():
     '''
     Test multilayered sphere scattering coefficients by comparison of
@@ -110,8 +110,8 @@ def test_sooty_particles():
     location = os.path.split(os.path.abspath(__file__))[0]
     gold_name = os.path.join(location, 'gold',
                              'gold_multilayer')
-    gold = np.array(yaml.load(open(gold_name + '.yaml')))
-    
+    gold = np.array(yaml.safe_load(open(gold_name + '.yaml')))
+
 
     assert_allclose(efficiencies_from_scat_units(m_ac, x_ac), gold[0],
                     rtol = 1e-3)

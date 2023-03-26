@@ -21,7 +21,6 @@ Tests for the mie module
 """
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie
-from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal, assert_approx_equal
 from pint.errors import DimensionalityError
 import pytest
@@ -58,9 +57,9 @@ def test_cross_sections():
 
     # test that calc_cross_sections throws an exception when given an argument
     # with the wrong dimensions
-    assert_raises(DimensionalityError, mie.calc_cross_sections,
+    pytest.raises(DimensionalityError, mie.calc_cross_sections,
                   m, x, Quantity('0.25 J'))
-    assert_raises(DimensionalityError, mie.calc_cross_sections,
+    pytest.raises(DimensionalityError, mie.calc_cross_sections,
                   m, x, Quantity('0.25'))
 
 def test_form_factor():
@@ -92,7 +91,7 @@ def test_form_factor():
     ipar, iperp = mie.calc_ang_dist(m, x, angles)
     assert_array_almost_equal(ipar, ipar_bhmie)
     assert_array_almost_equal(iperp, iperp_bhmie)
-    
+
 def test_efficiencies():
     x = np.array([0.01, 0.01778279, 0.03162278, 0.05623413, 0.1, 0.17782794,
                   0.31622777, 0.56234133, 1, 1.77827941, 3.16227766, 5.62341325,
@@ -175,29 +174,29 @@ def test_absorbing_materials():
     assert_array_almost_equal(iperp, iperp_bhmie)
 
 def test_multilayer_spheres():
-    # test that form factors and cross sections are the same for a non 
-    # multilayer particle and for an equivalent multilayer particle.
+    # test that form factors and cross sections are the same for a
+    # non-multilayer particle and for an equivalent multilayer particle.
 
-    # form factor and cross section for non-multilayer    
+    # form factor and cross section for non-multilayer
     m = 1.15
     n_sample = Quantity(1.5, '')
     wavelen = Quantity('500 nm')
     angles = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
-    radius = Quantity('100 nm')    
-    x = size_parameter(wavelen, n_sample, radius) 
+    radius = Quantity('100 nm')
+    x = size_parameter(wavelen, n_sample, radius)
 
     f_par, f_perp = mie.calc_ang_dist(m, x, angles)
     cscat, cext, cabs, cback, asym = mie.calc_cross_sections(m, x, wavelen)
-    
-    # form factor and cross section for a multilayer particle with a core that 
+
+    # form factor and cross section for a multilayer particle with a core that
     # is the same as the non-multilayer and a shell thickness of zero
     marray = [1.15, 1.15]  # layer index ratios, innermost first
-    multi_radius = Quantity(np.array([100, 100]),'nm')   
+    multi_radius = Quantity(np.array([100, 100]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
 
     f_par_multi, f_perp_multi = mie.calc_ang_dist(marray, xarray, angles)
     cscat_multi, cext_multi, cabs_multi, cback_multi, asym_multi = mie.calc_cross_sections(marray, xarray, wavelen)
-    
+
     assert_array_almost_equal(f_par, f_par_multi)
     assert_array_almost_equal(f_perp, f_perp_multi)
     assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi.to('um^2').magnitude)
@@ -205,17 +204,17 @@ def test_multilayer_spheres():
     assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi.to('um^2').magnitude)
     assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi.to('um^2').magnitude)
     assert_array_almost_equal(asym.magnitude, asym_multi.magnitude)
-    
-    # form factor and cross section for a multilayer particle with a core that 
-    # is the same as the non-multilayer and a shell index matched with the 
+
+    # form factor and cross section for a multilayer particle with a core that
+    # is the same as the non-multilayer and a shell index matched with the
     # medium (vacuum)
     marray2 = [1.15, 1.]  # layer index ratios, innermost first
-    multi_radius2 = Quantity(np.array([100, 110]),'nm')   
+    multi_radius2 = Quantity(np.array([100, 110]),'nm')
     xarray2 = size_parameter(wavelen, n_sample, multi_radius2)
 
     f_par_multi2, f_perp_multi2 = mie.calc_ang_dist(marray2, xarray2, angles)
     cscat_multi2, cext_multi2, cabs_multi2, cback_multi2, asym_multi2 = mie.calc_cross_sections(marray2, xarray2, wavelen)
-    
+
     assert_array_almost_equal(f_par, f_par_multi2)
     assert_array_almost_equal(f_perp, f_perp_multi2)
     assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi2.to('um^2').magnitude)
@@ -223,16 +222,16 @@ def test_multilayer_spheres():
     assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi2.to('um^2').magnitude)
     assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi2.to('um^2').magnitude)
     assert_array_almost_equal(asym.magnitude, asym_multi2.magnitude)
-    
-    # form factor and cross section for a 3-layer-particle with a core that 
+
+    # form factor and cross section for a 3-layer-particle with a core that
     # is the same as the non-multilayer and shell thicknesses of zero
     marray3 = [1.15, 1.15, 1.15]  # layer index ratios, innermost first
-    multi_radius3 = Quantity(np.array([100, 100, 100]),'nm')   
+    multi_radius3 = Quantity(np.array([100, 100, 100]),'nm')
     xarray3 = size_parameter(wavelen, n_sample, multi_radius3)
 
     f_par_multi3, f_perp_multi3 = mie.calc_ang_dist(marray3, xarray3, angles)
     cscat_multi3, cext_multi3, cabs_multi3, cback_multi3, asym_multi3 = mie.calc_cross_sections(marray3, xarray3, wavelen)
-    
+
     assert_array_almost_equal(f_par, f_par_multi3)
     assert_array_almost_equal(f_perp, f_perp_multi3)
     assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi3.to('um^2').magnitude)
@@ -240,17 +239,17 @@ def test_multilayer_spheres():
     assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi3.to('um^2').magnitude)
     assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi3.to('um^2').magnitude)
     assert_array_almost_equal(asym.magnitude, asym_multi3.magnitude)
-    
-    # form factor and cross section for a 3-layer-particle with a core that 
-    # is the same as the non-multilayer and a shell index matched with the 
+
+    # form factor and cross section for a 3-layer-particle with a core that
+    # is the same as the non-multilayer and a shell index matched with the
     # medium (vacuum)
     marray4= [1.15, 1., 1.]  # layer index ratios, innermost first
-    multi_radius4 = Quantity(np.array([100, 110, 120]),'nm')   
+    multi_radius4 = Quantity(np.array([100, 110, 120]),'nm')
     xarray4 = size_parameter(wavelen, n_sample, multi_radius4)
 
     f_par_multi4, f_perp_multi4 = mie.calc_ang_dist(marray4, xarray4, angles)
     cscat_multi4, cext_multi4, cabs_multi4, cback_multi4, asym_multi4 = mie.calc_cross_sections(marray4, xarray4, wavelen)
-    
+
     assert_array_almost_equal(f_par, f_par_multi4)
     assert_array_almost_equal(f_perp, f_perp_multi4)
     assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi4.to('um^2').magnitude)
@@ -258,24 +257,24 @@ def test_multilayer_spheres():
     assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi4.to('um^2').magnitude)
     assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi4.to('um^2').magnitude)
     assert_array_almost_equal(asym.magnitude, asym_multi4.magnitude)
-    
+
 def test_multilayer_absorbing_spheres():
-    # test that the form factor and cross sections are the same for a real 
+    # test that the form factor and cross sections are the same for a real
     # index ratio m and a complex index ratio with a 0 imaginary component
-    marray_real = [1.15, 1.2]  
-    marray_imag = [1.15 + 0j, 1.2 + 0j] 
+    marray_real = [1.15, 1.2]
+    marray_imag = [1.15 + 0j, 1.2 + 0j]
     n_sample = Quantity(1.5, '')
     wavelen = Quantity('500 nm')
-    multi_radius = Quantity(np.array([100, 110]),'nm')   
+    multi_radius = Quantity(np.array([100, 110]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
     angles = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
-    
+
     f_par_multi_real, f_perp_multi_real = mie.calc_ang_dist(marray_real, xarray, angles)
     f_par_multi_imag, f_perp_multi_imag = mie.calc_ang_dist(marray_imag, xarray, angles)
-        
+
     cross_sections_multi_real = mie.calc_cross_sections(marray_real, xarray, wavelen)
     cross_sections_multi_imag = mie.calc_cross_sections(marray_imag, xarray, wavelen)
-    
+
     assert_array_almost_equal(f_par_multi_real, f_par_multi_imag)
     assert_array_almost_equal(f_perp_multi_real, f_perp_multi_imag)
     assert_array_almost_equal(cross_sections_multi_real[0].to('um^2').magnitude, cross_sections_multi_imag[0].to('um^2').magnitude)
@@ -283,21 +282,21 @@ def test_multilayer_absorbing_spheres():
     assert_array_almost_equal(cross_sections_multi_real[2].to('um^2').magnitude, cross_sections_multi_imag[2].to('um^2').magnitude)
     assert_array_almost_equal(cross_sections_multi_real[3].to('um^2').magnitude, cross_sections_multi_imag[3].to('um^2').magnitude)
     assert_array_almost_equal(cross_sections_multi_real[4].magnitude, cross_sections_multi_imag[4].magnitude)
-    
+
 def test_cross_section_Fu():
     # Test that the cross sections match the Mie cross sections when there is 
     # no absorption in the medium
     wavelen = Quantity('500 nm')
     radius = Quantity('200 nm')
     n_particle = Quantity(1.59, '')
-    
+
     # Mie cross sections
     n_matrix1 = Quantity(1.33, '')
     m1 = index_ratio(n_particle, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
-    
-    # Fu cross sections 
+
+    # Fu cross sections
     n_matrix2 = Quantity(1.33, '')
     m2 = index_ratio(n_particle, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
@@ -305,28 +304,28 @@ def test_cross_section_Fu():
     nstop = mie._nstop(x2)
     coeffs = mie._scatcoeffs(m2, x2, nstop)
     internal_coeffs = mie._internal_coeffs(m2, x2, nstop)
-    
-    cscat2,cabs2,cext2 = mie._cross_sections_complex_medium_fu(coeffs[0],coeffs[1], 
+
+    cscat2,cabs2,cext2 = mie._cross_sections_complex_medium_fu(coeffs[0],coeffs[1],
                                                                internal_coeffs[0],
                                                                internal_coeffs[1],
                                                                radius, n_particle,
-                                                               n_matrix2, x_scat, 
+                                                               n_matrix2, x_scat,
                                                                x2, wavelen)
 
     assert_almost_equal(cscat1.to('um^2').magnitude, cscat2.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cabs1.to('um^2').magnitude, cabs2.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cext1.to('um^2').magnitude, cext2.to('um^2').magnitude, decimal=6)
-    
-    # Test that the cross sections match the Mie cross sections when there is 
+
+    # Test that the cross sections match the Mie cross sections when there is
     # no absorption in the medium and there is absorption in the particle
     n_particle2 = Quantity(1.59 + 0.01j, '')
-    
+
     # Mie cross sections
     n_matrix1 = Quantity(1.33, '')
     m1 = index_ratio(n_particle2, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
-    
+
     # Fu cross sections
     n_matrix2 = Quantity(1.33, '')
     m2 = index_ratio(n_particle2, n_matrix2)
@@ -335,12 +334,12 @@ def test_cross_section_Fu():
     nstop = mie._nstop(x2)
     coeffs = mie._scatcoeffs(m2, x2, nstop)
     internal_coeffs = mie._internal_coeffs(m2, x2, nstop)
-    
-    cscat4,cabs4,cext4 = mie._cross_sections_complex_medium_fu(coeffs[0],coeffs[1], 
+
+    cscat4,cabs4,cext4 = mie._cross_sections_complex_medium_fu(coeffs[0],coeffs[1],
                                                                internal_coeffs[0],
                                                                internal_coeffs[1],
                                                                radius, n_particle2,
-                                                               n_matrix2, x_scat, 
+                                                               n_matrix2, x_scat,
                                                                x2, wavelen)
 
     assert_almost_equal(cscat3.to('um^2').magnitude, cscat4.to('um^2').magnitude, decimal=6)
@@ -353,20 +352,20 @@ def test_cross_section_Sudiarta():
     wavelen = Quantity('500 nm')
     radius = Quantity('200 nm')
     n_particle = Quantity(1.59, '')
-    
+
     # Mie cross sections
     n_matrix1 = Quantity(1.33, '')
     m1 = index_ratio(n_particle, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
-    
+
     # Sudiarta cross sections
     n_matrix2 = Quantity(1.33, '')
     m2 = index_ratio(n_particle, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     nstop = mie._nstop(x2)
     coeffs = mie._scatcoeffs(m2, x2, nstop)
-    
+
     cscat2, cabs2, cext2 = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
                                                                        coeffs[1],
                                                                        x2, radius)
@@ -374,26 +373,26 @@ def test_cross_section_Sudiarta():
     assert_almost_equal(cscat1.to('um^2').magnitude, cscat2.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cabs1.to('um^2').magnitude, cabs2.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cext1.to('um^2').magnitude, cext2.to('um^2').magnitude, decimal=6)
-    
+
     # Test that the cross sections match the Mie cross sections when there is 
     # no absorption in the medium and there is absorption in the particle
     n_particle2 = Quantity(1.59 + 0.01j, '')
-    
+
     # Mie cross sections
     n_matrix1 = Quantity(1.33, '')
     m1 = index_ratio(n_particle2, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
-    
+
     # Fu cross sections
     n_matrix2 = Quantity(1.33, '')
     m2 = index_ratio(n_particle2, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     nstop = mie._nstop(x2)
     coeffs = mie._scatcoeffs(m2, x2, nstop)
-    
-    cscat4, cabs4, cext4 = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
-                                                                       coeffs[1], 
+
+    cscat4, cabs4, cext4 = mie._cross_sections_complex_medium_sudiarta(coeffs[0],
+                                                                       coeffs[1],
                                                                        x2, radius)
 
     assert_almost_equal(cscat3.to('um^2').magnitude, cscat4.to('um^2').magnitude, decimal=6)
@@ -404,15 +403,15 @@ def test_pis_taus():
     '''
     Checks that the vectorized pis_and_taus matches the scalar pis_and_taus
     '''
-    
+
     # number of terms to keep
     nstop = 3
-    
+
     # check that result for a vector input matches the result for a scalar input
     theta = np.pi/4
     pis, taus = mie._pis_and_taus(nstop,theta)
     pis_v, taus_v = mie._pis_and_taus(nstop, np.array(theta))
-    
+
     assert_almost_equal(pis, pis_v)
     assert_almost_equal(taus, taus_v)
 
@@ -424,10 +423,10 @@ def test_pis_taus():
     taus = np.zeros((len(theta), nstop))
     for i in range(len(theta)):
         pis[i,:], taus[i,:] = mie._pis_and_taus(nstop, theta[i])
-        
+
     assert_almost_equal(pis, pis_v)
     assert_almost_equal(taus, taus_v)
-    
+
     # check that result for a vector input matches the result for a scalar input
     # for a theta 2d array
     theta = np.array([[np.pi/4, np.pi/2, np.pi/3],[np.pi/6, np.pi/4, np.pi/2]])
@@ -437,26 +436,26 @@ def test_pis_taus():
     for i in range(theta.shape[0]):
         for j in range(theta.shape[1]):
             pis[i,j,:], taus[i,j,:] = mie._pis_and_taus(nstop, theta[i,j])
-    
+
     assert_almost_equal(pis, pis_v)
     assert_almost_equal(taus, taus_v)
 
 
 def test_cross_section_complex_medium():
-    
+
     # test that the cross sections calculated with the Mie solutions in absorbing
     # medium match the far-field Mie solutions and Sudiarta and Fu's solutions 
     # when there is no absorption in the medium
-    
+
     # set parameters
     wavelen = Quantity('400 nm')
-    n_particle = Quantity(1.5+0.01j,'') 
-    n_matrix = Quantity(1.0,'') 
+    n_particle = Quantity(1.5+0.01j,'')
+    n_matrix = Quantity(1.0,'')
     radius = Quantity(150,'nm')
     theta = Quantity(np.linspace(0, np.pi, 1000), 'rad')#1000
     distance = Quantity(10000,'nm')
 
-    
+
     m = index_ratio(n_particle, n_matrix)
     k = 2*np.pi*n_matrix/wavelen
     x = size_parameter(wavelen, n_matrix, radius)
@@ -465,44 +464,44 @@ def test_cross_section_complex_medium():
 
     # With far-field Mie solutions
     cscat_mie = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
-    
+
     # With Sudiarta
-    cscat_sudiarta = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
-                                                                 coeffs[1], x, 
-                                                                 radius)[0]       
+    cscat_sudiarta = mie._cross_sections_complex_medium_sudiarta(coeffs[0],
+                                                                 coeffs[1],
+                                                                 x, radius)[0]
     # With Fu
     x_scat = size_parameter(wavelen, n_particle, radius)
     internal_coeffs = mie._internal_coeffs(m, x, nstop)
-    cscat_fu = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], 
-                                                     internal_coeffs[0], 
-                                                     internal_coeffs[1], 
-                                                     radius, n_particle, 
-                                                     n_matrix, x_scat, x, 
+    cscat_fu = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1],
+                                                     internal_coeffs[0],
+                                                     internal_coeffs[1],
+                                                     radius, n_particle,
+                                                     n_matrix, x_scat, x,
                                                      wavelen)[0]
     # With Mie solutions in absorbing medium
     rho_scat = k*distance
-    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
+    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta,
                                                                      rho_scat)
-    cscat_exact = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
+    cscat_exact = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat,
                                                          distance, theta, k)[0]
-    
+
     # check that intensity equations without the asymptotic form of the spherical
-    # Hankel equations (because they simplify when the fields are multiplied by 
+    # Hankel equations (because they simplify when the fields are multiplied by
     # their conjugates to get the intensity) matches old result before simplifying
     cscat_exact_old = 0.15417313385938064
     assert_almost_equal(cscat_exact_old, cscat_exact.to('um^2').magnitude, decimal=15)
-    
+
     assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_mie.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_sudiarta.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_fu.to('um^2').magnitude, decimal=6)
-    
-    
+
+
     # test that the cross sections calculated with the full Mie solutions 
     # match the near field Sudiarta and Fu's solutions when there is absorption 
     # in the medium
-    n_matrix = Quantity(1.0+0.001j,'') 
+    n_matrix = Quantity(1.0+0.001j,'')
     distance = Quantity(radius.magnitude,'nm')
-    
+
     m = index_ratio(n_particle, n_matrix)
     k = 2*np.pi*n_matrix/wavelen
     x = size_parameter(wavelen, n_matrix, radius)
@@ -510,82 +509,82 @@ def test_cross_section_complex_medium():
     coeffs = mie._scatcoeffs(m, x, nstop)
 
     # With Sudiarta
-    cscat_sudiarta2 = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
-                                                                  coeffs[1], x, 
-                                                                  radius)[0]       
+    cscat_sudiarta2 = mie._cross_sections_complex_medium_sudiarta(coeffs[0],
+                                                                  coeffs[1], x,
+                                                                  radius)[0]
     # With Fu
     x_scat = size_parameter(wavelen, n_particle, radius)
     internal_coeffs = mie._internal_coeffs(m, x, nstop)
-    cscat_fu2 = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], 
-                                                      internal_coeffs[0], 
-                                                      internal_coeffs[1], 
-                                                      radius, n_particle, 
-                                                      n_matrix, x_scat, x, 
+    cscat_fu2 = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1],
+                                                      internal_coeffs[0],
+                                                      internal_coeffs[1],
+                                                      radius, n_particle,
+                                                      n_matrix, x_scat, x,
                                                       wavelen)[0]
     # With full Mie solutions that include the near fields
     rho_scat = k*distance
-    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
+    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta,
                                                                      rho_scat, near_field=True)
-    cscat_exact2 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
+    cscat_exact2 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat,
                                                          distance, theta, k)[0]
 
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_sudiarta2.to('um^2').magnitude, decimal=5)
     assert_almost_equal(cscat_exact2.to('um^2').magnitude, cscat_fu2.to('um^2').magnitude, decimal=5)
-    
-    # test that the cross sections calculated with the full Mie solutions 
+
+    # test that the cross sections calculated with the full Mie solutions
     # match the far-field Mie solutions when the matrix absorption is close to 0
-    n_matrix = Quantity(1.0+0.0000001j,'') 
+    n_matrix = Quantity(1.0+0.0000001j,'')
     m = index_ratio(n_particle, n_matrix)
     k = 2*np.pi*n_matrix/wavelen
     x = size_parameter(wavelen, n_matrix, radius)
     rho_scat = k*distance
-    
+
     # With full Mie solutions
-    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta, 
+    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta,
                                                                      rho_scat)
 
-    cscat_exact3 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat, 
+    cscat_exact3 = mie.integrate_intensity_complex_medium(I_par_scat, I_perp_scat,
                                                          distance, theta, k)[0]
-    
-    # With far-field Mie solutions                                                     
+
+    # With far-field Mie solutions
     cscat_mie3 = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
 
     # check that intensity equations without the asymptotic form of the spherical
-    # Hankel equations (because they simplify when the fields are multiplied by 
+    # Hankel equations (because they simplify when the fields are multiplied by
     # their conjugates to get the intensity) matches old result before simplifying
     cscat_exact_old3 = 0.15417310571064319
-    assert_almost_equal(cscat_exact_old3, cscat_exact3.to('um^2').magnitude, decimal=15)    
-    
+    assert_almost_equal(cscat_exact_old3, cscat_exact3.to('um^2').magnitude, decimal=15)
+
     assert_almost_equal(cscat_exact3.to('um^2').magnitude, cscat_mie3.to('um^2').magnitude, decimal=6)
 
 
 def test_multilayer_complex_medium():
-    # test that the form factor and cross sections are the same for a real 
+    # test that the form factor and cross sections are the same for a real
     # index ratio m and a complex index ratio with a 0 imaginary component
-    marray = [1.15, 1.2]  
+    marray = [1.15, 1.2]
     n_sample = Quantity(1.5 + 0j, '')
     wavelen = Quantity('500 nm')
-    multi_radius = Quantity(np.array([100, 110]),'nm')   
+    multi_radius = Quantity(np.array([100, 110]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
     angles = Quantity(np.linspace(0, np.pi, 10000), 'rad')
     distance = Quantity(100000000,'nm')
     k =  2*np.pi*n_sample/wavelen
     kd = k*distance
-    
+
     # With far-field Mie solutions
     cscat_real = mie.calc_cross_sections(marray, xarray, wavelen/n_sample)[0]
-    
+
     # with imag solutions
     I_par_multi, I_perp_multi = mie.diff_scat_intensity_complex_medium(marray, xarray, angles, kd)
-    cscat_imag = mie.integrate_intensity_complex_medium(I_par_multi, I_perp_multi, 
+    cscat_imag = mie.integrate_intensity_complex_medium(I_par_multi, I_perp_multi,
                                                          distance, angles, k)[0]
-    
+
     # check that intensity equations without the asymptotic form of the spherical
-    # Hankel equations (because they simplify when the fields are multiplied by 
+    # Hankel equations (because they simplify when the fields are multiplied by
     # their conjugates to get the intensity) matches old result before simplifying
     cscat_imag_old = 6275.240019849266
     assert_almost_equal(cscat_imag_old, cscat_imag.magnitude, decimal=11)
-    
+
     assert_array_almost_equal(cscat_real.magnitude, cscat_imag.magnitude, decimal=3)
 
 
@@ -594,21 +593,21 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     Test that the amplitude scattering vector assuming x-polarized incident
     light calculated by amp_scat_vec_2d_theta_xy() matches what we get by doing
     the matrix multiplication manually
-    
+
     amp_scat_vec_2d_theta_xy() converts from the parallel/perpendicular basis
     by doing the change of basis matrix multiplication in the function
-    
+
     Here, we carry out the change of basis manually and plug in the numbers
     to make sure the two methods match.
-    
+
     [as_vec_x]  = [cos(phi)  sin(phi)] * [S2  0] * [cos(phi)  sin(phi)] * [1]
     [as_vec_y]    [sin(phi) -cos(phi)]   [0  S1]   [sin(phi) -cos(phi)]   [0]
-                        
+
                 = [S2cos(phi)^2       +       S1sin(phi)^2]
                   [S2cos(phi)sin(phi) - S1cos(phi)sin(phi)]
-    
+
     '''
-    
+
     # parameters of sample and source
     wavelen = Quantity('658 nm')
     radius = Quantity('0.85 um')
@@ -617,31 +616,31 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     n_particle = Quantity(1.59, '')
     thetas = Quantity(np.linspace(np.pi/2, np.pi, 2), 'rad')
     phis = Quantity(np.linspace(0, 2*np.pi, 4), 'rad')
-    thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape. 
-    
+    thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape.
+
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
-    
+
     # calculate the amplitude scattering matrix in xy basis
-    as_vec_x0, as_vec_y0 = mie.vector_scattering_amplitude(m, x, thetas_2d, 
+    as_vec_x0, as_vec_y0 = mie.vector_scattering_amplitude(m, x, thetas_2d,
                             coordinate_system = 'cartesian', phis = phis_2d)
-    
+
     # calcualte the amplitude scattering matrix in par/perp basis
     S1_sp, S2_sp, S3_sp, S4_sp = mie.amplitude_scattering_matrix(m, x, thetas_2d)
-    
+
     as_vec_x = S2_sp*np.cos(phis_2d)**2 + S1_sp*np.sin(phis_2d)**2
     as_vec_y = S2_sp*np.cos(phis_2d)*np.sin(phis_2d) - S1_sp*np.cos(phis_2d)*np.sin(phis_2d)
-    
+
     assert_almost_equal(as_vec_x0.magnitude, as_vec_x.magnitude)
     assert_almost_equal(as_vec_y0.magnitude, as_vec_y.magnitude)
-    
+
 def test_diff_scat_intensity_complex_medium_cartesian():
     '''
-    Test that the magnitude of the differential scattered intensity is the 
-    same in the xy basis as it is in the parallel, perpendicular basis, as 
+    Test that the magnitude of the differential scattered intensity is the
+    same in the xy basis as it is in the parallel, perpendicular basis, as
     long as the incident light is unpolarized for both
-    
+
     This should be true because a rotation around phi brings the par/perp basis
     into the x,y basis
     '''
@@ -652,34 +651,34 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
     thetas = Quantity(np.linspace(np.pi/2, np.pi, 4), 'rad')
     phis = Quantity(np.linspace(0, 2*np.pi, 3), 'rad')
-    thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape. 
+    thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape.
                                                    # for integration, theta dimension must always come first,
                                                    # which is not how it is done here
     thetas_2d = Quantity(thetas_2d, 'rad')
-    
+
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
     kd = 2*np.pi*n_matrix/wavelen*Quantity(10000,'nm')
-    
+
     # calculate differential scattered intensity in par/perp basis
-    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
+    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                                                            near_field=False)
-    
+
     # calculate differential scattered intensity in xy basis
     # if incident vector is unpolarized (1,1), then the resulting differential
     # scattered intensity should be the same as I_par, I_perp
-    I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
-                            coordinate_system = 'cartesian', phis = phis_2d, 
+    I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
+                            coordinate_system = 'cartesian', phis = phis_2d,
                             near_field=False, incident_vector = (1, 1))
-    
+
     # assert equality of their magnitudes
     I_xy_mag = np.sqrt(I_x**2 + I_y**2)
     I_par_perp_mag = np.sqrt(I_par**2 + I_perp**2)
-    
+
     # check that the magnitudes are equal
     assert_array_almost_equal(I_xy_mag.magnitude, I_par_perp_mag.magnitude, decimal=16)
-   
+
 def test_integrate_intensity_complex_medium_cartesian():
     '''
     Test that when integrated over all theta and phi angles, the intensities
@@ -700,35 +699,35 @@ def test_integrate_intensity_complex_medium_cartesian():
     k = 2*np.pi*n_matrix/wavelen
     distance = Quantity(10000,'nm')
     kd = k*distance
-    
+
     # calculate the differential scattered intensities
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                             coordinate_system = 'cartesian', phis = phis_2d,
                             near_field=False)
-    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd, 
+    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
                                                            near_field=False)
-    
+
     # integrate the differential scattered intensities
     cscat_xy = mie.integrate_intensity_complex_medium(I_x, I_y, distance, thetas, k,
                          coordinate_system = 'cartesian', phis = phis)[0]
-    
+
     # check that intensity equations without the asymptotic form of the spherical
     # Hankel equations (because they simplify when the fields are multiplied by 
     # their conjugates to get the intensity) matches old result before simplifying
     cscat_xy_old = 6010696.7108612377
     assert_almost_equal(cscat_xy_old, cscat_xy.magnitude, decimal=7)
-    
-    cscat_parperp = mie.integrate_intensity_complex_medium(I_par, I_perp, 
+
+    cscat_parperp = mie.integrate_intensity_complex_medium(I_par, I_perp,
                                                          distance, thetas, k)[0]
-    
+
     # check that the integrated cross sections are equal
     assert_almost_equal(cscat_xy.magnitude, cscat_parperp.magnitude)
-    
+
 def test_value_errors():
     '''
     test the errors related to incorrect input
     '''
-    
+
     # parameters of sample and source
     wavelen = Quantity('658 nm')
     radius = Quantity('0.85 um')
@@ -738,20 +737,20 @@ def test_value_errors():
     phis = Quantity(np.linspace(0, 2*np.pi, 3), 'rad')
     thetas_2d, phis_2d = np.meshgrid(thetas, phis)
     thetas_2d = Quantity(thetas_2d, 'rad')
-    
+
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
     k = 2*np.pi*n_matrix/wavelen
     distance = Quantity(10000,'nm')
     kd = k*distance
-    
+
     with pytest.raises(ValueError):
         # try to calculate differential scattered intensity in weird coordinate system
         I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
                             coordinate_system = 'weird', phis = phis_2d, 
                             near_field=True)
-    
+
         # try to calculate new
         I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                                 coordinate_system = 'cartesian', phis = phis_2d, 
@@ -760,29 +759,29 @@ def test_value_errors():
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                                 coordinate_system = 'cartesian', phis = phis_2d, 
                                 near_field=False)
-    
+
     I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd, 
                             near_field=True)
-    
+
     with pytest.raises(ValueError):
         # integrate the differential scattered intensities
         cscat_xy = mie.integrate_intensity_complex_medium(I_x, I_y, distance, 
                         thetas, k, coordinate_system = 'cartesian')[0]
-        
+
         cscat_weird = mie.integrate_intensity_complex_medium(I_x, I_y, distance, 
                         thetas, k, coordinate_system = 'weird')[0]
-        
+
         as_vec_weird = mie.vector_scattering_amplitude(m, x, thetas_2d, 
                             coordinate_system = 'weird', phis = phis_2d)
-        
+
         as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d, 
                             coordinate_system = 'cartesian')
-                            
+
 def test_dwell_time_and_energy():
     #Test that the dwell time function matches example given in 
     #Lagendijk and van Tiggelen, Physics Reports 270 (1996) 143-215 pg 169
     #The example given is for 440 nm titania particles in vacuum,
-    #where: 
+    #where:
     #
     #size parameter: x = 4.59
     #radius = 220 nm
@@ -790,12 +789,11 @@ def test_dwell_time_and_energy():
     #
     #and the dwell time can be expressed as:
     #
-    #td = 850*(220 nm)/ c 
+    #td = 850*(220 nm)/ c
     #
     #so the corresponding distance travelled in a vacuum is:
     #distance = c*td ~ 190 um
 
-    
     # parameters given in  Lagendijk and van Tiggelen
     radius = Quantity('220 nm')
     n_medium = Quantity(1, '')
@@ -805,36 +803,36 @@ def test_dwell_time_and_energy():
     m = 2.73
     wavelen = 2*np.pi*radius*n_medium/x
     wavelen_media = 2*np.pi*radius/x
-    
-    dwell_time = mie.calc_dwell_time(radius, 
+
+    dwell_time = mie.calc_dwell_time(radius,
                                     n_medium,
                                     n_particle,
                                     wavelen)
-                                    
-     
-    nstop = mie._nstop(x)       
+
+
+    nstop = mie._nstop(x)
     gamma_n, An = mie._time_coeffs(m, x, nstop)
     n = np.arange(1,nstop+1)
     y = m*x
     W_star_calc = 3/4*np.sum((2*n + 1)/y**2 *gamma_n*(1+An**2-n*(n+1)/y**2))
-    W_star_reported = 2500                               
-                                    
+    W_star_reported = 2500
+
     W_reported = 2500*4/3*np.pi*radius**3
     W_reported = W_reported.to('um^3')
 
     # calculate the energy contained in sphere
     W_calc = mie.calc_energy(radius, n_medium, m, x, nstop)
     W_calc = W_calc.to('um^3')
-    
+
     cscat_reported = 3.9*np.pi*radius**2
     cscat_reported = cscat_reported.to('um^2')
     cscat_calc = mie.calc_cross_sections(m, x, wavelen_media)[0]
     cscat_calc = cscat_calc.to('um^2')
-                                    
+
     distance_reported = Quantity('190 um')
     distance_calc = dwell_time*c
     distance_calc = distance_calc.to('um')
-    
+
     assert_approx_equal(cscat_reported.magnitude, cscat_calc.magnitude, significant=2)
     assert_approx_equal(W_star_reported, np.real(W_star_calc), significant=2)
     assert_approx_equal(W_reported.magnitude, np.real(W_calc.magnitude), significant=2)
