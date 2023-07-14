@@ -33,8 +33,8 @@ def test_scatcoeffs_multi():
     # calculate coefficients for the non-multilayer
     m = 1.15
     n_sample = Quantity(1.5, '')
-    wavelen = Quantity('500 nm')
-    radius = Quantity('100 nm')
+    wavelen = Quantity('500.0 nm')
+    radius = Quantity('100.0 nm')
     x = size_parameter(wavelen, n_sample, radius)
     nstop = mie._nstop(x)
     coeffs = mie._scatcoeffs(m, x, nstop)
@@ -42,7 +42,7 @@ def test_scatcoeffs_multi():
     # calculate coefficients for a multilayer particle with a core that
     # is the same as the non-multilayer and a shell thickness of zero
     marray = [1.15, 1.15]  # layer index ratios, innermost first
-    multi_radius = Quantity(np.array([100, 100]),'nm')
+    multi_radius = Quantity(np.array([100.0, 100.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
     coeffs_multi = msl.scatcoeffs_multi(marray, xarray)
 
@@ -51,7 +51,7 @@ def test_scatcoeffs_multi():
     # calculate coefficients for a 3-layer particle with a core that
     # is the same as the non-multilayer and shell thicknesses of zero
     marray2 = [1.15, 1.15, 1.15]  # layer index ratios, innermost first
-    multi_radius2 = Quantity(np.array([100, 100, 100]),'nm')
+    multi_radius2 = Quantity(np.array([100.0, 100.0, 100.0]),'nm')
     xarray2 = size_parameter(wavelen, n_sample, multi_radius2)
     coeffs_multi2 = msl.scatcoeffs_multi(marray2, xarray2)
 
@@ -63,8 +63,8 @@ def test_scatcoeffs_multi_absorbing_particle():
     marray_real = [1.15, 1.2]
     marray_imag = [1.15 + 0j, 1.2 + 0j]
     n_sample = Quantity(1.5, '')
-    wavelen = Quantity('500 nm')
-    multi_radius = Quantity(np.array([100, 110]),'nm')
+    wavelen = Quantity('500.0 nm')
+    multi_radius = Quantity(np.array([100.0, 110.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
 
     coeffs_multi_real = msl.scatcoeffs_multi(marray_real, xarray)

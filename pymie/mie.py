@@ -336,7 +336,8 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
     W = calc_energy(radius, n_medium, m, x, nstop, eps1 = eps1, eps2 = eps2)
 
     # define speed of light
-    c = Quantity(2.99792e8,'m/s')
+    # get this from Pint in a somewhat indirect way:
+    c = Quantity(1.0, 'speed_of_light').to('m/s')
 
     # calculate total cross section
     if np.imag(x)>0:
@@ -1072,7 +1073,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     return I_1.real, I_2.real # the intensities should be real
 
 def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
-                                       phi_min=Quantity(0, 'rad'),
+                                       phi_min=Quantity(0.0, 'rad'),
                                        phi_max=Quantity(2*np.pi, 'rad'),
                                        coordinate_system = 'scattering plane',
                                        phis = None):
