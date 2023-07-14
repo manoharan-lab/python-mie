@@ -42,8 +42,8 @@ sphere," Applied Optics 42, 1710-1720, (1993).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 import numpy as np
-from numpy import array, sin, cos, zeros, arange, real, imag, exp
 import scipy
+from numpy import arange, array, cos, exp, imag, real, sin, zeros
 from scipy.special import riccati_jn, riccati_yn, spherical_jn, spherical_yn
 
 # default tolerances
@@ -57,7 +57,7 @@ def riccati_psi_xi(x, nstop):
     """
     if np.imag(x) != 0.:
         # if x is complex, calculate spherical bessel functions and compute the
-        # complex riccati-bessel solutions 
+        # complex riccati-bessel solutions
         nstop_array = np.arange(0,nstop+1)
         psin = spherical_jn(nstop_array, x)*x
         xin = psin + 1j*spherical_yn(nstop_array, x)*x
@@ -128,7 +128,7 @@ def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
 def dn_1_down(z, nmx, nstop, start_val):
     '''
-    Computes logarithmic derivative of Riccati-Bessel function \psi_n(z)
+    Computes logarithmic derivative of Riccati-Bessel function psi_n(z)
     by downward recursion as in BHMIE.
 
     Parameters
@@ -140,7 +140,7 @@ def dn_1_down(z, nmx, nstop, start_val):
 
     Notes
     -----
-    \psi_n(z) is related to the spherical Bessel function j_n(z).
+    psi_n(z) is related to the spherical Bessel function j_n(z).
     '''
     dn = zeros(nmx+1, dtype = 'complex128')
     dn[nmx] = start_val
@@ -231,7 +231,7 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None, eps1 = DEFAULT_EPS1,
 
 def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
-    Calculate ratio of Riccati-Bessel function \psi: \psi(z1)/\psi(z2).
+    Calculate ratio of Riccati-Bessel function psi: psi(z1)/psi(z2).
 
     See Mackowski eqns. 65-66.
     '''
