@@ -22,18 +22,18 @@ multilayer_sphere_lib.py
 Author:
 Jerome Fung (fung@physics.harvard.edu)
 
-Copied from holopy on 12 Sept 2017. Functions to calculate the scattering from 
-a spherically symmetric particle with an arbitrary number of layers with 
-different refractive indices. 
+Copied from holopy on 12 Sept 2017. Functions to calculate the scattering from
+a spherically symmetric particle with an arbitrary number of layers with
+different refractive indices.
 
 Key reference for multilayer algorithm:
-Yang, "Improved recursive algorithm for light scattering by a multilayered 
+Yang, "Improved recursive algorithm for light scattering by a multilayered
 sphere," Applied Optics 42, 1710-1720, (1993).
 
 '''
 
 import numpy as np
-from numpy import exp, sin, cos, real, imag
+from numpy import cos, exp, imag, real, sin
 
 try:
     from . import mie
@@ -50,7 +50,7 @@ def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     ----------
     marray : array_like, complex128
         array of layer indices, innermost first
-    xarray : array_like, real 
+    xarray : array_like, real
         array of layer size parameters (k * outer radius), innermost first
     eps1 : float, optional
         underflow criterion for Lentz continued fraction for Dn1
@@ -69,7 +69,7 @@ def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     # sanity check: marray and xarray must be same size
     if marray.size != xarray.size:
         raise ValueError('Arrays of layer indices and size parameters must be the same length!')
-        
+
     # need number of layers L
     nlayers = marray.size
 
@@ -80,7 +80,7 @@ def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     intl = log_der_13(marray[0]*xarray[0], nstop, eps1, eps2)[0]
     hans = intl
     hbns = intl
-	
+
     for lay in np.arange(1, nlayers): # lay is l-1 (index on layers used by Yang)
         z1 = marray[lay]*xarray[lay-1] # m_l x_{l-1}
         z2 = marray[lay]*xarray[lay]  # m_l x_l
@@ -89,7 +89,7 @@ def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
         derz1s = log_der_13(z1, nstop, eps1, eps2)
         derz2s = log_der_13(z2, nstop, eps1, eps2)
 
-        # calculate G1, G2, Gtilde1, Gtilde2 according to 
+        # calculate G1, G2, Gtilde1, Gtilde2 according to
         # eqns 26-29
         # using H^a_n and H^b_n from previous layer
         G1 = marray[lay]*hans - marray[lay-1]*derz1s[0]
@@ -113,13 +113,13 @@ def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     n = np.arange(nstop+1)
     psi = psiandxi[0]
     xi = psiandxi[1]
-    # this doesn't bother to calculate psi/xi_{-1} correctly, 
+    # this doesn't bother to calculate psi/xi_{-1} correctly,
     # but OK since we're throwing out a_0, b_0 where it appears
     psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
     xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
-    
-    an = ((hans/marray[nlayers-1] + n/xarray[nlayers-1])*psi - psishift) / ( 
+
+    an = ((hans/marray[nlayers-1] + n/xarray[nlayers-1])*psi - psishift) / (
         (hans/marray[nlayers-1] + n/xarray[nlayers-1])*xi - xishift)
-    bn = ((hbns*marray[nlayers-1] + n/xarray[nlayers-1])*psi - psishift) / ( 
+    bn = ((hbns*marray[nlayers-1] + n/xarray[nlayers-1])*psi - psishift) / (
         (hbns*marray[nlayers-1] + n/xarray[nlayers-1])*xi - xishift)
     return np.array([an[1:nstop+1], bn[1:nstop+1]]) # output begins at n=1
