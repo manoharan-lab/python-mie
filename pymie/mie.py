@@ -42,7 +42,8 @@ Small Particles" (1983)
 import warnings
 
 import numpy as np
-from scipy.special import lpn, spherical_jn, spherical_yn
+from scipy.special import spherical_jn, spherical_yn
+from scipy.special import legendre_p_all, lpn
 
 from . import Quantity, index_ratio, mie_specfuncs
 from . import multilayer_sphere_lib as msl
@@ -397,19 +398,6 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
 
 # Mie functions used internally
 
-def _lpn_vectorized(n, z):
-    # scipy.special.lpn (Legendre polynomials and derivatives) is not a ufunc,
-    # so cannot handle array arguments for n and z. It does, however, calculate
-    # all orders of the polynomial and derivatives up to order n. So we pick
-    # the max value of the array n that is passed to the function.
-    nmax = np.max(n)
-    z = np.atleast_1d(z)
-    # now vectorize over z; this is in general slow because it runs a python loop.
-    # Need to figure out a better way to do this; one possibility is to use
-    # scipy.special.sph_harm, which is a ufunc, and use special cases to recover
-    # the legendre polynomials and derivatives
-    return np.array([lpn(nmax, z) for z in z])
-
 def _pis_and_taus(nstop, thetas):
     '''
     Calculate pi and tau angular functions at an array of theta out to order n
@@ -447,12 +435,15 @@ def _pis_and_taus(nstop, thetas):
 
     mu = np.cos(thetas)
 
-    # returns P_n and derivative, as a list of 2 arrays, the second
-    # being the derivative
-    legendre0 = _lpn_vectorized(nstop, mu)
+    # returns P_n and derivatives up to degree n for all values in mu array has
+    # shape (2, nmax, len(mu)), where legendre0[0,:,:] is P_n and
+    # legendre0[1,:,:] is the derivative.
+    legendre0 = legendre_p_all(nstop, mu, diff_n=1)
 
-    # perform calculations on pis to get taus
-    pis = (legendre0[:,1,0:nstop+1])
+    # Perform calculations on pis to get taus. We rearrange the order of the
+    # axes to the order that we used in previous versions of the code, where
+    # the Legendre polynomial calculation was not automatically vectorized.
+    pis = np.swapaxes(legendre0[1, 0:nstop+1, :], 0, 1)
     pishift = np.concatenate((np.zeros((len(thetas),1)), pis), axis=1)[:, :nstop+1]
     n = np.arange(nstop+1)
     mus = np.swapaxes(np.tile(mu, (nstop+1,1)),0,1)
