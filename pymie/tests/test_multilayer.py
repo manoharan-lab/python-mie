@@ -110,8 +110,9 @@ def test_sooty_particles():
     location = os.path.split(os.path.abspath(__file__))[0]
     gold_name = os.path.join(location, 'gold',
                              'gold_multilayer')
-    gold = np.array(yaml.safe_load(open(gold_name + '.yaml')))
-
+    gold_file = open(gold_name + '.yaml')
+    gold = np.array(yaml.safe_load(gold_file))
+    gold_file.close()
 
     assert_allclose(efficiencies_from_scat_units(m_ac, x_ac), gold[0],
                     rtol = 1e-3)
