@@ -44,6 +44,7 @@ import warnings
 import numpy as np
 from scipy.special import spherical_jn, spherical_yn
 from scipy.special import legendre_p_all, lpn
+from scipy.integrate import trapezoid
 
 from . import Quantity, index_ratio, mie_specfuncs
 from . import multilayer_sphere_lib as msl
@@ -256,10 +257,14 @@ def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
     integrand_par = form_factor[0]*np.sin(angles)
     integrand_perp = form_factor[1]*np.sin(angles)
 
-    # np.trapz does not preserve units, so need to state explicitly that we are
-    # in the same units as the integrand
-    integral_par = 2 * np.pi * np.trapz(integrand_par, x=angles.magnitude) # new pint preserves units
-    integral_perp = 2 * np.pi * np.trapz(integrand_perp, x=angles.magnitude) # new pint preserves units
+    # scipy.integrate.trapezoid does not yet preserve units, so we will remove
+    # the units before calling and put them back afterward. Can simplify code
+    # when these github issues are fixed:
+    # https://github.com/hgrecco/pint/issues/114
+    # https://github.com/hgrecco/pint/issues/2101
+
+    integral_par = 2 * np.pi * trapezoid(integrand_par, x=angles.magnitude)
+    integral_perp = 2 * np.pi * trapezoid(integrand_perp, x=angles.magnitude)
 
     # multiply by 1/k**2 to get the dimensional value
     return wavelen_media**2/4/np.pi/np.pi * (integral_par + integral_perp)/2.0
@@ -1137,11 +1142,14 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         phi_max = phi_max.to('rad').magnitude
 
         # Integrate over theta
-        integrand_par = np.trapz(dsigma_1 * np.abs(np.sin(thetas)),
-                                 x=thetas)
-
-        integrand_perp = np.trapz(dsigma_2 * np.abs(np.sin(thetas)),
+        integrand_par = trapezoid(dsigma_1 * np.abs(np.sin(thetas)),
                                   x=thetas)
+
+        integrand_perp = trapezoid(dsigma_2 * np.abs(np.sin(thetas)),
+                                   x=thetas)
+        # restore units
+        integrand_par = Quantity(integrand_par, dsigma_1.units)
+        integrand_perp = Quantity(integrand_perp, dsigma_2.units)
 
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel
@@ -1164,11 +1172,13 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         # Integrate over theta and phi
         thetas_bc = thetas.reshape((len(thetas),1)) # reshape for broadcasting
 
-        sigma_1 = np.trapz(np.trapz(dsigma_1 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis)
-        sigma_2 = np.trapz(np.trapz(dsigma_2 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis)
-
+        sigma_1 = trapezoid(trapezoid(dsigma_1 * np.abs(np.sin(thetas_bc)),
+                                      x=thetas, axis=0), x=phis)
+        sigma_2 = trapezoid(trapezoid(dsigma_2 * np.abs(np.sin(thetas_bc)),
+                                      x=thetas, axis=0), x=phis)
+        # restore units
+        sigma_1 = Quantity(sigma_1, dsigma_1.units)
+        sigma_2 = Quantity(sigma_2, dsigma_2.units)
     else:
         raise ValueError('The coordinate system specified has not yet been \
                 implemented. Change to \'cartesian\' or \'scattering plane\'')
