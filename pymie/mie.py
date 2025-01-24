@@ -43,7 +43,7 @@ import warnings
 
 import numpy as np
 from scipy.special import spherical_jn, spherical_yn
-from scipy.special import legendre_p_all, lpn
+from scipy.special import legendre_p_all
 from scipy.integrate import trapezoid
 
 from . import Quantity, index_ratio, mie_specfuncs
@@ -440,8 +440,8 @@ def _pis_and_taus(nstop, thetas):
 
     mu = np.cos(thetas)
 
-    # returns P_n and derivatives up to degree n for all values in mu array has
-    # shape (2, nmax, len(mu)), where legendre0[0,:,:] is P_n and
+    # returns P_n and derivatives up to degree n for all values in mu array.
+    # legendre0 has shape (2, nmax, len(mu)), where legendre0[0,:,:] is P_n and
     # legendre0[1,:,:] is the derivative.
     legendre0 = legendre_p_all(nstop, mu, diff_n=1)
 
