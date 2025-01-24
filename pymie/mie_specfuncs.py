@@ -42,8 +42,7 @@ sphere," Applied Optics 42, 1710-1720, (1993).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 import numpy as np
-import scipy
-from numpy import arange, array, cos, exp, imag, real, sin, zeros
+from numpy import arange, array, exp, imag, real, sin, zeros
 from scipy.special import riccati_jn, riccati_yn, spherical_jn, spherical_yn
 
 # default tolerances
@@ -189,8 +188,8 @@ def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     return dn1, dn3
 
 # calculate ratio of RB's defined in Yang eqn. 23 by up recursion relation
-def Qratio(z1, z2, nstop, dns1 = None, dns2 = None, eps1 = DEFAULT_EPS1,
-           eps2 = DEFAULT_EPS2):
+def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
+           eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
     Calculate ratio of Riccati-Bessel functions defined in Yang eq. 23
     by up recursion.
@@ -201,7 +200,7 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None, eps1 = DEFAULT_EPS1,
     z1 = np.complex128(z1)
     z2 = np.complex128(z2)
 
-    if dns1 == None:
+    if dns1 is None:
         logdersz1 = log_der_13(z1, nstop, eps1, eps2)
         logdersz2 = log_der_13(z2, nstop, eps1, eps2)
         d1z1 = logdersz1[0]
@@ -225,8 +224,8 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None, eps1 = DEFAULT_EPS1,
                                                                 - exp(-2.*b2))
     # Loop to do upwards recursion in eqn. 33
     for i in arange(1, nstop+1):
-        qns[i] = qns[i-1]* ( (d3z1[i] + i/z1) * (d1z2[i] + i/z2)
-	       		     )  / ((d3z2[i] + i/z2) * (d1z1[i] + i/z1) )
+        qns[i] = qns[i-1]* (((d3z1[i] + i/z1) * (d1z2[i] + i/z2))
+                            / ((d3z2[i] + i/z2) * (d1z1[i] + i/z1)))
     return qns
 
 def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
