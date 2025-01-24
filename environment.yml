@@ -3,10 +3,10 @@
 # To use:
 #   conda env create -f .\environment.yml
 # and then
-#   conda activate structcol
+#   conda activate pymie
 #
 # To update dependencies after changing this environment file:
-#   conda env update --name structcol --file environment.yml --prune
+#   conda env update --name pymie --file environment.yml --prune
 #
 # can also use mamba instead of conda in the above
 name: pymie
