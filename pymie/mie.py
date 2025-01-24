@@ -1141,22 +1141,32 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         phi_min = phi_min.to('rad').magnitude
         phi_max = phi_max.to('rad').magnitude
 
-        # Integrate over theta
-        integrand_par = trapezoid(dsigma_1 * np.abs(np.sin(thetas)),
-                                  x=thetas)
+        # strip units from integrand
+        if isinstance(dsigma_1, Quantity):
+            integrand_par = dsigma_1.magnitude * np.abs(np.sin(thetas))
+        else:
+            integrand_par = dsigma_1 * np.abs(np.sin(thetas))
+        if isinstance(dsigma_2, Quantity):
+            integrand_perp = dsigma_2.magnitude * np.abs(np.sin(thetas))
+        else:
+            integrand_perp = dsigma_2 * np.abs(np.sin(thetas))
 
-        integrand_perp = trapezoid(dsigma_2 * np.abs(np.sin(thetas)),
-                                   x=thetas)
-        # restore units
-        integrand_par = Quantity(integrand_par, dsigma_1.units)
-        integrand_perp = Quantity(integrand_perp, dsigma_2.units)
+        # Integrate over theta
+        integral_par = trapezoid(integrand_par, x=thetas)
+        integral_perp = trapezoid(integrand_perp, x=thetas)
+
+        # restore units to integral
+        if isinstance(dsigma_1, Quantity):
+            integral_par = Quantity(integral_par, dsigma_1.units)
+        if isinstance(dsigma_2, Quantity):
+            integral_perp = Quantity(integral_perp, dsigma_2.units)
 
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel
         # and perpendicular polarizations, respectively)
-        sigma_1 = (integrand_par * (phi_max/2 + np.sin(2*phi_max)/4 -
+        sigma_1 = (integral_par * (phi_max/2 + np.sin(2*phi_max)/4 -
                          phi_min/2 - np.sin(2*phi_min)/4))
-        sigma_2 = (integrand_perp * (phi_max/2 - np.sin(2*phi_max)/4 -
+        sigma_2 = (integral_perp * (phi_max/2 - np.sin(2*phi_max)/4 -
                           phi_min/2 + np.sin(2*phi_min)/4))
 
     elif coordinate_system == 'cartesian':
@@ -1172,13 +1182,24 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         # Integrate over theta and phi
         thetas_bc = thetas.reshape((len(thetas),1)) # reshape for broadcasting
 
-        sigma_1 = trapezoid(trapezoid(dsigma_1 * np.abs(np.sin(thetas_bc)),
-                                      x=thetas, axis=0), x=phis)
-        sigma_2 = trapezoid(trapezoid(dsigma_2 * np.abs(np.sin(thetas_bc)),
-                                      x=thetas, axis=0), x=phis)
-        # restore units
-        sigma_1 = Quantity(sigma_1, dsigma_1.units)
-        sigma_2 = Quantity(sigma_2, dsigma_2.units)
+        # strip units from integrand
+        if isinstance(dsigma_1, Quantity):
+            integrand_1 = dsigma_1.magnitude * np.abs(np.sin(thetas_bc))
+        else:
+            integrand_1 = dsigma_1 * np.abs(np.sin(thetas_bc))
+        if isinstance(dsigma_2, Quantity):
+            integrand_2 = dsigma_2.magnitude * np.abs(np.sin(thetas_bc))
+        else:
+            integrand_2 = dsigma_2 * np.abs(np.sin(thetas_bc))
+
+        sigma_1 = trapezoid(trapezoid(integrand_1, x=thetas, axis=0), x=phis)
+        sigma_2 = trapezoid(trapezoid(integrand_2, x=thetas, axis=0), x=phis)
+
+        # restore units to integral
+        if isinstance(dsigma_1, Quantity):
+            sigma_1 = Quantity(sigma_1, dsigma_1.units)
+        if isinstance(dsigma_2, Quantity):
+            sigma_2 = Quantity(sigma_2, dsigma_2.units)
     else:
         raise ValueError('The coordinate system specified has not yet been \
                 implemented. Change to \'cartesian\' or \'scattering plane\'')
