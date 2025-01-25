@@ -42,7 +42,9 @@ Small Particles" (1983)
 import warnings
 
 import numpy as np
-from scipy.special import lpn, spherical_jn, spherical_yn
+from scipy.special import spherical_jn, spherical_yn
+from scipy.special import legendre_p_all
+from scipy.integrate import trapezoid
 
 from . import Quantity, index_ratio, mie_specfuncs
 from . import multilayer_sphere_lib as msl
@@ -255,10 +257,14 @@ def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
     integrand_par = form_factor[0]*np.sin(angles)
     integrand_perp = form_factor[1]*np.sin(angles)
 
-    # np.trapz does not preserve units, so need to state explicitly that we are
-    # in the same units as the integrand
-    integral_par = 2 * np.pi * np.trapz(integrand_par, x=angles.magnitude) # new pint preserves units
-    integral_perp = 2 * np.pi * np.trapz(integrand_perp, x=angles.magnitude) # new pint preserves units
+    # scipy.integrate.trapezoid does not yet preserve units, so we will remove
+    # the units before calling and put them back afterward. Can simplify code
+    # when these github issues are fixed:
+    # https://github.com/hgrecco/pint/issues/114
+    # https://github.com/hgrecco/pint/issues/2101
+
+    integral_par = 2 * np.pi * trapezoid(integrand_par, x=angles.magnitude)
+    integral_perp = 2 * np.pi * trapezoid(integrand_perp, x=angles.magnitude)
 
     # multiply by 1/k**2 to get the dimensional value
     return wavelen_media**2/4/np.pi/np.pi * (integral_par + integral_perp)/2.0
@@ -397,19 +403,6 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
 
 # Mie functions used internally
 
-def _lpn_vectorized(n, z):
-    # scipy.special.lpn (Legendre polynomials and derivatives) is not a ufunc,
-    # so cannot handle array arguments for n and z. It does, however, calculate
-    # all orders of the polynomial and derivatives up to order n. So we pick
-    # the max value of the array n that is passed to the function.
-    nmax = np.max(n)
-    z = np.atleast_1d(z)
-    # now vectorize over z; this is in general slow because it runs a python loop.
-    # Need to figure out a better way to do this; one possibility is to use
-    # scipy.special.sph_harm, which is a ufunc, and use special cases to recover
-    # the legendre polynomials and derivatives
-    return np.array([lpn(nmax, z) for z in z])
-
 def _pis_and_taus(nstop, thetas):
     '''
     Calculate pi and tau angular functions at an array of theta out to order n
@@ -447,12 +440,15 @@ def _pis_and_taus(nstop, thetas):
 
     mu = np.cos(thetas)
 
-    # returns P_n and derivative, as a list of 2 arrays, the second
-    # being the derivative
-    legendre0 = _lpn_vectorized(nstop, mu)
+    # returns P_n and derivatives up to degree n for all values in mu array.
+    # legendre0 has shape (2, nmax, len(mu)), where legendre0[0,:,:] is P_n and
+    # legendre0[1,:,:] is the derivative.
+    legendre0 = legendre_p_all(nstop, mu, diff_n=1)
 
-    # perform calculations on pis to get taus
-    pis = (legendre0[:,1,0:nstop+1])
+    # Perform calculations on pis to get taus. We rearrange the order of the
+    # axes to the order that we used in previous versions of the code, where
+    # the Legendre polynomial calculation was not automatically vectorized.
+    pis = np.swapaxes(legendre0[1, 0:nstop+1, :], 0, 1)
     pishift = np.concatenate((np.zeros((len(thetas),1)), pis), axis=1)[:, :nstop+1]
     n = np.arange(nstop+1)
     mus = np.swapaxes(np.tile(mu, (nstop+1,1)),0,1)
@@ -1145,19 +1141,32 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         phi_min = phi_min.to('rad').magnitude
         phi_max = phi_max.to('rad').magnitude
 
-        # Integrate over theta
-        integrand_par = np.trapz(dsigma_1 * np.abs(np.sin(thetas)),
-                                 x=thetas)
+        # strip units from integrand
+        if isinstance(dsigma_1, Quantity):
+            integrand_par = dsigma_1.magnitude * np.abs(np.sin(thetas))
+        else:
+            integrand_par = dsigma_1 * np.abs(np.sin(thetas))
+        if isinstance(dsigma_2, Quantity):
+            integrand_perp = dsigma_2.magnitude * np.abs(np.sin(thetas))
+        else:
+            integrand_perp = dsigma_2 * np.abs(np.sin(thetas))
 
-        integrand_perp = np.trapz(dsigma_2 * np.abs(np.sin(thetas)),
-                                  x=thetas)
+        # Integrate over theta
+        integral_par = trapezoid(integrand_par, x=thetas)
+        integral_perp = trapezoid(integrand_perp, x=thetas)
+
+        # restore units to integral
+        if isinstance(dsigma_1, Quantity):
+            integral_par = Quantity(integral_par, dsigma_1.units)
+        if isinstance(dsigma_2, Quantity):
+            integral_perp = Quantity(integral_perp, dsigma_2.units)
 
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in parallel
         # and perpendicular polarizations, respectively)
-        sigma_1 = (integrand_par * (phi_max/2 + np.sin(2*phi_max)/4 -
+        sigma_1 = (integral_par * (phi_max/2 + np.sin(2*phi_max)/4 -
                          phi_min/2 - np.sin(2*phi_min)/4))
-        sigma_2 = (integrand_perp * (phi_max/2 - np.sin(2*phi_max)/4 -
+        sigma_2 = (integral_perp * (phi_max/2 - np.sin(2*phi_max)/4 -
                           phi_min/2 + np.sin(2*phi_min)/4))
 
     elif coordinate_system == 'cartesian':
@@ -1173,11 +1182,24 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         # Integrate over theta and phi
         thetas_bc = thetas.reshape((len(thetas),1)) # reshape for broadcasting
 
-        sigma_1 = np.trapz(np.trapz(dsigma_1 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis)
-        sigma_2 = np.trapz(np.trapz(dsigma_2 * np.abs(np.sin(thetas_bc)), x=thetas, axis=0),
-                               x=phis)
+        # strip units from integrand
+        if isinstance(dsigma_1, Quantity):
+            integrand_1 = dsigma_1.magnitude * np.abs(np.sin(thetas_bc))
+        else:
+            integrand_1 = dsigma_1 * np.abs(np.sin(thetas_bc))
+        if isinstance(dsigma_2, Quantity):
+            integrand_2 = dsigma_2.magnitude * np.abs(np.sin(thetas_bc))
+        else:
+            integrand_2 = dsigma_2 * np.abs(np.sin(thetas_bc))
 
+        sigma_1 = trapezoid(trapezoid(integrand_1, x=thetas, axis=0), x=phis)
+        sigma_2 = trapezoid(trapezoid(integrand_2, x=thetas, axis=0), x=phis)
+
+        # restore units to integral
+        if isinstance(dsigma_1, Quantity):
+            sigma_1 = Quantity(sigma_1, dsigma_1.units)
+        if isinstance(dsigma_2, Quantity):
+            sigma_2 = Quantity(sigma_2, dsigma_2.units)
     else:
         raise ValueError('The coordinate system specified has not yet been \
                 implemented. Change to \'cartesian\' or \'scattering plane\'')

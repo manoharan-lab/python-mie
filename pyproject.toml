@@ -1,0 +1,5 @@
+# convert all warnings to errors
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+]
