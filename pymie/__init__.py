@@ -51,7 +51,8 @@ def q(wavelen, theta):
     wavelen: structcol.Quantity [length]
         wavelength in vacuum
     theta: structcol.Quantity [dimensionless]
-        scattering angle (polar angle with z pointing along the incident direction)
+        scattering angle (polar angle with z pointing along the incident
+        direction)
 
     Returns
     -------

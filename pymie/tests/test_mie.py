@@ -20,7 +20,7 @@ Tests for the mie module
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
-from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie
+from .. import Quantity, index_ratio, size_parameter, np, mie
 from numpy.testing import assert_almost_equal, assert_array_almost_equal, assert_approx_equal
 from pint.errors import DimensionalityError
 import pytest
@@ -284,7 +284,7 @@ def test_multilayer_absorbing_spheres():
     assert_array_almost_equal(cross_sections_multi_real[4].magnitude, cross_sections_multi_imag[4].magnitude)
 
 def test_cross_section_Fu():
-    # Test that the cross sections match the Mie cross sections when there is 
+    # Test that the cross sections match the Mie cross sections when there is
     # no absorption in the medium
     wavelen = Quantity('500.0 nm')
     radius = Quantity('200.0 nm')
@@ -347,7 +347,7 @@ def test_cross_section_Fu():
     assert_almost_equal(cext3.to('um^2').magnitude, cext4.to('um^2').magnitude, decimal=6)
 
 def test_cross_section_Sudiarta():
-    # Test that the cross sections match the Mie cross sections when there is 
+    # Test that the cross sections match the Mie cross sections when there is
     # no absorption in the medium
     wavelen = Quantity('500.0 nm')
     radius = Quantity('200.0 nm')
@@ -366,7 +366,7 @@ def test_cross_section_Sudiarta():
     nstop = mie._nstop(x2)
     coeffs = mie._scatcoeffs(m2, x2, nstop)
 
-    cscat2, cabs2, cext2 = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
+    cscat2, cabs2, cext2 = mie._cross_sections_complex_medium_sudiarta(coeffs[0],
                                                                        coeffs[1],
                                                                        x2, radius)
 
@@ -374,7 +374,7 @@ def test_cross_section_Sudiarta():
     assert_almost_equal(cabs1.to('um^2').magnitude, cabs2.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cext1.to('um^2').magnitude, cext2.to('um^2').magnitude, decimal=6)
 
-    # Test that the cross sections match the Mie cross sections when there is 
+    # Test that the cross sections match the Mie cross sections when there is
     # no absorption in the medium and there is absorption in the particle
     n_particle2 = Quantity(1.59 + 0.01j, '')
 
@@ -444,7 +444,7 @@ def test_pis_taus():
 def test_cross_section_complex_medium():
 
     # test that the cross sections calculated with the Mie solutions in absorbing
-    # medium match the far-field Mie solutions and Sudiarta and Fu's solutions 
+    # medium match the far-field Mie solutions and Sudiarta and Fu's solutions
     # when there is no absorption in the medium
 
     # set parameters
@@ -496,8 +496,8 @@ def test_cross_section_complex_medium():
     assert_almost_equal(cscat_exact.to('um^2').magnitude, cscat_fu.to('um^2').magnitude, decimal=6)
 
 
-    # test that the cross sections calculated with the full Mie solutions 
-    # match the near field Sudiarta and Fu's solutions when there is absorption 
+    # test that the cross sections calculated with the full Mie solutions
+    # match the near field Sudiarta and Fu's solutions when there is absorption
     # in the medium
     n_matrix = Quantity(1.0+0.001j,'')
     distance = Quantity(radius.magnitude,'nm')
@@ -712,7 +712,7 @@ def test_integrate_intensity_complex_medium_cartesian():
                          coordinate_system = 'cartesian', phis = phis)[0]
 
     # check that intensity equations without the asymptotic form of the spherical
-    # Hankel equations (because they simplify when the fields are multiplied by 
+    # Hankel equations (because they simplify when the fields are multiplied by
     # their conjugates to get the intensity) matches old result before simplifying
     cscat_xy_old = 6010696.7108612377
     assert_almost_equal(cscat_xy_old, cscat_xy.magnitude, decimal=7)
@@ -747,38 +747,38 @@ def test_value_errors():
 
     with pytest.raises(ValueError):
         # try to calculate differential scattered intensity in weird coordinate system
-        I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd, 
-                            coordinate_system = 'weird', phis = phis_2d, 
+        I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
+                            coordinate_system = 'weird', phis = phis_2d,
                             near_field=True)
 
         # try to calculate new
         I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                                coordinate_system = 'cartesian', phis = phis_2d, 
+                                coordinate_system = 'cartesian', phis = phis_2d,
                                 near_field=True)
     # calculate the differenetial scattered intensities
     I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                                coordinate_system = 'cartesian', phis = phis_2d, 
+                                coordinate_system = 'cartesian', phis = phis_2d,
                                 near_field=False)
 
-    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd, 
+    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
                             near_field=True)
 
     with pytest.raises(ValueError):
         # integrate the differential scattered intensities
-        cscat_xy = mie.integrate_intensity_complex_medium(I_x, I_y, distance, 
+        cscat_xy = mie.integrate_intensity_complex_medium(I_x, I_y, distance,
                         thetas, k, coordinate_system = 'cartesian')[0]
 
-        cscat_weird = mie.integrate_intensity_complex_medium(I_x, I_y, distance, 
+        cscat_weird = mie.integrate_intensity_complex_medium(I_x, I_y, distance,
                         thetas, k, coordinate_system = 'weird')[0]
 
-        as_vec_weird = mie.vector_scattering_amplitude(m, x, thetas_2d, 
+        as_vec_weird = mie.vector_scattering_amplitude(m, x, thetas_2d,
                             coordinate_system = 'weird', phis = phis_2d)
 
-        as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d, 
+        as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d,
                             coordinate_system = 'cartesian')
 
 def test_dwell_time_and_energy():
-    #Test that the dwell time function matches example given in 
+    #Test that the dwell time function matches example given in
     #Lagendijk and van Tiggelen, Physics Reports 270 (1996) 143-215 pg 169
     #The example given is for 440 nm titania particles in vacuum,
     #where:

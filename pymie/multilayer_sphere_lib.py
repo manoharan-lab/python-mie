@@ -33,7 +33,6 @@ sphere," Applied Optics 42, 1710-1720, (1993).
 '''
 
 import numpy as np
-from numpy import cos, exp, imag, real, sin
 
 try:
     from . import mie
@@ -68,7 +67,8 @@ def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
 
     # sanity check: marray and xarray must be same size
     if marray.size != xarray.size:
-        raise ValueError('Arrays of layer indices and size parameters must be the same length!')
+        raise ValueError('Arrays of layer indices \
+            and size parameters must be the same length!')
 
     # need number of layers L
     nlayers = marray.size
@@ -81,7 +81,8 @@ def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     hans = intl
     hbns = intl
 
-    for lay in np.arange(1, nlayers): # lay is l-1 (index on layers used by Yang)
+    # lay is l-1 (index on layers used by Yang)
+    for lay in np.arange(1, nlayers):
         z1 = marray[lay]*xarray[lay-1] # m_l x_{l-1}
         z2 = marray[lay]*xarray[lay]  # m_l x_l
 
