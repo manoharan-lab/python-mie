@@ -1225,9 +1225,8 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     # (see Sudiarta and Chylek (2001), eq 10).
     # if the imaginary part of k is close to 0 (because the medium index is
     # close to 0), then use the limit value of factor for the calculations
-    if k.imag.magnitude <= 1e-8:
+    if k.imag <= Quantity(1e-8, '1/nm'):
         factor = 2
-
     else:
         exponent = np.exp(2*distance*k.imag)
         factor = 1 / (exponent / (2*distance*k.imag)+
