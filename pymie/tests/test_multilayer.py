@@ -22,7 +22,6 @@ Tests for the multilayer_sphere_lib module
 """
 import os
 from .. import Quantity, size_parameter, np, mie
-from .. import multilayer_sphere_lib as msl
 from numpy.testing import assert_array_almost_equal, assert_allclose
 import yaml
 
@@ -44,7 +43,7 @@ def test_scatcoeffs_multi():
     marray = [1.15, 1.15]  # layer index ratios, innermost first
     multi_radius = Quantity(np.array([100.0, 100.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
-    coeffs_multi = msl.scatcoeffs_multi(marray, xarray)
+    coeffs_multi = mie._scatcoeffs_multi(marray, xarray)
 
     assert_array_almost_equal(coeffs, coeffs_multi)
 
@@ -53,7 +52,7 @@ def test_scatcoeffs_multi():
     marray2 = [1.15, 1.15, 1.15]  # layer index ratios, innermost first
     multi_radius2 = Quantity(np.array([100.0, 100.0, 100.0]),'nm')
     xarray2 = size_parameter(wavelen, n_sample, multi_radius2)
-    coeffs_multi2 = msl.scatcoeffs_multi(marray2, xarray2)
+    coeffs_multi2 = mie._scatcoeffs_multi(marray2, xarray2)
 
     assert_array_almost_equal(coeffs, coeffs_multi2)
 
@@ -67,8 +66,8 @@ def test_scatcoeffs_multi_absorbing_particle():
     multi_radius = Quantity(np.array([100.0, 110.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
 
-    coeffs_multi_real = msl.scatcoeffs_multi(marray_real, xarray)
-    coeffs_multi_imag = msl.scatcoeffs_multi(marray_imag, xarray)
+    coeffs_multi_real = mie._scatcoeffs_multi(marray_real, xarray)
+    coeffs_multi_imag = mie._scatcoeffs_multi(marray_imag, xarray)
 
     assert_array_almost_equal(coeffs_multi_real, coeffs_multi_imag)
 
@@ -86,7 +85,7 @@ def test_sooty_particles():
     f_v = 0.1
 
     def efficiencies_from_scat_units(m, x):
-        asbs = msl.scatcoeffs_multi(m, x)
+        asbs = mie._scatcoeffs_multi(m, x)
         qs = np.array(mie._cross_sections(*asbs)) * 2 / x_L**2
         # there is a factor of 2 conventional difference between
         # "backscattering" and "radar backscattering" efficiencies.

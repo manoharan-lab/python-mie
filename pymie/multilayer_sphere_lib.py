@@ -31,6 +31,8 @@ Yang, "Improved recursive algorithm for light scattering by a multilayered
 sphere," Applied Optics 42, 1710-1720, (1993).
 
 '''
+# TODO: delete this file once dependencies (structcol) no longer import it. The
+# code has been moved to mie.py
 
 import numpy as np
 

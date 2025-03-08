@@ -21,12 +21,15 @@ Functions for Mie scattering calculations.
 
 Notes
 -----
-Based on miescatlib.py in holopy. Also includes some functions from Jerome's
-old miescat_1d.py library.
+Based on miescatlib.py in HoloPpy, written by Jerome Fung. Also includes some
+functions from Jerome's old miescat_1d.py library and Jerome's multilayer
+scattering code, copied from HoloPy on 12 Sept 2017.
 
 Numerical stability not guaranteed for large nstop, so be careful when
 calculating very large size parameters. A better-tested (and faster) version of
 this code is in the HoloPy package (http://manoharan.seas.harvard.edu/holopy).
+
+Key reference for multilayer algorithm is [3]_
 
 References
 ----------
@@ -34,10 +37,12 @@ References
 Small Particles" (1983)
 [2] Wiscombe, W. J. "Improved Mie Scattering Algorithms" Applied Optics 19, no.
 9 (1980): 1505. doi:10.1364/AO.19.001505
+[3] Yang, "Improved recursive algorithm for light scattering by a multilayered
+sphere," Applied Optics 42, 1710-1720, (1993).
 
-.. moduleauthor :: Jerome Fung <jerome.fung@gmail.com>
-.. moduleauthor :: Vinothan N. Manoharan <vnm@seas.harvard.edu>
-.. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>
+.. moduleauthor:: Jerome Fung <jerome.fung@gmail.com>
+.. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+.. moduleauthor:: Sofia Magkiriadou <sofia@physics.harvard.edu>
 """
 import warnings
 
@@ -47,7 +52,6 @@ from scipy.special import legendre_p_all
 from scipy.integrate import trapezoid
 
 from . import Quantity, index_ratio, mie_specfuncs
-from . import multilayer_sphere_lib as msl
 from . import size_parameter, ureg
 from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2  # default tolerances
 
@@ -159,8 +163,6 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
     where I_0 is the incident intensity.  See van de Hulst, p. 14.
     """
     # This is adapted from mie.py in holopy
-    # TODO take arrays for m and x to describe a multilayer sphere and return
-    # multilayer scattering coefficients
 
     lmax = _nstop(np.array(x).max())
     albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
@@ -448,7 +450,7 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     # wavelengths. If specified as a 1D array, we interpret as a multilayer
     # particle
     if np.atleast_2d(m).shape[-1] > 1:
-        return msl.scatcoeffs_multi(m, x)
+        return _scatcoeffs_multi(m, x)
 
     # Scattering coefficients for single-layer particles.
     # see B/H eqn 4.88
@@ -465,6 +467,94 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
+    return np.array([an[1:nstop+1], bn[1:nstop+1]]) # output begins at n=1
+
+def _scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
+    '''Calculate scattered field expansion coefficients (in the Mie formalism)
+    for a particle with an arbitrary number of spherically symmetric layers
+    with different refractive indices.
+
+    Parameters
+    ----------
+    marray : array_like, complex128
+        array of layer indices, innermost first
+    xarray : array_like, real
+        array of layer size parameters (k * outer radius), innermost first
+    eps1 : float, optional
+        underflow criterion for Lentz continued fraction for Dn1
+    eps2 : float, optional
+        convergence criterion for Lentz continued fraction for Dn1
+
+    Returns
+    -------
+    scat_coeffs : ndarray (complex)
+        Scattering coefficients
+
+    '''
+    # ensure correct data types
+    marray = np.array(marray, dtype = 'complex128')
+    xarray = np.array(xarray, dtype = 'complex128')
+
+    # sanity check: marray and xarray must be same size
+    if marray.size != xarray.size:
+        raise ValueError('Arrays of layer indices \
+            and size parameters must be the same length!')
+
+    # need number of layers L
+    nlayers = marray.size
+
+    # calculate nstop based on outermost radius
+    nstop = _nstop(xarray.max())
+
+    # initialize H_n^a and H_n^b in the core, see eqns. 12a and 13a
+    intl = mie_specfuncs.log_der_13(marray[0]*xarray[0], nstop, eps1, eps2)[0]
+    hans = intl
+    hbns = intl
+
+    # lay is l-1 (index on layers used by Yang)
+    for lay in np.arange(1, nlayers):
+        z1 = marray[lay]*xarray[lay-1] # m_l x_{l-1}
+        z2 = marray[lay]*xarray[lay]  # m_l x_l
+
+        # calculate logarithmic derivatives D_n^1 and D_n^3
+        derz1s = mie_specfuncs.log_der_13(z1, nstop, eps1, eps2)
+        derz2s = mie_specfuncs.log_der_13(z2, nstop, eps1, eps2)
+
+        # calculate G1, G2, Gtilde1, Gtilde2 according to
+        # eqns 26-29
+        # using H^a_n and H^b_n from previous layer
+        G1 = marray[lay]*hans - marray[lay-1]*derz1s[0]
+        G2 = marray[lay]*hans - marray[lay-1]*derz1s[1]
+        Gt1 = marray[lay-1]*hbns - marray[lay]*derz1s[0]
+        Gt2 = marray[lay-1]*hbns - marray[lay]*derz1s[1]
+
+        # calculate ratio Q_n^l for this layer
+        Qnl = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s, dns2 = derz2s,
+                                   eps1 = eps1, eps2 = eps2)
+
+        # now calculate H^a_n and H^b_n in current layer
+        # see eqns 24 and 25
+        hans = (G2*derz2s[0] - Qnl*G1*derz2s[1]) / (G2 - Qnl*G1)
+        hbns = (Gt2*derz2s[0] - Qnl*Gt1*derz2s[1]) / (Gt2 - Qnl*Gt1)
+        # repeat for next layer
+
+    # Relate H^a and H^b in the outer layer to the Mie scat coeffs
+    # see Yang eqns 14 and 15
+    #
+    # n = 0 to nstop
+    psiandxi = mie_specfuncs.riccati_psi_xi(xarray.max(), nstop)
+    n = np.arange(nstop+1)
+    psi = psiandxi[0]
+    xi = psiandxi[1]
+    # this doesn't bother to calculate psi/xi_{-1} correctly,
+    # but OK since we're throwing out a_0, b_0 where it appears
+    psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
+    xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
+
+    an = ((hans/marray[nlayers-1] + n/xarray[nlayers-1])*psi - psishift) / (
+        (hans/marray[nlayers-1] + n/xarray[nlayers-1])*xi - xishift)
+    bn = ((hbns*marray[nlayers-1] + n/xarray[nlayers-1])*psi - psishift) / (
+        (hbns*marray[nlayers-1] + n/xarray[nlayers-1])*xi - xishift)
     return np.array([an[1:nstop+1], bn[1:nstop+1]]) # output begins at n=1
 
 def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
@@ -1532,9 +1622,3 @@ def _amplitude_scattering_matrix_RG(prefactor, x, thetas):
     S1 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u))
     S2 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u)) * np.cos(thetas)
     return S2, S1
-
-
-
-# TODO: copy multilayer code from multilayer_sphere_lib.py in holopy and
-# integrate with functions for calculating scattering cross sections and form
-# factor.
