@@ -583,7 +583,7 @@ def test_multilayer_complex_medium():
     # Hankel equations (because they simplify when the fields are multiplied by
     # their conjugates to get the intensity) matches old result before simplifying
     cscat_imag_old = 6275.240019849266
-    assert_almost_equal(cscat_imag_old, cscat_imag.magnitude, decimal=11)
+    assert_almost_equal(cscat_imag_old, cscat_imag.magnitude, decimal=9)
 
     assert_array_almost_equal(cscat_real.magnitude, cscat_imag.magnitude, decimal=3)
 

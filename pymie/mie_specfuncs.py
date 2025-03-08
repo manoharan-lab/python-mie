@@ -52,21 +52,19 @@ DEFAULT_EPS2 = 1e-16
 def riccati_psi_xi(x, nstop):
     """
     Construct riccati hankel function of 1st kind by linear combination of
-    RB's based on j_n and y_n
+    RB's based on j_n and y_n.
+
+    Notes: we use scipy's spherical_jn/spherical_yn, which are vectorized,
+    rather than riccati_jn/riccati_yn, which are not. Also we use the general
+    formula which is valid for both real and complex x
     """
-    if np.imag(x) != 0.:
-        # if x is complex, calculate spherical bessel functions and compute the
-        # complex riccati-bessel solutions
-        nstop_array = np.arange(0,nstop+1)
-        psin = spherical_jn(nstop_array, x)*x
-        xin = psin + 1j*spherical_yn(nstop_array, x)*x
-        rbh = array([psin, xin])
-    else:
-        x = x.real
-        psin = riccati_jn(nstop, x)
-        # scipy sign on y_n consistent with B/H
-        xin = psin[0] + 1j*riccati_yn(nstop, x)[0]
-        rbh = array([psin[0], xin])
+
+    # Calculate spherical bessel functions and compute the complex
+    # riccati-bessel solutions
+    nstop_array = np.arange(0,nstop+1)
+    psin = spherical_jn(nstop_array, x)*x
+    xin = psin + 1j*spherical_yn(nstop_array, x)*x
+    rbh = array([psin, xin])
 
     return rbh
 
