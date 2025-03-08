@@ -34,11 +34,8 @@ sphere," Applied Optics 42, 1710-1720, (1993).
 
 import numpy as np
 
-try:
-    from . import mie
-    from .mie_specfuncs import Qratio, log_der_13, riccati_psi_xi
-except ImportError:
-    pass
+from . import mie
+from .mie_specfuncs import Qratio, log_der_13, riccati_psi_xi
 
 def scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     '''
