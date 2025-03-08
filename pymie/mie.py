@@ -63,8 +63,8 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
 
     Parameters
     ----------
-    m: complex particle relative refractive index, n_part/n_med
-    x: size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
+    m : complex particle relative refractive index, n_part/n_med
+    x : size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
     angles: ndarray(structcol.Quantity [dimensionless])
         array of angles. Must be entered as a Quantity to allow specifying
         units (degrees or radians) explicitly
@@ -89,20 +89,11 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     if isinstance(x, Quantity):
         x = x.to('').magnitude
 
-    #initialize arrays for holding ipar and iperp
-    ipar = np.array([])
-    iperp = np.array([])
-
     if mie:
         # Mie scattering preliminaries
         nstop = _nstop(np.array(x).max())
 
-        # if the index ratio m is an array with more than 1 element, it's a
-        # multilayer particle
-        if len(np.atleast_1d(m)) > 1:
-            coeffs = msl.scatcoeffs_multi(m, x)
-        else:
-            coeffs = _scatcoeffs(m, x, nstop)
+        coeffs = _scatcoeffs(m, x, nstop)
         n = np.arange(nstop)+1.
         prefactor = (2*n+1.)/(n*(n+1.))
 
@@ -172,12 +163,7 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
     # multilayer scattering coefficients
 
     lmax = _nstop(np.array(x).max())
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        albl = msl.scatcoeffs_multi(m, x, eps1=eps1, eps2=eps2)
-    else:
-        albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
+    albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
 
     cscat, cext, cback =  tuple(np.abs(wavelen_media)**2 * c/2/np.pi for c in
                                 _cross_sections(albl[0], albl[1]))
@@ -199,12 +185,7 @@ def calc_efficiencies(m, x):
     geometrical cross-section
     """
     nstop = _nstop(np.array(x).max())
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        coeffs = msl.scatcoeffs_multi(m, x)
-    else:
-        coeffs = _scatcoeffs(m, x, nstop)
+    coeffs = _scatcoeffs(m, x, nstop)
 
     cscat, cext, cback = _cross_sections(coeffs[0], coeffs[1])
 
@@ -220,12 +201,7 @@ def calc_g(m, x):
     Asymmetry parameter
     """
     nstop = _nstop(np.array(x).max())
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        coeffs = msl.scatcoeffs_multi(m, x)
-    else:
-        coeffs = _scatcoeffs(m, x, nstop)
+    coeffs = _scatcoeffs(m, x, nstop)
 
     cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./np.array(x).max()**2
     g = ((4./(np.array(x).max()**2 * cscat))
@@ -468,6 +444,13 @@ def _pis_and_taus(nstop, thetas):
     return pis[...,1:nstop+1], taus[...,1:nstop+1]
 
 def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    # index ratio should be specified as a 2D array to calculate over
+    # wavelengths. If specified as a 1D array, we interpret as a multilayer
+    # particle
+    if np.atleast_2d(m).shape[-1] > 1:
+        return msl.scatcoeffs_multi(m, x)
+
+    # Scattering coefficients for single-layer particles.
     # see B/H eqn 4.88
     # implement criterion used by BHMIE plus a couple more orders to be safe
     # nmx = np.array([nstop, np.round(np.absolute(m*x))]).max() + 20
@@ -850,12 +833,7 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     nstop = _nstop(np.array(x).max())
     n = np.arange(nstop)+1.
 
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        an, bn = msl.scatcoeffs_multi(m, x)
-    else:
-        an, bn = _scatcoeffs(m, x, nstop)
+    an, bn = _scatcoeffs(m, x, nstop)
 
     # calculate prefactor (omitting the incident electric field because it
     # cancels out when calculating the scattered intensity)
@@ -1398,12 +1376,7 @@ def amplitude_scattering_matrix(m, x, thetas,
     prefactor  = (2*n+1)/(n*(n+1))
 
     # calculate mie coefficients
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        coeffs = msl.scatcoeffs_multi(m, x)
-    else:
-        coeffs = _scatcoeffs(m, x, nstop)
+    coeffs = _scatcoeffs(m, x, nstop)
 
     # calculate amplitude scattering matrix in 'scattering plane' coordinate
     # system
