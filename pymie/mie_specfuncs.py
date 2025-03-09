@@ -141,16 +141,15 @@ def dn_1_down(z, nmx, nstop, start_val):
     -----
     psi_n(z) is related to the spherical Bessel function j_n(z).
     '''
-    if np.atleast_2d(start_val).shape[0] > 1:
-        dn = zeros((nmx+1, start_val.shape[0]), dtype = 'complex128')
-        z = np.atleast_2d(z).transpose()
-    else:
-        dn = zeros(nmx+1, dtype = 'complex128')
-    dn[nmx] = start_val.squeeze()
+    z = np.array(z)
+    start_val = np.atleast_1d(start_val)
+    dn = np.zeros((start_val.shape[0], nmx+1), dtype = 'complex128')
+
+    dn[:, nmx] = start_val.squeeze()
 
     for i in np.arange(nmx-1, -1, -1):
-        dn[i] = (i+1.)/z - 1.0/(dn[i+1] + (i+1.)/z)
-    return dn[0:nstop+1]
+        dn[:, i] = (i+1.)/z - 1.0/(dn[:, i+1] + (i+1.)/z)
+    return dn[:, 0:nstop+1].squeeze()
 
 
 def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):

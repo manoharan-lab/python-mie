@@ -446,9 +446,9 @@ def _pis_and_taus(nstop, thetas):
     return pis[...,1:nstop+1], taus[...,1:nstop+1]
 
 def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
-    # index ratio should be specified as a 2D array to calculate over
-    # wavelengths. If specified as a 1D array, we interpret as a multilayer
-    # particle
+    # index ratio should be specified as a 2D array with shape
+    # [num_wavelengths, num_layers] to calculate over
+    # wavelengths. If specified as a 1D array, it has shape [num_layers].
     if np.atleast_2d(m).shape[-1] > 1:
         return _scatcoeffs_multi(m, x)
 
@@ -458,25 +458,23 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     # nmx = np.array([nstop, np.round(np.absolute(m*x))]).max() + 20
     # Dnmx = mie_specfuncs.log_der_1(m*x, nmx, nstop)
     # above replaced with Lentz algorithm
-    Dnmx = mie_specfuncs.dn_1_down(m * x, nstop + 1, nstop,
-                                   mie_specfuncs.lentz_dn1(m * x, nstop + 1,
+    z = np.atleast_1d(m * x).squeeze()
+    Dnmx = mie_specfuncs.dn_1_down(z, nstop + 1, nstop,
+                                   mie_specfuncs.lentz_dn1(z, nstop + 1,
                                                            eps1, eps2))
     n = np.arange(nstop+1)
+    x = np.atleast_2d(x)
     psi, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
-    if np.atleast_2d(x).shape[0] > 1:
-        Dnmx = Dnmx.transpose()
-        # insert zeroes at the beginning of first axis
-        psishift = np.pad(psi, ((0,), (1,)))[:, 0:nstop+1]
-        xishift = np.pad(xi, ((0,), (1,)))[:, 0:nstop+1]
-    else:
-        psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
-        xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
+
+    # insert zeroes at the beginning of second axis (order)
+    psishift = np.pad(psi, ((0,), (1,)))[:, 0:nstop+1]
+    xishift = np.pad(xi, ((0,), (1,)))[:, 0:nstop+1]
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
-    if np.atleast_2d(x).shape[0] > 1:
-        return np.array([an[:, 1:nstop+1], bn[:, 1:nstop+1]])
-    else:
-        return np.array([an[1:nstop+1], bn[1:nstop+1]]) # output begins at n=1
+
+    # coefficient array has shape [2, num_wavelengths, nstop] or [2, nstop] if
+    # only one wavelength
+    return np.array([an[:, 1:nstop+1], bn[:, 1:nstop+1]]).squeeze()
 
 def _scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     '''Calculate scattered field expansion coefficients (in the Mie formalism)
