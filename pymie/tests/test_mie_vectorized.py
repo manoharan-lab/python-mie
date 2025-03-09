@@ -21,7 +21,7 @@ Tests vectorization behavior of the mie module
 """
 
 from .. import Quantity, index_ratio, size_parameter, np, mie
-from numpy.testing import assert_almost_equal, assert_array_almost_equal, assert_approx_equal
+from numpy.testing import assert_almost_equal, assert_equal, assert_approx_equal
 import pytest
 
 class TestVectorized():
@@ -30,7 +30,8 @@ class TestVectorized():
     wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.00, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    # let index be the same at all wavelengths
+    n_particle = Quantity(np.ones(num_wavelen)*1.59, '')
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
     angles = Quantity(np.linspace(0, 180., 19), 'deg')
@@ -40,3 +41,18 @@ class TestVectorized():
         # (should scale with number of wavelengths)
         nstop = mie._nstop(self.x)
         assert nstop.shape[0] == self.num_wavelen
+
+    def test_vectorized_scatcoeffs(self):
+        # tests that scattering coefficient calculation vectorizes properly
+        nstop = mie._nstop(self.x.max())
+        m = self.m[:, np.newaxis]
+        x = self.x[:, np.newaxis]
+        coeffs = mie._scatcoeffs(m, x, nstop)
+        expected_shape = (2, self.num_wavelen, nstop)
+        assert coeffs.shape == expected_shape
+
+        coeffs_loop = np.zeros(expected_shape, dtype=complex)
+        for i in range(self.m.shape[0]):
+            coeffs_loop[:, i] = mie._scatcoeffs(m[i].squeeze(), x[i].squeeze(),
+                                                nstop)
+        assert_equal(coeffs, coeffs_loop)

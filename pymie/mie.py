@@ -463,11 +463,20 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
                                                            eps1, eps2))
     n = np.arange(nstop+1)
     psi, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
-    psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
-    xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
+    if np.atleast_2d(x).shape[0] > 1:
+        Dnmx = Dnmx.transpose()
+        # insert zeroes at the beginning of first axis
+        psishift = np.pad(psi, ((0,), (1,)))[:, 0:nstop+1]
+        xishift = np.pad(xi, ((0,), (1,)))[:, 0:nstop+1]
+    else:
+        psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
+        xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
-    return np.array([an[1:nstop+1], bn[1:nstop+1]]) # output begins at n=1
+    if np.atleast_2d(x).shape[0] > 1:
+        return np.array([an[:, 1:nstop+1], bn[:, 1:nstop+1]])
+    else:
+        return np.array([an[1:nstop+1], bn[1:nstop+1]]) # output begins at n=1
 
 def _scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     '''Calculate scattered field expansion coefficients (in the Mie formalism)

@@ -104,12 +104,14 @@ def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
     ctr = 3
 
-    while abs(product.real - 1) > eps2 or abs(product.imag) > eps2:
+    while (np.abs(product.real - 1).any() > eps2
+           or np.abs(product.imag).any() > eps2):
         ai = a_i(ctr)
         numerator = ai + 1. / numerator
         denominator = ai + 1. / denominator
 
-        if abs(numerator / ai) < eps1 or abs(denominator / ai) < eps1:
+        if (np.abs(numerator / ai).any() < eps1
+            or np.abs(denominator / ai).any() < eps1):
             # ill conditioning
             xi1 = 1. + a_i(ctr + 1) * numerator
             xi2 = 1. + a_i(ctr + 1) * denominator
@@ -139,8 +141,12 @@ def dn_1_down(z, nmx, nstop, start_val):
     -----
     psi_n(z) is related to the spherical Bessel function j_n(z).
     '''
-    dn = zeros(nmx+1, dtype = 'complex128')
-    dn[nmx] = start_val
+    if np.atleast_2d(start_val).shape[0] > 1:
+        dn = zeros((nmx+1, start_val.shape[0]), dtype = 'complex128')
+        z = np.atleast_2d(z).transpose()
+    else:
+        dn = zeros(nmx+1, dtype = 'complex128')
+    dn[nmx] = start_val.squeeze()
 
     for i in np.arange(nmx-1, -1, -1):
         dn[i] = (i+1.)/z - 1.0/(dn[i+1] + (i+1.)/z)
