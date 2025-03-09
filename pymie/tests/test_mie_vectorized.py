@@ -36,6 +36,14 @@ class TestVectorized():
     x = size_parameter(wavelen, n_matrix, radius)
     angles = Quantity(np.linspace(0, 180., 19), 'deg')
 
+    def calc_coeffs(self):
+        nstop = mie._nstop(self.x.max())
+        m = self.m[:, np.newaxis]
+        x = self.x[:, np.newaxis]
+        coeffs = mie._scatcoeffs(m, x, nstop)
+
+        return nstop, coeffs
+
     def test_vectorized_nstop(self):
         # Just checks that the shape of nstop is correct
         # (should scale with number of wavelengths)
@@ -43,11 +51,8 @@ class TestVectorized():
         assert nstop.shape[0] == self.num_wavelen
 
     def test_vectorized_scatcoeffs(self):
-        # tests that scattering coefficient calculation vectorizes properly
-        nstop = mie._nstop(self.x.max())
-        m = self.m[:, np.newaxis]
-        x = self.x[:, np.newaxis]
-        coeffs = mie._scatcoeffs(m, x, nstop)
+        # tests that mie._scatcoeffs() vectorizes properly
+        nstop, coeffs = self.calc_coeffs()
 
         # make sure shape is correct
         expected_shape = (2, self.num_wavelen, nstop)
@@ -56,27 +61,49 @@ class TestVectorized():
         # we should get same value from loop
         coeffs_loop = np.zeros(expected_shape, dtype=complex)
         for i in range(self.m.shape[0]):
-            coeffs_loop[:, i] = mie._scatcoeffs(m[i].squeeze(), x[i].squeeze(),
+            coeffs_loop[:, i] = mie._scatcoeffs(self.m[i].squeeze(),
+                                                self.x[i].squeeze(),
                                                 nstop)
         assert_equal(coeffs, coeffs_loop)
 
     def test_vectorized_asymmetry_parameter(self):
-        nstop = mie._nstop(self.x.max())
-        m = self.m[:, np.newaxis]
-        x = self.x[:, np.newaxis]
-        coeffs = mie._scatcoeffs(m, x, nstop)
-        print(coeffs.shape)
+        # tests that mie._asymmetry_parameter() vectorizes properly
+        nstop, coeffs = self.calc_coeffs()
 
         # make sure shape is [num_wavelen]
         g = mie._asymmetry_parameter(coeffs[0], coeffs[1])
         expected_shape = (self.num_wavelen,)
         assert g.shape == expected_shape
 
-        # we should get same value from loop
+        # we should get same values from loop
         g_loop = np.zeros(expected_shape, dtype=float)
         for i in range(self.num_wavelen):
-            albl = mie._scatcoeffs(m[i].squeeze(), x[i].squeeze(),
+            albl = mie._scatcoeffs(self.m[i].squeeze(), self.x[i].squeeze(),
                                    nstop)
             g_loop[i] = mie._asymmetry_parameter(albl[0].squeeze(),
                                                  albl[1].squeeze())
         assert_equal(g, g_loop)
+
+    def test_vectorized_cross_sections(self):
+        # tests that mie._cross_sections() vectorizes properly
+        nstop, coeffs = self.calc_coeffs()
+
+        cscat, cext, cback = mie._cross_sections(coeffs[0], coeffs[1])
+
+        # test shape
+        expected_shape = (self.num_wavelen,)
+        for cs in [cscat, cext, cback]:
+            assert cs.shape == expected_shape
+
+        # we should get same values from loop
+        cscat_loop = np.zeros(expected_shape, dtype=float)
+        cext_loop = np.zeros(expected_shape, dtype=float)
+        cback_loop = np.zeros(expected_shape, dtype=float)
+        for i in range(self.num_wavelen):
+            albl = mie._scatcoeffs(self.m[i].squeeze(), self.x[i].squeeze(),
+                                   nstop)
+            cs = mie._cross_sections(albl[0].squeeze(), albl[1].squeeze())
+            cscat_loop[i], cext_loop[i], cback_loop[i] = cs
+        assert_equal(cscat, cscat_loop)
+        assert_equal(cext, cext_loop)
+        assert_equal(cback, cback_loop)

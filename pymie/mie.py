@@ -447,8 +447,8 @@ def _pis_and_taus(nstop, thetas):
 
 def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     # index ratio should be specified as a 2D array with shape
-    # [num_wavelengths, num_layers] to calculate over
-    # wavelengths. If specified as a 1D array, it has shape [num_layers].
+    # [num_values, num_layers] to calculate over a set of different values,
+    # such as wavelengths. If specified as a 1D array, shape is [num_layers].
     if np.atleast_2d(m).shape[-1] > 1:
         return _scatcoeffs_multi(m, x)
 
@@ -472,8 +472,8 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
 
-    # coefficient array has shape [2, num_wavelengths, nstop] or [2, nstop] if
-    # only one wavelength
+    # coefficient array has shape [2, num_values, nstop] or [2, nstop] if
+    # only one value (only one wavelength, for example)
     return np.array([an[:, 1:nstop+1], bn[:, 1:nstop+1]]).squeeze()
 
 def _scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
@@ -706,13 +706,13 @@ def _cross_sections(al, bl):
 
     The output omits a scaling prefactor of 2 * pi / k^2 = lambda_media^2/2/pi.
     '''
-    lmax = al.shape[0]
+    lmax = al.shape[-1]
 
     l = np.arange(lmax) + 1
     prefactor = (2. * l + 1.)
 
-    cscat = (prefactor * (np.abs(al)**2 + np.abs(bl)**2)).sum()
-    cext = (prefactor * np.real(al + bl)).sum()
+    cscat = (prefactor * (np.abs(al)**2 + np.abs(bl)**2)).sum(axis=-1)
+    cext = (prefactor * np.real(al + bl)).sum(axis=-1)
 
     # see p. 122 and discussion in that section. The formula on p. 122
     # calculates the backscattering cross-section according to the traditional
@@ -720,7 +720,7 @@ def _cross_sections(al, bl):
     # jettison the factor of 4*pi to get values that correspond to the
     # differential scattering cross-section in the backscattering direction.
     alts = 2. * (np.arange(lmax) % 2) - 1
-    cback = (np.abs((prefactor * alts * (al - bl)).sum())**2)/4.0/np.pi
+    cback = (np.abs((prefactor * alts * (al - bl)).sum(axis=-1))**2)/4.0/np.pi
 
     return cscat, cext, cback
 
