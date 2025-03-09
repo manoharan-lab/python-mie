@@ -48,11 +48,35 @@ class TestVectorized():
         m = self.m[:, np.newaxis]
         x = self.x[:, np.newaxis]
         coeffs = mie._scatcoeffs(m, x, nstop)
+
+        # make sure shape is correct
         expected_shape = (2, self.num_wavelen, nstop)
         assert coeffs.shape == expected_shape
 
+        # we should get same value from loop
         coeffs_loop = np.zeros(expected_shape, dtype=complex)
         for i in range(self.m.shape[0]):
             coeffs_loop[:, i] = mie._scatcoeffs(m[i].squeeze(), x[i].squeeze(),
                                                 nstop)
         assert_equal(coeffs, coeffs_loop)
+
+    def test_vectorized_asymmetry_parameter(self):
+        nstop = mie._nstop(self.x.max())
+        m = self.m[:, np.newaxis]
+        x = self.x[:, np.newaxis]
+        coeffs = mie._scatcoeffs(m, x, nstop)
+        print(coeffs.shape)
+
+        # make sure shape is [num_wavelen]
+        g = mie._asymmetry_parameter(coeffs[0], coeffs[1])
+        expected_shape = (self.num_wavelen,)
+        assert g.shape == expected_shape
+
+        # we should get same value from loop
+        g_loop = np.zeros(expected_shape, dtype=float)
+        for i in range(self.num_wavelen):
+            albl = mie._scatcoeffs(m[i].squeeze(), x[i].squeeze(),
+                                   nstop)
+            g_loop[i] = mie._asymmetry_parameter(albl[0].squeeze(),
+                                                 albl[1].squeeze())
+        assert_equal(g, g_loop)

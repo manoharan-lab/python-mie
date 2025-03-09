@@ -687,13 +687,14 @@ def _asymmetry_parameter(al, bl):
     See discussion in Bohren & Huffman p. 120.
     The output of this function omits the prefactor of 4/(x^2 Q_sca).
     '''
-    lmax = al.shape[0]
+    # axis -1 (last axis) is order axis
+    lmax = al.shape[-1]
     l = np.arange(lmax) + 1
     selfterm = (l[:-1] * (l[:-1] + 2.) / (l[:-1] + 1.) *
-                np.real(al[:-1] * np.conj(al[1:]) +
-                        bl[:-1] * np.conj(bl[1:]))).sum()
+                np.real(al[..., :-1] * np.conj(al[..., 1:]) +
+                        bl[..., :-1] * np.conj(bl[..., 1:]))).sum(axis=-1)
     crossterm = ((2. * l + 1.)/(l * (l + 1)) *
-                 np.real(al * np.conj(bl))).sum()
+                 np.real(al * np.conj(bl))).sum(axis=-1)
     return selfterm + crossterm
 
 def _cross_sections(al, bl):
