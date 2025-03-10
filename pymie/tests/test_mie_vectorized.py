@@ -21,10 +21,14 @@ Tests vectorization behavior of the mie module
 """
 
 from .. import Quantity, index_ratio, size_parameter, np, mie
-from numpy.testing import assert_almost_equal, assert_equal, assert_approx_equal
-import pytest
+from numpy.testing import assert_allclose, assert_equal
+#import pytest
 
 class TestVectorized():
+    """Test vectorization of the Mie calculations over wavelength for solid
+    (one layer) spheres.
+
+    """
     num_wavelen = 10
     num_angle = 19
     wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
@@ -39,7 +43,7 @@ class TestVectorized():
     def calc_coeffs(self):
         nstop = mie._nstop(self.x.max())
         m = self.m[:, np.newaxis]
-        x = self.x[:, np.newaxis]
+        x = self.x
         coeffs = mie._scatcoeffs(m, x, nstop)
 
         return nstop, coeffs
@@ -61,9 +65,7 @@ class TestVectorized():
         # we should get same value from loop
         coeffs_loop = np.zeros(expected_shape, dtype=complex)
         for i in range(self.m.shape[0]):
-            coeffs_loop[:, i] = mie._scatcoeffs(self.m[i].squeeze(),
-                                                self.x[i].squeeze(),
-                                                nstop)
+            coeffs_loop[:, i] = mie._scatcoeffs(self.m[i], self.x[i], nstop)
         assert_equal(coeffs, coeffs_loop)
 
     def test_vectorized_asymmetry_parameter(self):
@@ -78,10 +80,8 @@ class TestVectorized():
         # we should get same values from loop
         g_loop = np.zeros(expected_shape, dtype=float)
         for i in range(self.num_wavelen):
-            albl = mie._scatcoeffs(self.m[i].squeeze(), self.x[i].squeeze(),
-                                   nstop)
-            g_loop[i] = mie._asymmetry_parameter(albl[0].squeeze(),
-                                                 albl[1].squeeze())
+            albl = mie._scatcoeffs(self.m[i], self.x[i], nstop)
+            g_loop[i] = mie._asymmetry_parameter(albl[0], albl[1])
         assert_equal(g, g_loop)
 
     def test_vectorized_cross_sections(self):
@@ -100,10 +100,131 @@ class TestVectorized():
         cext_loop = np.zeros(expected_shape, dtype=float)
         cback_loop = np.zeros(expected_shape, dtype=float)
         for i in range(self.num_wavelen):
-            albl = mie._scatcoeffs(self.m[i].squeeze(), self.x[i].squeeze(),
-                                   nstop)
-            cs = mie._cross_sections(albl[0].squeeze(), albl[1].squeeze())
+            albl = mie._scatcoeffs(self.m[i], self.x[i], nstop)
+            cs = mie._cross_sections(albl[0], albl[1])
             cscat_loop[i], cext_loop[i], cback_loop[i] = cs
         assert_equal(cscat, cscat_loop)
         assert_equal(cext, cext_loop)
         assert_equal(cback, cback_loop)
+
+def test_parameter_shapes():
+    """Test to make sure vectorized size_parameter() and index_ratio() have the
+    right shapes"""
+
+    num_wavelen = 8
+    num_layer = 3
+    wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
+    radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
+    n_matrix = Quantity(1.00, '')
+    # let index be the same at all wavelengths, but different at each layer
+    n_particle = np.linspace(1.33, 1.59, num_layer)
+    n_particle = np.repeat(np.array([n_particle]), num_wavelen, axis=0)
+    n_particle = Quantity(n_particle, '')
+
+    # multiple wavelengths, multiple layers. m and x should have shape
+    # [num_wavelen, num_layer].
+    expected_shape = (num_wavelen, num_layer)
+    # The following should be true by construction of n_particle, but we test
+    # anyway to make sure that index_ratio() doesn't change shape
+    m = index_ratio(n_particle, n_matrix)
+    assert m.shape == expected_shape
+    # x should have shape [num_wavelen, num_layer]
+    x = size_parameter(wavelen, n_matrix, radius)
+    assert x.shape == expected_shape
+
+    # one wavelength, multiple layers; index specified as 1D array.  Should
+    # return a 1D index ratio and a 2D size parameter
+    wavelen = Quantity(400, 'nm')
+    num_layer = 6
+    radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
+    n_particle = Quantity(np.linspace(1.33, 1.59, num_layer), '')
+    m = index_ratio(n_particle, n_matrix)
+    assert m.shape == (num_layer, )
+    x = size_parameter(wavelen, n_matrix, radius)
+    assert x.shape == (1, num_layer)
+
+    # one wavelength, multiple layers; index specified as 2D array with shape
+    # [1, num_layers]. Should return a 2D index ratio and a 2D size parameter
+    wavelen = Quantity(400, 'nm')
+    num_layer = 6
+    radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
+    n_particle = Quantity(np.linspace(1.33, 1.59, num_layer)[np.newaxis,:], '')
+    m = index_ratio(n_particle, n_matrix)
+    assert m.shape == (1, num_layer)
+    x = size_parameter(wavelen, n_matrix, radius)
+    assert x.shape == (1, num_layer)
+
+    # multiple wavelengths, one layer; index specified as a 2D array with shape
+    # [num_wavelen, 1].  Should return a 2D index ratio and 2D size parameter
+    num_wavelen = 8
+    wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
+    radius = Quantity(0.85, 'um')
+    n_particle = Quantity(np.linspace(1.33, 1.59, num_wavelen)[:,np.newaxis],
+                          '')
+    m = index_ratio(n_particle, n_matrix)
+    assert m.shape == (num_wavelen, 1)
+    x = size_parameter(wavelen, n_matrix, radius)
+    assert x.shape == (num_wavelen, 1)
+
+
+class TestVectorizedMultilayer():
+    """Test vectorization of the Mie calculations over wavelength for
+    multilayer spheres.
+
+    """
+    num_wavelen = 10
+    num_angle = 19
+    num_layer = 5
+    wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
+    radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
+    n_matrix = Quantity(1.00, '')
+    # let index be the same at all wavelengths, but different at each layer
+    n_particle = np.linspace(1.33, 1.59, num_layer)
+    n_particle = np.repeat(np.array([n_particle]), num_wavelen, axis=0)
+    n_particle = Quantity(n_particle, '')
+    # m should have shape [num_wavelen, num_layer]
+    m = index_ratio(n_particle, n_matrix)
+    # x should have shape [num_wavelen, num_layer]
+    x = size_parameter(wavelen, n_matrix, radius)
+    angles = Quantity(np.linspace(0, 180., num_angle), 'deg')
+
+    def calc_coeffs(self):
+        nstop = mie._nstop(self.x.max())
+        m = self.m
+        x = self.x
+        coeffs = mie._scatcoeffs(m, x, nstop)
+
+        return nstop, coeffs
+
+    def test_vectorized_parameters(self):
+        expected_shape = (self.num_wavelen, self.num_layer)
+        assert self.x.shape == expected_shape
+        assert self.m.shape == expected_shape
+
+    def test_vectorized_scatcoeffs_multi(self):
+        """Tests that mie._scatcoeffs_multi() vectorizes properly
+
+        """
+        # first check that _scatcoeffs is actually calling the multilayer code
+        nstop, coeffs = self.calc_coeffs()
+        coeffs_direct = mie._scatcoeffs_multi(self.m, self.x)
+        assert_equal(coeffs, coeffs_direct)
+
+        # make sure shape is correct
+        expected_shape = (2, self.num_wavelen, nstop)
+        assert coeffs.shape == expected_shape
+
+        # we should get same values from loop
+        coeffs_loop = np.zeros(expected_shape, dtype=complex)
+        for i in range(self.m.shape[0]):
+            # need to specify nstop here; otherwise we will get a different
+            # number of scattering coefficients for each wavelength, since
+            # _scatcoeffs_multi() picks the largest x for each wavelength.
+            c = mie._scatcoeffs_multi(self.m[i], self.x[i], nstop)
+            coeffs_loop[:, i] = c
+
+        # the vectorized version differs from the loop version in a few
+        # elements by more than floating point uncertainty, perhaps due to
+        # tolerances in the continued fraction algorithm.  So we
+        # test for allclose instead of equal
+        assert_allclose(coeffs, coeffs_loop, rtol=1e-14)

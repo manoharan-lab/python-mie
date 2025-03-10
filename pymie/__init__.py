@@ -28,8 +28,8 @@ PyPI: https://pypi.python.org/pypi/Pint/
 Github: https://github.com/hgrecco/pint
 Docs: https://pint.readthedocs.io/en/latest/
 
-.. moduleauthor :: Vinothan N. Manoharan <vnm@seas.harvard.edu>
-.. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>.
+.. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+.. moduleauthor:: Sofia Magkiriadou <sofia@physics.harvard.edu>.
 """
 
 import numpy as np
@@ -68,20 +68,22 @@ def index_ratio(n_particle, n_matrix):
 
     Parameters
     ----------
-    n_particle: structcol.Quantity [dimensionless]
-        refractive index of particle at a particular wavelength
+    n_particle: structcol.Quantity [dimensionless] or ndarray thereof
+        refractive index of particle at particular wavelength(s)
         can be complex
     n_matrix: structcol.Quantity [dimensionless]
         refractive index of matrix at a particular wavelength
 
     Notes
     -----
-    Returns a scalar rather than a Quantity because scipy special functions
-    don't seem to be able to handle pint Quantities
+    Nondimensionalizes from input arguments and strips units, returning a pure
+    ndarray (not a Quantity object)
 
     Returns
     -------
-    float
+    ndarray or scalar (complex or float):
+        Return type depends on type of n_particle and n_matrix, and return
+        shape should be the same as n_particle
     """
     return (n_particle/n_matrix).magnitude
 
@@ -101,17 +103,30 @@ def size_parameter(wavelen, n_matrix, radius):
 
     Notes
     -----
-    Returns a scalar rather than a Quantity because scipy special functions
-    don't seem to be able to handle pint Quantities
+    Nondimensionalizes from input arguments and strips units, returning a pure
+    ndarray (not a Quantity object)
 
     Returns
     -------
-    complex or float
+    ndarray or scalar (complex or float):
+        returns scalar if both wavelen and radius are scalars. If wavelen is an
+        array, returns shape [len(wavelen), 1]. If radius is an array, returns
+        shape [1, len(radius)].  If both are arrays, returns shape
+        [len(wavelen), len(radius)]
+
     """
+    # ensure size parameter calculation broadcasts correctly when both
+    # wavelength and radius are arrays
+    radius = np.broadcast_to(radius, (np.size(wavelen), np.size(radius)))
+    wavelen = np.reshape(wavelen, (np.size(wavelen), 1))
+    sp = (2 * np.pi * n_matrix / wavelen * radius)
+
     # must use to('dimensionless') in case the wavelength and radius are
     # specified in different units; pint doesn't automatically make
     # ratios such as 'nm'/'um' dimensionless
-    sp = (2 * np.pi * n_matrix / wavelen * radius)
     if isinstance(sp, Quantity):
         sp = sp.to('dimensionless').magnitude
+    if np.size(sp) == 1:
+        sp = sp.item()
+
     return sp

@@ -33,7 +33,7 @@ Key reference for multilayer algorithm is [3]_
 
 References
 ----------
-[1] Bohren, C. F. and Huffman, D. R. ""Absorption and Scattering of Light by
+[1] Bohren, C. F. and Huffman, D. R. "Absorption and Scattering of Light by
 Small Particles" (1983)
 [2] Wiscombe, W. J. "Improved Mie Scattering Algorithms" Applied Optics 19, no.
 9 (1980): 1505. doi:10.1364/AO.19.001505
@@ -466,7 +466,7 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     x = np.atleast_2d(x)
     psi, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
 
-    # insert zeroes at the beginning of second axis (order)
+    # insert zeroes at the beginning of second axis (order axis)
     psishift = np.pad(psi, ((0,), (1,)))[:, 0:nstop+1]
     xishift = np.pad(xi, ((0,), (1,)))[:, 0:nstop+1]
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
@@ -474,9 +474,9 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
     # coefficient array has shape [2, num_values, nstop] or [2, nstop] if
     # only one value (only one wavelength, for example)
-    return np.array([an[:, 1:nstop+1], bn[:, 1:nstop+1]]).squeeze()
+    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]]).squeeze()
 
-def _scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
+def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     '''Calculate scattered field expansion coefficients (in the Mie formalism)
     for a particle with an arbitrary number of spherically symmetric layers
     with different refractive indices.
@@ -484,9 +484,15 @@ def _scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     Parameters
     ----------
     marray : array_like, complex128
-        array of layer indices, innermost first
+        array of layer indexes, innermost first.  If specified as a 2D array,
+        axis=0 corresponds to the values over which to vectorize (e.g.
+        wavelengths), and axis=1 corresponds to the layer indexes
     xarray : array_like, real
-        array of layer size parameters (k * outer radius), innermost first
+        array of layer size parameters (k * outer radius), innermost first.  If
+        specified as a 2D array, axis=0 corresponds to the values over which to
+        vectorize and axis=1 corresponds to the layer size parameters.
+    nstop : int
+        maximum order.  If not specified, uses largest value of x to determine
     eps1 : float, optional
         underflow criterion for Lentz continued fraction for Dn1
     eps2 : float, optional
@@ -498,30 +504,38 @@ def _scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
         Scattering coefficients
 
     '''
-    # ensure correct data types
-    marray = np.array(marray, dtype = 'complex128')
-    xarray = np.array(xarray, dtype = 'complex128')
+    # ensure correct data types and shapes
+    marray = np.atleast_2d(marray).astype(complex)
+    xarray = np.atleast_2d(xarray).astype(complex)
 
     # sanity check: marray and xarray must be same size
     if marray.size != xarray.size:
-        raise ValueError('Arrays of layer indices \
-            and size parameters must be the same length!')
+        raise ValueError("Arrays of layer indices and size parameters must "
+                         "have the same dimensions")
 
     # need number of layers L
-    nlayers = marray.size
+    nlayers = marray.shape[-1]
 
     # calculate nstop based on outermost radius
-    nstop = _nstop(xarray.max())
+    if nstop is None:
+        nstop = _nstop(xarray.max())
 
     # initialize H_n^a and H_n^b in the core, see eqns. 12a and 13a
-    intl = mie_specfuncs.log_der_13(marray[0]*xarray[0], nstop, eps1, eps2)[0]
+    intl = mie_specfuncs.log_der_13(marray[..., 0] * xarray[..., 0],
+                                    nstop, eps1, eps2)[0]
     hans = intl
     hbns = intl
 
     # lay is l-1 (index on layers used by Yang)
     for lay in np.arange(1, nlayers):
-        z1 = marray[lay]*xarray[lay-1] # m_l x_{l-1}
-        z2 = marray[lay]*xarray[lay]  # m_l x_l
+        m = marray[..., lay]
+        mm1 = marray[..., lay-1]
+        x = xarray[..., lay]
+        xm1 = xarray[..., lay-1]
+        # m_l x_{l-1}
+        z1 = m*xm1
+        # m_l x_l
+        z2 = m*x
 
         # calculate logarithmic derivatives D_n^1 and D_n^3
         derz1s = mie_specfuncs.log_der_13(z1, nstop, eps1, eps2)
@@ -530,10 +544,10 @@ def _scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
         # calculate G1, G2, Gtilde1, Gtilde2 according to
         # eqns 26-29
         # using H^a_n and H^b_n from previous layer
-        G1 = marray[lay]*hans - marray[lay-1]*derz1s[0]
-        G2 = marray[lay]*hans - marray[lay-1]*derz1s[1]
-        Gt1 = marray[lay-1]*hbns - marray[lay]*derz1s[0]
-        Gt2 = marray[lay-1]*hbns - marray[lay]*derz1s[1]
+        G1 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*derz1s[0]
+        G2 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*derz1s[1]
+        Gt1 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*derz1s[0]
+        Gt2 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*derz1s[1]
 
         # calculate ratio Q_n^l for this layer
         Qnl = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s, dns2 = derz2s,
@@ -549,20 +563,28 @@ def _scatcoeffs_multi(marray, xarray, eps1 = 1e-3, eps2 = 1e-16):
     # see Yang eqns 14 and 15
     #
     # n = 0 to nstop
-    psiandxi = mie_specfuncs.riccati_psi_xi(xarray.max(), nstop)
+    # (below we vectorize over the first dimension of xarray; we calculate the
+    # max x over layers for each value of the first dimension)
+    psiandxi = mie_specfuncs.riccati_psi_xi(xarray.max(axis=1)[:, np.newaxis],
+                                            nstop)
     n = np.arange(nstop+1)
     psi = psiandxi[0]
     xi = psiandxi[1]
     # this doesn't bother to calculate psi/xi_{-1} correctly,
     # but OK since we're throwing out a_0, b_0 where it appears
-    psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
-    xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
+    psishift = np.insert(psi, 0,
+                         np.zeros(psi.shape[:-1]), axis=-1)[..., 0:nstop+1]
+    xishift = np.insert(xi, 0,
+                         np.zeros(xi.shape[:-1]), axis=-1)[..., 0:nstop+1]
 
-    an = ((hans/marray[nlayers-1] + n/xarray[nlayers-1])*psi - psishift) / (
-        (hans/marray[nlayers-1] + n/xarray[nlayers-1])*xi - xishift)
-    bn = ((hbns*marray[nlayers-1] + n/xarray[nlayers-1])*psi - psishift) / (
-        (hbns*marray[nlayers-1] + n/xarray[nlayers-1])*xi - xishift)
-    return np.array([an[1:nstop+1], bn[1:nstop+1]]) # output begins at n=1
+    mlast = marray[..., nlayers-1][:, np.newaxis]
+    xlast = xarray[..., nlayers-1][:, np.newaxis]
+    an = (((hans/mlast + n/xlast)*psi - psishift)
+          / ((hans/mlast + n/xlast)*xi - xishift))
+    bn = (((hbns*mlast + n/xlast)*psi- psishift)
+          / ((hbns*mlast + n/xlast)*xi - xishift))
+    # output begins at n=1
+    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]]).squeeze()
 
 def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
@@ -580,7 +602,7 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
                                                            eps1, eps2))
     cl = m * ratio * (D3x - D1x) / (D3x - m * D1mx)
     dl = m * ratio * (D3x - D1x) / (m * D3x - D1mx)
-    return np.array([cl[1:], dl[1:]]) # start from l = 1
+    return np.array([cl[..., 1:], dl[..., 1:]]) # start from l = 1
 
 def _trans_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
@@ -757,32 +779,34 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
         prefactor1 = eta**2 * wavelen / (2*np.pi*radius**2*n_medium.real*
                                         (1+(eta-1)*np.exp(eta)))
 
-    lmax = al.shape[0]
+    lmax = al.shape[-1]
     l = np.arange(lmax) + 1
     prefactor2 = (2. * l + 1.)
 
     # calculate the scattering efficiency
     _, xi = mie_specfuncs.riccati_psi_xi(x_medium, lmax)
-    xishift = np.concatenate((np.zeros(1), xi))[0:lmax+1]
-    xi = xi[1:]
-    xishift = xishift[1:]
+    xishift = np.insert(xi, 0,
+                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    xi = xi[..., 1:]
+    xishift = xishift[..., 1:]
 
     Bn = (np.abs(al)**2 * (xishift - l*xi/x_medium) * np.conj(xi) -
           np.abs(bl)**2 * xi *
           np.conj(xishift -  l*xi/x_medium)) / (2*np.pi*n_medium/wavelen)
-    Qscat = prefactor1 * np.sum(prefactor2 * Bn.imag)
+    Qscat = prefactor1 * np.sum(prefactor2 * Bn.imag, axis=-1)
 
     # calculate the absorption and extinction efficiencies
     psi, _ = mie_specfuncs.riccati_psi_xi(x_scatterer, lmax)
-    psishift = np.concatenate((np.zeros(1), psi))[0:lmax+1]
-    psi = psi[1:]
-    psishift = psishift[1:]
+    psishift = np.insert(psi, 0,
+                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    psi = psi[..., 1:]
+    psishift = psishift[..., 1:]
 
     An = (np.abs(cl)**2 * psi * np.conj(psishift - l*psi/x_scatterer) -
           np.abs(dl)**2 * (psishift - l*psi/x_scatterer)*
           np.conj(psi)) / (2*np.pi*n_particle/wavelen)
-    Qabs = prefactor1 * np.sum(prefactor2 * An.imag)
-    Qext = prefactor1 * np.sum(prefactor2 * (An+Bn).imag)
+    Qabs = prefactor1 * np.sum(prefactor2 * An.imag, axis=-1)
+    Qext = prefactor1 * np.sum(prefactor2 * (An+Bn).imag, axis=-1)
 
     # calculate the cross sections
     Cscat = Qscat *np.pi * radius**2
@@ -811,7 +835,7 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     x = np.array(x).max()
 
     k = x/radius
-    lmax = al.shape[0]
+    lmax = al.shape[-1]
     l = np.arange(lmax) + 1
     prefactor = (2. * l + 1.)
 

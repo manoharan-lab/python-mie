@@ -143,13 +143,12 @@ def dn_1_down(z, nmx, nstop, start_val):
     '''
     z = np.array(z)
     start_val = np.atleast_1d(start_val)
-    dn = np.zeros((start_val.shape[0], nmx+1), dtype = 'complex128')
-
-    dn[:, nmx] = start_val.squeeze()
+    dn = np.zeros(start_val.shape + (nmx+1,), dtype=complex)
+    dn[..., nmx] = start_val
 
     for i in np.arange(nmx-1, -1, -1):
-        dn[:, i] = (i+1.)/z - 1.0/(dn[:, i+1] + (i+1.)/z)
-    return dn[:, 0:nstop+1].squeeze()
+        dn[..., i] = (i+1.)/z - 1.0/(dn[..., i+1] + (i+1.)/z)
+    return dn[..., 0:nstop+1]
 
 
 def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
@@ -167,7 +166,7 @@ def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     eps1: underflow criterion for Lentz continued fraction for Dn1
     eps2: convergence criterion for Lentz continued fraction for Dn1
     '''
-    z = np.complex128(z) # convert to double precision
+    z = np.atleast_1d(z).astype(complex)
 
     # Calculate Dn_1 (based on \psi(z)) using downward recursion.
     # See Mackowski eqn. 62
@@ -177,16 +176,17 @@ def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
     # Calculate Dn_3 (based on \xi) by up recurrence
     # initialize
-    dn3 = zeros(nstop+1, dtype = 'complex128')
-    psixi = zeros(nstop+1, dtype = 'complex128')
-    dn3[0] = 1.j
-    psixi[0] = -1j*exp(1.j*z)*sin(z)
+    dn3 = zeros(z.shape + (nstop+1,), dtype = complex)
+    psixi = zeros(z.shape + (nstop+1,), dtype = complex)
+    dn3[..., 0] = 1.j
+    psixi[..., 0] = -1j*exp(1.j*z)*sin(z)
     for dindex in arange(1, nstop+1):
         # Mackowski eqn 63
-        psixi[dindex] = psixi[dindex-1] * ( (dindex/z) - dn1[dindex-1]) * (
-            (dindex/z) - dn3[dindex-1])
+        psixi[..., dindex] = (psixi[..., dindex-1]
+                              * ( (dindex/z) - dn1[..., dindex-1])
+                              * ( (dindex/z) - dn3[..., dindex-1]))
         # Mackowski eqn 64
-        dn3[dindex] = dn1[dindex] + 1j/psixi[dindex]
+        dn3[..., dindex] = dn1[..., dindex] + 1j/psixi[..., dindex]
 
     return dn1, dn3
 
@@ -200,8 +200,8 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
     Logarithmic derivatives calculated automatically if not specified.
     '''
     # convert z1 and z2 to 128 bit complex to prevent division problems
-    z1 = np.complex128(z1)
-    z2 = np.complex128(z2)
+    z1 = np.atleast_1d(z1).astype(complex)
+    z2 = np.atleast_1d(z2).astype(complex)
 
     if dns1 is None:
         logdersz1 = log_der_13(z1, nstop, eps1, eps2)
@@ -216,19 +216,21 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
         d1z2 = dns2[0]
         d3z2 = dns2[1]
 
-    qns = zeros(nstop+1, dtype = 'complex128')
+    qns = zeros(z1.shape + (nstop+1,), dtype=complex)
 
     # initialize according to Yang eqn. 34
     a1 = real(z1)
     a2 = real(z2)
     b1 = imag(z1)
     b2 = imag(z2)
-    qns[0] = exp(-2.*(b2-b1)) * (exp(-1j*2.*a1)-exp(-2.*b1)) / (exp(-1j*2.*a2)
-                                                                - exp(-2.*b2))
+    qns[..., 0] = (exp(-2.*(b2-b1)) * (exp(-1j*2.*a1)-exp(-2.*b1))
+                   / (exp(-1j*2.*a2) - exp(-2.*b2)))
     # Loop to do upwards recursion in eqn. 33
     for i in arange(1, nstop+1):
-        qns[i] = qns[i-1]* (((d3z1[i] + i/z1) * (d1z2[i] + i/z2))
-                            / ((d3z2[i] + i/z2) * (d1z1[i] + i/z1)))
+        qns[..., i] = qns[..., i-1]* (((d3z1[..., i] + i/z1)
+                                       * (d1z2[..., i] + i/z2))
+                                      / ((d3z2[..., i] + i/z2)
+                                         * (d1z1[..., i] + i/z1)))
     return qns
 
 def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
@@ -237,12 +239,16 @@ def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
     See Mackowski eqns. 65-66.
     '''
-    output = zeros(nmax + 1, dtype = 'complex128')
-    output[0] = sin(z1) / sin(z2)
+    z1 = np.atleast_1d(z1).astype(complex)
+    z2 = np.atleast_1d(z2).astype(complex)
+
+    output = zeros(z1.shape + (nmax + 1,), dtype=complex)
+    output[..., 0] = sin(z1) / sin(z2)
     dnz1 = dn_1_down(z1, nmax + 1, nmax, lentz_dn1(z1, nmax + 1, eps1, eps2))
     dnz2 = dn_1_down(z2, nmax + 1, nmax, lentz_dn1(z2, nmax + 1, eps1, eps2))
 
     # use up recursion
     for i in arange(1, nmax + 1):
-        output[i] = output[i - 1] * (dnz2[i] + i / z2) / (dnz1[i] + i / z1)
+        output[..., i] = output[..., i-1] * ((dnz2[..., i] + i / z2)
+                                             / (dnz1[..., i] + i / z1))
     return output
