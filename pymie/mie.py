@@ -595,14 +595,24 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     have different conventions (labeling of c_n and d_n and factors of m)
     for their internal coefficients.
     '''
-    ratio = mie_specfuncs.R_psi(x, m * x, n_max, eps1, eps2)
+    if np.atleast_2d(x).shape[-1] > 1:
+        raise ValueError("Internal Mie coefficients cannot yet be calculated "
+                         "for layered sphere")
+
+    m = np.atleast_1d(m)
+    x = np.atleast_2d(x)
+    z = m * x
+    ratio = mie_specfuncs.R_psi(x, z, n_max, eps1, eps2)
     D1x, D3x = mie_specfuncs.log_der_13(x, n_max, eps1, eps2)
-    D1mx = mie_specfuncs.dn_1_down(m * x, n_max + 1, n_max,
-                                   mie_specfuncs.lentz_dn1(m * x, n_max + 1,
+    D1mx = mie_specfuncs.dn_1_down(z, n_max + 1, n_max,
+                                   mie_specfuncs.lentz_dn1(z, n_max + 1,
                                                            eps1, eps2))
-    cl = m * ratio * (D3x - D1x) / (D3x - m * D1mx)
-    dl = m * ratio * (D3x - D1x) / (m * D3x - D1mx)
-    return np.array([cl[..., 1:], dl[..., 1:]]) # start from l = 1
+    cl = (m[..., np.newaxis] * ratio * (D3x - D1x)
+          / (D3x - m[..., np.newaxis] * D1mx))
+    dl = (m[..., np.newaxis] * ratio * (D3x - D1x)
+          / (m[..., np.newaxis] * D3x - D1mx))
+    # start from l = 1
+    return np.array([cl[..., 1:], dl[..., 1:]]).squeeze()
 
 def _trans_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''

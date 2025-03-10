@@ -22,7 +22,7 @@ Tests vectorization behavior of the mie module
 
 from .. import Quantity, index_ratio, size_parameter, np, mie
 from numpy.testing import assert_allclose, assert_equal
-#import pytest
+import pytest
 
 class TestVectorized():
     """Test vectorization of the Mie calculations over wavelength for solid
@@ -55,7 +55,9 @@ class TestVectorized():
         assert nstop.shape[0] == self.num_wavelen
 
     def test_vectorized_scatcoeffs(self):
-        # tests that mie._scatcoeffs() vectorizes properly
+        """Tests that mie._scatcoeffs() vectorizes properly.
+
+        """
         nstop, coeffs = self.calc_coeffs()
 
         # make sure shape is correct
@@ -67,6 +69,39 @@ class TestVectorized():
         for i in range(self.m.shape[0]):
             coeffs_loop[:, i] = mie._scatcoeffs(self.m[i], self.x[i], nstop)
         assert_equal(coeffs, coeffs_loop)
+
+    def test_vectorized_internal_coeffs(self):
+        """Tests that mie._internal_coeffs() vectorizes properly
+
+        """
+        nstop = mie._nstop(self.x.max())
+
+        # should not work for a layered sphere
+        m = self.m[:, np.newaxis]
+        x = self.x * np.ones((1, 5))
+        print(x.shape)
+        with pytest.raises(ValueError, match="Internal Mie coefficients"):
+            coeffs = mie._internal_coeffs(m, x, nstop)
+
+        m = self.m[:, np.newaxis]
+        x = self.x
+        coeffs = mie._internal_coeffs(m, x, nstop)
+
+        # make sure shape is correct
+        expected_shape = (2, self.num_wavelen, nstop)
+        assert coeffs.shape == expected_shape
+
+        # we should get same values from loop
+        coeffs_loop = np.zeros(expected_shape, dtype=complex)
+        for i in range(self.m.shape[0]):
+            c = mie._internal_coeffs(self.m[i], self.x[i], nstop)
+            coeffs_loop[:, i] = c
+
+        # the vectorized version differs from the loop version in a few
+        # elements by more than floating point uncertainty, perhaps due to
+        # tolerances in the continued fraction algorithm.  So we
+        # test for allclose instead of equal
+        assert_allclose(coeffs, coeffs_loop, rtol=1e-14)
 
     def test_vectorized_asymmetry_parameter(self):
         # tests that mie._asymmetry_parameter() vectorizes properly
@@ -106,6 +141,7 @@ class TestVectorized():
         assert_equal(cscat, cscat_loop)
         assert_equal(cext, cext_loop)
         assert_equal(cback, cback_loop)
+
 
 def test_parameter_shapes():
     """Test to make sure vectorized size_parameter() and index_ratio() have the
