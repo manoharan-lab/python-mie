@@ -79,7 +79,7 @@ class TestVectorized():
         # should not work for a layered sphere
         m = self.m[:, np.newaxis]
         x = self.x * np.ones((1, 5))
-        print(x.shape)
+
         with pytest.raises(ValueError, match="Internal Mie coefficients"):
             coeffs = mie._internal_coeffs(m, x, nstop)
 

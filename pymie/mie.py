@@ -67,8 +67,10 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
 
     Parameters
     ----------
-    m : complex particle relative refractive index, n_part/n_med
-    x : size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
+    m : complex or float, array-like
+        complex particle relative refractive index, n_part/n_med
+    x : complex or float, array-like
+        size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
     angles: ndarray(structcol.Quantity [dimensionless])
         array of angles. Must be entered as a Quantity to allow specifying
         units (degrees or radians) explicitly

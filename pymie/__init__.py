@@ -94,11 +94,11 @@ def size_parameter(wavelen, n_matrix, radius):
 
     Parameters
     ----------
-    wavelen: structcol.Quantity [length]
+    wavelen: structcol.Quantity [length], array-like
         wavelength in vacuum
-    n_matrix: structcol.Quantity [dimensionless]
+    n_matrix: structcol.Quantity [dimensionless], array-like
         refractive index of matrix at wavelength=wavelen
-    radius: structcol.Quantity [length]
+    radius: structcol.Quantity [length], array-like
         radius of particle
 
     Notes
@@ -119,6 +119,9 @@ def size_parameter(wavelen, n_matrix, radius):
     # wavelength and radius are arrays
     radius = np.broadcast_to(radius, (np.size(wavelen), np.size(radius)))
     wavelen = np.reshape(wavelen, (np.size(wavelen), 1))
+    # matrix index may be specifed as an array to account for dispersion
+    if isinstance(n_matrix, np.ndarray):
+        n_matrix = np.reshape(n_matrix, (np.size(wavelen), 1))
     sp = (2 * np.pi * n_matrix / wavelen * radius)
 
     # must use to('dimensionless') in case the wavelength and radius are
