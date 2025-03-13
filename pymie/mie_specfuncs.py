@@ -146,8 +146,12 @@ def dn_1_down(z, nmx, nstop, start_val):
     dn = np.zeros(start_val.shape + (nmx+1,), dtype=complex)
     dn[..., nmx] = start_val
 
-    for i in np.arange(nmx-1, -1, -1):
-        dn[..., i] = (i+1.)/z - 1.0/(dn[..., i+1] + (i+1.)/z)
+    # pre-calculate 1/z so we save a little time in the loop
+    i_range = np.arange(nmx-1, -1, -1)
+    one_over_z = 1/z
+    for i in i_range:
+        dn[..., i] = ((i+1)*one_over_z
+                      - 1.0/(dn[..., i+1] + ((i+1)*one_over_z)))
     return dn[..., 0:nstop+1]
 
 
