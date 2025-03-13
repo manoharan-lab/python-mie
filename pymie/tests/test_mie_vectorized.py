@@ -120,30 +120,45 @@ class TestVectorized():
         assert_equal(g, g_loop)
 
     def test_vectorized_cross_sections(self):
-        # tests that mie._cross_sections() vectorizes properly
-        nstop, coeffs = self.calc_coeffs()
+        """Tests that mie.calc_cross_sections() vectorizes properly. Also
+        implicitly checks that _cross_sections() vectorizes properly
 
-        cscat, cext, cback = mie._cross_sections(coeffs[0], coeffs[1])
+        """
+        m = self.m[:, np.newaxis]
+        x = self.x
+        # wavelength in medium
+        wavelen = self.wavelen/self.n_matrix
+        cscat, cext, cback, cabs, asym = mie.calc_cross_sections(m, x, wavelen)
 
         # test shape
         expected_shape = (self.num_wavelen,)
-        for cs in [cscat, cext, cback]:
+        for cs in [cscat, cext, cback, cabs, asym]:
             assert cs.shape == expected_shape
 
         # we should get same values from loop
         cscat_loop = np.zeros(expected_shape, dtype=float)
         cext_loop = np.zeros(expected_shape, dtype=float)
         cback_loop = np.zeros(expected_shape, dtype=float)
+        cabs_loop = np.zeros(expected_shape, dtype=float)
+        asym_loop = np.zeros(expected_shape, dtype=float)
         for i in range(self.num_wavelen):
-            albl = mie._scatcoeffs(self.m[i], self.x[i], nstop)
-            cs = mie._cross_sections(albl[0], albl[1])
-            cscat_loop[i], cext_loop[i], cback_loop[i] = cs
-        assert_equal(cscat, cscat_loop)
-        assert_equal(cext, cext_loop)
-        assert_equal(cback, cback_loop)
+            cs = mie.calc_cross_sections(m[i], x[i], wavelen[i])
+            cscat_loop[i], cext_loop[i], cback_loop[i], \
+                cabs_loop[i], asym_loop[i] = (c.magnitude for c in cs)
+        assert_equal(cscat.magnitude, cscat_loop)
+        assert_equal(cext.magnitude, cext_loop)
+        assert_equal(cback.magnitude, cback_loop)
+        assert_equal(cabs.magnitude, cabs_loop)
+        assert_equal(asym.magnitude, asym_loop)
 
     def test_vectorized_calc_ang_dist(self):
-        # tests that mie.calc_ang_dist() vectorizes properly
+        """Tests that mie.calc_ang_dist() vectorizes properly. Also implicitly
+        checks that _amplitude_scattering_matrix() and
+        _amplitude_scattering_matrix_RG() vectorize properly.  Also checks for
+        correctness of RG calculations by comparing against Mie calculations
+        for small refractive index difference.
+
+        """
         m = self.m[:, np.newaxis]
         x = self.x
         form_factor = mie.calc_ang_dist(m, x, self.angles)
