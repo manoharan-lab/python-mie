@@ -104,19 +104,23 @@ class TestVectorized():
         assert_allclose(coeffs, coeffs_loop, rtol=1e-14)
 
     def test_vectorized_asymmetry_parameter(self):
-        # tests that mie._asymmetry_parameter() vectorizes properly
-        nstop, coeffs = self.calc_coeffs()
+        """Tests that mie.calc_g() vectorizes properly. Also implicitly checks
+        that mie._asymmetry_parameter() vectorizes properly
 
+        """
+        m = self.m[:, np.newaxis]
+        x = self.x
         # make sure shape is [num_wavelen]
-        g = mie._asymmetry_parameter(coeffs[0], coeffs[1])
+        g = mie.calc_g(m,x)
         expected_shape = (self.num_wavelen,)
         assert g.shape == expected_shape
 
-        # we should get same values from loop
+        # we should get same values from loop. Need to set nstop to the same
+        # value as used in the vectorized calculation.
         g_loop = np.zeros(expected_shape, dtype=float)
+        nstop = mie._nstop(x.max())
         for i in range(self.num_wavelen):
-            albl = mie._scatcoeffs(self.m[i], self.x[i], nstop)
-            g_loop[i] = mie._asymmetry_parameter(albl[0], albl[1])
+            g_loop[i] = mie.calc_g(m[i], x[i], nstop=nstop)
         assert_equal(g, g_loop)
 
     def test_vectorized_cross_sections(self):

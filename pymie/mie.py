@@ -200,15 +200,18 @@ def calc_efficiencies(m, x):
     # in order: scattering, extinction and backscattering efficiency
     return qscat, qext, qback
 
-def calc_g(m, x):
+def calc_g(m, x, nstop=None):
     """
     Asymmetry parameter
     """
-    nstop = _nstop(np.array(x).max())
+    if nstop is None:
+        nstop = _nstop(np.array(x).max())
     coeffs = _scatcoeffs(m, x, nstop)
 
-    cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./np.array(x).max()**2
-    g = ((4./(np.array(x).max()**2 * cscat))
+    # for multilayer particle, need to scale by the x of the outermost layer
+    outer_x = np.array(x).max(axis=-1).squeeze()
+    cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./outer_x**2
+    g = ((4./(outer_x**2 * cscat))
          * _asymmetry_parameter(coeffs[0], coeffs[1]))
     return g
 
