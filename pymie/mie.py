@@ -1654,15 +1654,43 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
 
 
 def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, thetas):
-    # amplitude scattering matrix from Mie coefficients
+    """Amplitude scattering matrix from Mie coefficients
+
+    """
     pis, taus = _pis_and_taus(n_stop, thetas)
+
+    # to broadcast correctly over the dimensions of coeffs (which may be
+    # wavelength or other variable), we need to add leading dimensions to the
+    # pis and taus, which have shape [num_angles, order].  Result should have
+    #   pis, taus shape: [1, ..., 1, num_angles, order]
+    # Similarly, we need to insert dimensions in coeffs corresponding to the
+    # angles in pis and taus.  Result should have
+    #   coeffs[0].shape: [num_values, ..., 1, order]
+    num_leading_dims = len(coeffs[0].shape[:-1])
+    num_insert_dims = len(pis.shape[:-1])
+    new_coeffs_shape = (coeffs.shape[:-1] + num_insert_dims*(1,)
+                        + (coeffs.shape[-1],))
+    pis = pis.reshape(num_leading_dims*(1,) + pis.shape)
+    taus = taus.reshape(num_leading_dims*(1,) + taus.shape)
+    coeffs = coeffs.reshape(new_coeffs_shape)
+
+    # result should have shape [num_values, ..., num_angles]
     S1 = np.sum(prefactor*(coeffs[0]*pis + coeffs[1]*taus), axis=-1)
     S2 = np.sum(prefactor*(coeffs[0]*taus + coeffs[1]*pis), axis=-1)
     return S2, S1
 
 def _amplitude_scattering_matrix_RG(prefactor, x, thetas):
-    # amplitude scattering matrix from Rayleigh-Gans approximation
+    """Amplitude scattering matrix from Rayleigh-Gans approximation
+
+    """
     u = 2 * x * np.sin(thetas/2.)
-    S1 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u))
-    S2 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u)) * np.cos(thetas)
+
+    # for theta=0 the limit is 1*prefactor; the following will avoid a divide
+    # by zero error by dividing everywhere that u!=0 and returning 1 where u=0
+    p = np.divide(np.sin(u) - u*np.cos(u), u**3, out=np.ones_like(u),
+                  where=u!=0)
+
+    # result should have shape [num_values, ..., num_angles]
+    S1 = prefactor * 3 * p
+    S2 = S1 * np.cos(thetas)
     return S2, S1
