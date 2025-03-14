@@ -204,10 +204,10 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
     Logarithmic derivatives calculated automatically if not specified.
     '''
     # convert z1 and z2 to 128 bit complex to prevent division problems
-    z1 = np.atleast_1d(z1).astype(complex)
-    z2 = np.atleast_1d(z2).astype(complex)
+    z1 = np.atleast_2d(z1).transpose().astype(complex)
+    z2 = np.atleast_2d(z2).transpose().astype(complex)
 
-    if dns1 is None:
+    if (dns1 is None) and (dns2 is None):
         logdersz1 = log_der_13(z1, nstop, eps1, eps2)
         logdersz2 = log_der_13(z2, nstop, eps1, eps2)
         d1z1 = logdersz1[0]
@@ -220,21 +220,32 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
         d1z2 = dns2[0]
         d3z2 = dns2[1]
 
-    qns = zeros(z1.shape + (nstop+1,), dtype=complex)
-
     # initialize according to Yang eqn. 34
     a1 = real(z1)
     a2 = real(z2)
     b1 = imag(z1)
     b2 = imag(z2)
-    qns[..., 0] = (exp(-2.*(b2-b1)) * (exp(-1j*2.*a1)-exp(-2.*b1))
-                   / (exp(-1j*2.*a2) - exp(-2.*b2)))
-    # Loop to do upwards recursion in eqn. 33
-    for i in arange(1, nstop+1):
-        qns[..., i] = qns[..., i-1]* (((d3z1[..., i] + i/z1)
-                                       * (d1z2[..., i] + i/z2))
-                                      / ((d3z2[..., i] + i/z2)
-                                         * (d1z1[..., i] + i/z1)))
+    qns0 = (exp(-2.*(b2-b1)) * (exp(-1j*2.*a1)-exp(-2.*b1))
+             / (exp(-1j*2.*a2) - exp(-2.*b2)))
+
+    # Vectorized loop to do upwards recursion in eqn. 33
+    irange = np.arange(1, nstop+1)
+    i_over_z1 = irange[np.newaxis, :]/z1
+    i_over_z2 = irange[np.newaxis, :]/z2
+    prod = ((d3z1[..., 1:] + i_over_z1) * (d1z2[..., 1:] + i_over_z2)
+            / ((d3z2[..., 1:] + i_over_z2) * (d1z1[..., 1:] + i_over_z1)))
+    qns = np.concatenate((qns0, qns0 * np.cumprod(prod, axis=-1)), axis=-1)
+
+    # equivalent non-vectorized loop is below
+    #
+    # qns = zeros(z1.shape + (nstop+1,), dtype=complex)
+    # qns[..., 0] = (exp(-2.*(b2-b1)) * (exp(-1j*2.*a1)-exp(-2.*b1))
+    #                / (exp(-1j*2.*a2) - exp(-2.*b2)))
+    # for i in arange(1, nstop+1):
+    #     qns[..., i] = qns[..., i-1]* (((d3z1[..., i] + i/z1)
+    #                                    * (d1z2[..., i] + i/z2))
+    #                                   / ((d3z2[..., i] + i/z2)
+    #                                      * (d1z1[..., i] + i/z1)))
     return qns
 
 def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):

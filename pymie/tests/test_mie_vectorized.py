@@ -22,7 +22,7 @@ Tests vectorization behavior of the mie module
 
 from .. import Quantity, index_ratio, size_parameter, np, mie
 from .. import mie_specfuncs
-from numpy.testing import assert_allclose, assert_equal
+from numpy.testing import assert_allclose, assert_array_max_ulp, assert_equal
 import pytest
 
 class TestVectorizedSpecialFuncs():
@@ -41,7 +41,6 @@ class TestVectorizedSpecialFuncs():
     x = size_parameter(wavelen, n_matrix, radius)
     angles = Quantity(np.linspace(0, 180., num_angle), 'deg')
 
-    @pytest.mark.xfail
     def test_dn_1_down(self):
         nstop = mie._nstop(self.x.max())
         nmx = nstop + 1
@@ -56,11 +55,68 @@ class TestVectorizedSpecialFuncs():
         dn = dn[..., 0:nstop+1]
 
         dn_vec = mie_specfuncs.dn_1_down(z, nmx, nstop, start_val)
-        assert_equal(dn_vec.imag, dn.imag)
+        #assert_equal(dn_vec.imag, dn.imag)
         # currently these differ at the 8.8*10-16 level (max) for some
-        #elements. The following test should pass:
-        # np.testing.assert_array_max_ulp(dn_vec.real, dn.real, maxulp=16)
+        # elements. The following test should pass:
+        np.testing.assert_array_max_ulp(dn_vec.real, dn.real, maxulp=16)
 
+    def test_Qratio(self):
+        """Tests that vectorized version of Qratio (without loop for up
+        recursion) works the same as loop version
+
+        """
+        num_layer = 5
+        radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
+        n_matrix = Quantity(1.00, '')
+        # let index be the same at all wavelengths, but different at each layer
+        n_particle = np.linspace(1.33, 1.59, num_layer)
+        n_particle = np.repeat(np.array([n_particle]), self.num_wavelen, axis=0)
+        n_particle = Quantity(n_particle, '')
+        # m should have shape [num_wavelen, num_layer]
+        m = index_ratio(n_particle, n_matrix)
+        # x should have shape [num_wavelen, num_layer]
+        x = size_parameter(self.wavelen, n_matrix, radius)
+
+        marray = m.astype(complex)
+        xarray = x.astype(complex)
+
+        nstop = mie._nstop(xarray.max())
+
+        for lay in np.arange(1, num_layer):
+            # m_l x_{l-1}
+            z1 = marray[..., lay]*xarray[..., lay-1]
+            # m_l x_l
+            z2 = marray[..., lay]*xarray[..., lay]
+
+            # calculate logarithmic derivatives D_n^1 and D_n^3
+            derz1s = mie_specfuncs.log_der_13(z1, nstop)
+            derz2s = mie_specfuncs.log_der_13(z2, nstop)
+
+            # calculate ratio Q_n^l for this layer
+            Qnl = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s, dns2 = derz2s)
+
+            # do same calculation with loop
+            d1z1 = derz1s[0]
+            d3z1 = derz1s[1]
+            d1z2 = derz2s[0]
+            d3z2 = derz2s[1]
+
+            # initialize according to Yang eqn. 34
+            a1 = np.real(z1)
+            a2 = np.real(z2)
+            b1 = np.imag(z1)
+            b2 = np.imag(z2)
+            qns = np.zeros(z1.shape + (nstop+1,), dtype=complex)
+            qns[..., 0] = (np.exp(-2.*(b2-b1)) * (np.exp(-1j*2.*a1)-np.exp(-2.*b1))
+                           / (np.exp(-1j*2.*a2) - np.exp(-2.*b2)))
+            for i in np.arange(1, nstop+1):
+                qns[..., i] = qns[..., i-1]* (((d3z1[..., i] + i/z1)
+                                               * (d1z2[..., i] + i/z2))
+                                              / ((d3z2[..., i] + i/z2)
+                                                 * (d1z1[..., i] + i/z1)))
+                print(f"layer {lay} order {i}")
+            assert_array_max_ulp(Qnl.real, qns.real, maxulp=16)
+            assert_allclose(Qnl, qns)
 
 class TestVectorized():
     """Test vectorization of the Mie calculations over wavelength for solid

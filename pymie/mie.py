@@ -521,7 +521,7 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     # need number of layers L
     nlayers = marray.shape[-1]
 
-    # calculate nstop based on outermost radius
+    # calculate nstop based on largest radius
     if nstop is None:
         nstop = _nstop(xarray.max())
 
