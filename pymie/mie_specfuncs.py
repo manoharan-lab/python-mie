@@ -104,14 +104,14 @@ def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
     ctr = 3
 
-    while (np.abs(product.real - 1).any() > eps2
-           or np.abs(product.imag).any() > eps2):
+    while ((np.abs(product.real - 1) > eps2).any()
+           or (np.abs(product.imag) > eps2).any()):
         ai = a_i(ctr)
         numerator = ai + 1. / numerator
         denominator = ai + 1. / denominator
 
-        if (np.abs(numerator / ai).any() < eps1
-            or np.abs(denominator / ai).any() < eps1):
+        if ((np.abs(numerator / ai) < eps1).any()
+            or (np.abs(denominator / ai) < eps1).any()):
             # ill conditioning
             xi1 = 1. + a_i(ctr + 1) * numerator
             xi2 = 1. + a_i(ctr + 1) * denominator

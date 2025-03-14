@@ -21,8 +21,46 @@ Tests vectorization behavior of the mie module
 """
 
 from .. import Quantity, index_ratio, size_parameter, np, mie
+from .. import mie_specfuncs
 from numpy.testing import assert_allclose, assert_equal
 import pytest
+
+class TestVectorizedSpecialFuncs():
+    """Tests that simplifying/removing loops from Mie special functions
+    produces same results as using loops.
+
+    """
+    num_wavelen = 10
+    num_angle = 19
+    wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
+    radius = Quantity('0.25 um')
+    n_matrix = Quantity(1.00, '')
+    # let index be the same at all wavelengths
+    n_particle = Quantity(np.ones(num_wavelen)*1.59, '')
+    m = index_ratio(n_particle, n_matrix)
+    x = size_parameter(wavelen, n_matrix, radius)
+    angles = Quantity(np.linspace(0, 180., num_angle), 'deg')
+
+    @pytest.mark.xfail
+    def test_dn_1_down(self):
+        nstop = mie._nstop(self.x.max())
+        nmx = nstop + 1
+
+        z = self.m[:, np.newaxis] * self.x
+        start_val = mie_specfuncs.lentz_dn1(z, nmx)
+        # loop version of dn_1_down
+        dn = np.zeros(start_val.shape + (nmx+1,), dtype=complex)
+        dn[..., nmx] = start_val
+        for i in np.arange(nmx-1, -1, -1):
+            dn[..., i] = (i+1.)/z - 1.0/(dn[..., i+1] + (i+1.)/z)
+        dn = dn[..., 0:nstop+1]
+
+        dn_vec = mie_specfuncs.dn_1_down(z, nmx, nstop, start_val)
+        assert_equal(dn_vec.imag, dn.imag)
+        # currently these differ at the 8.8*10-16 level (max) for some
+        #elements. The following test should pass:
+        # np.testing.assert_array_max_ulp(dn_vec.real, dn.real, maxulp=16)
+
 
 class TestVectorized():
     """Test vectorization of the Mie calculations over wavelength for solid
