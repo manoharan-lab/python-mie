@@ -610,9 +610,10 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
         raise ValueError("Internal Mie coefficients cannot yet be calculated "
                          "for layered sphere")
 
-    m = np.atleast_1d(m)
-    x = np.atleast_2d(x)
-    z = m * x
+    m = np.reshape(m, (np.size(m), 1)).astype(complex)
+    x = np.reshape(x, (np.size(x), 1)).astype(complex)
+    z = np.array(m * x)
+
     ratio = mie_specfuncs.R_psi(x, z, n_max, eps1, eps2)
     D1x, D3x = mie_specfuncs.log_der_13(x, n_max, eps1, eps2)
     D1mx = mie_specfuncs.dn_1_down(z, n_max + 1, n_max,

@@ -305,17 +305,31 @@ def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     Calculate ratio of Riccati-Bessel function psi: psi(z1)/psi(z2).
 
     See Mackowski eqns. 65-66.
-    '''
-    z1 = np.atleast_1d(z1).astype(complex)
-    z2 = np.atleast_1d(z2).astype(complex)
 
-    output = np.zeros(z1.shape + (nmax + 1,), dtype=complex)
-    output[..., 0] = np.sin(z1) / np.sin(z2)
+    z1, z2 are complex arrays with shape [num_values, 1]
+    '''
+    # Vectorized loop (using np.cumprod) to do up recursion
+    output_0 = (np.sin(z1) / np.sin(z2))[:, :, np.newaxis]
     dnz1 = dn_1_down(z1, nmax + 1, nmax, lentz_dn1(z1, nmax + 1, eps1, eps2))
     dnz2 = dn_1_down(z2, nmax + 1, nmax, lentz_dn1(z2, nmax + 1, eps1, eps2))
 
-    # use up recursion
-    for i in np.arange(1, nmax + 1):
-        output[..., i] = output[..., i-1] * ((dnz2[..., i] + i / z2)
-                                             / (dnz1[..., i] + i / z1))
-    return output
+    irange = np.arange(1, nmax+1)
+    # shape is [num_values, num_layers, order]
+    i_over_z1 = irange[np.newaxis, np.newaxis, :]/z1[:, :, np.newaxis]
+    i_over_z2 = irange[np.newaxis, np.newaxis, :]/z2[:, :, np.newaxis]
+    prod = (dnz2[..., 1:] + i_over_z2) / (dnz1[..., 1:] + i_over_z1)
+    output_vec = np.concatenate((output_0,
+                                 output_0 * np.cumprod(prod, axis=-1)),
+                                axis=-1)
+
+    # equivalent non-vectorized loop is below
+    #
+    # output = np.zeros(z1.shape + (nmax + 1,), dtype=complex)
+    # output[..., 0] = np.sin(z1) / np.sin(z2)
+    # dnz1 = dn_1_down(z1, nmax + 1, nmax, lentz_dn1(z1, nmax + 1, eps1, eps2))
+    # dnz2 = dn_1_down(z2, nmax + 1, nmax, lentz_dn1(z2, nmax + 1, eps1, eps2))
+    # for i in np.arange(1, nmax + 1):
+    #     output[..., i] = output[..., i-1] * ((dnz2[..., i] + i / z2)
+    #                                          / (dnz1[..., i] + i / z1))
+
+    return output_vec

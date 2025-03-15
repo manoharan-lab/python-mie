@@ -128,7 +128,6 @@ class TestVectorizedSpecialFuncs():
         expected_ratio = 18.95228198
         assert_allclose(mie_specfuncs.lentz_dn1(1.0, 9) + 9, expected_ratio)
 
-
     def test_dn_1_down(self):
         """Tests that down-recurrence for logarithmic derivatives can be
         vectorized over wavelengths.
@@ -218,6 +217,38 @@ class TestVectorizedSpecialFuncs():
             # differences are pretty close to zero but can vary a lot in their
             # magnitude.
             assert_allclose(np.abs(Qnl.imag - qns.imag), 0, atol=1e-10)
+
+    def test_R_psi(self):
+        """Tests that the up-recurrence in the calculation of the ratio of
+        Riccati-Bessel functions can be done without a loop
+
+        """
+        # The R_psi calculation shows up in the calculation of internal
+        # coefficients, which is only valid (for now) for non-multilayer
+        # spheres.
+        z1 = self.x
+        z2 = self.m[:, np.newaxis] * self.x
+        nstop = mie._nstop(self.x.max())
+        nmax = nstop + 1
+
+        # vectorized version
+        output_vec = mie_specfuncs.R_psi(z1, z2, nmax)
+
+        # loop version of R_psi
+        output = np.zeros(z1.shape + (nmax + 1,), dtype=complex)
+        output[..., 0] = np.sin(z1) / np.sin(z2)
+        dnz1 = mie_specfuncs.dn_1_down(z1, nmax + 1, nmax,
+                                       mie_specfuncs.lentz_dn1(z1, nmax + 1))
+        dnz2 = mie_specfuncs.dn_1_down(z2, nmax + 1, nmax,
+                                       mie_specfuncs.lentz_dn1(z2, nmax + 1))
+        for i in np.arange(1, nmax + 1):
+            output[..., i] = output[..., i-1] * ((dnz2[..., i] + i / z2)
+                                                 / (dnz1[..., i] + i / z1))
+
+        np.testing.assert_array_max_ulp(output_vec.imag, output.imag,
+                                        maxulp=self.maxulp)
+        np.testing.assert_array_max_ulp(output_vec.real, output.real,
+                                        maxulp=self.maxulp)
 
 class TestVectorized():
     """Test vectorization of the Mie calculations over wavelength for solid
