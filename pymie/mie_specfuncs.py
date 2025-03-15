@@ -42,7 +42,6 @@ sphere," Applied Optics 42, 1710-1720, (1993).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 import numpy as np
-from numpy import arange, array, exp, imag, real, sin, zeros
 from scipy.special import spherical_jn, spherical_yn
 
 # default tolerances
@@ -64,52 +63,81 @@ def riccati_psi_xi(x, nstop):
     nstop_array = np.arange(0,nstop+1)
     psin = spherical_jn(nstop_array, x)*x
     xin = psin + 1j*spherical_yn(nstop_array, x)*x
-    rbh = array([psin, xin])
+    rbh = np.array([psin, xin])
 
     return rbh
 
 def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
-    """
-    Calculate logarithmic derivative D_n(z) of the Riccati-Bessel
-    function for a single value of n using the Lentz (1976)
-    continued fraction method.
+    """Calculate logarithmic derivative D_n(z) of the Riccati-Bessel function
+    for a single value of n using the Lentz (1976) continued fraction method
+    [1].
+
+    This function is used to seed the down-recursion algorithm in
+    `dn_1_down()`, which calculates the other logarithmic derivatives needed to
+    calculate the Mie coefficients.
 
     Notes
     -----
     Implements check/workaround for ill-conditioning described under "Algorithm
-    Improvement" in Lentz (1976); see also Wiscombe/NCAR Mie report.
+    Improvement" in Lentz (1976) [1]_; see also Wiscombe/NCAR Mie report [2]_.
+    Function is vectorized across z (uses array operations to handle multiple
+    values of z in parallel) but still requires a loop to test for convergence
 
     Parameters
     ----------
-    z: complex argument
-    n: order of the logarithmic derivative
-    eps1: value of continued fraction numerator or denominator
-          triggering ill-conditioning workaround. Recommend
-          1e-3.
-    eps2: converge when additional products in continued fraction
-          differ by less than eps2 from 1. Recommend 1e-16.
+    z : array-like (complex)
+        argument of the logarithmic derivative
+    n : integer
+        order of the logarithmic derivative
+    eps1 : float
+        value of continued fraction numerator or denominator triggering
+        ill-conditioning workaround. Recommend 1e-3.
+    eps2 : float
+        converge when additional products in continued fraction differ by less
+        than eps2 from 1. Recommend 1e-16.
 
     Returns
     -------
-    value of D_n(z)
+    array-like : shape of z
+        value of D_n(z)
+
+    References
+    ----------
+    [1] W. J. Lentz, "Generating Bessel functions in Mie scattering
+    calculations using continued fractions," Applied Optics 15(3), 668-671
+    (1976).
+
+    [2] w. Wiscombe, "Mie Scattering Calculations: Advances in Technique and
+    Fast, Vector-speed Computer Codes," University Corporation for Atmospheric
+    Research. https://doi.org/10.5065/D6ZP4414 (Original work published 1979)
+
     """
     def a_i(i):
-        return (-1.)**(i + 1) * 2. * (n + i - 0.5) / z
+        # elements of continued fraction expansion
+        # Note: Wiscombe uses a different value for a_1 than the one given by
+        # this formula, but Lentz uses the same formula for all a_i
+        val = (-1.)**(i + 1) * 2. * (n + i - 0.5) / z
+        return np.atleast_1d(val)
 
+    # calculate numerator and denominator and a_2
     numerator = a_i(2) + 1. / a_i(1)
     denominator = a_i(2)
-
     product = a_i(1) * numerator / denominator
-    ratio = product
-
+    ratio = product.copy()
     ctr = 3
 
     while ((np.abs(product.real - 1) > eps2).any()
            or (np.abs(product.imag) > eps2).any()):
+        # find the indices corresponding to the values that have not converged
+        # yet, and iterate only those (otherwise further iteration of values
+        # that have converged could lead to instabilities)
+        ind = np.where(np.logical_or(np.abs(product.real - 1) > eps2,
+                                     np.abs(product.imag) > eps2))
         ai = a_i(ctr)
-        numerator = ai + 1. / numerator
-        denominator = ai + 1. / denominator
-
+        numerator[ind] = ai[ind] + 1. / numerator[ind]
+        denominator[ind] = ai[ind] + 1. / denominator[ind]
+        # TODO check the ill-conditioning code and update to include indices.
+        # Requires unit tests to be written.
         if ((np.abs(numerator / ai) < eps1).any()
             or (np.abs(denominator / ai) < eps1).any()):
             # ill conditioning
@@ -120,9 +148,10 @@ def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
             numerator = a_i(ctr + 2) + numerator / xi1
             denominator = a_i(ctr + 2) + denominator / xi2
             ctr = ctr + 2
-        product = numerator / denominator
-        ratio = ratio * product
+        product[ind] = numerator[ind] / denominator[ind]
+        ratio[ind] = ratio[ind] * product[ind]
         ctr = ctr + 1
+
     return ratio - n / z
 
 def dn_1_down(z, nmx, nstop, start_val):
@@ -180,11 +209,11 @@ def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
     # Calculate Dn_3 (based on \xi) by up recurrence
     # initialize
-    dn3 = zeros(z.shape + (nstop+1,), dtype = complex)
-    psixi = zeros(z.shape + (nstop+1,), dtype = complex)
+    dn3 = np.zeros(z.shape + (nstop+1,), dtype = complex)
+    psixi = np.zeros(z.shape + (nstop+1,), dtype = complex)
     dn3[..., 0] = 1.j
-    psixi[..., 0] = -1j*exp(1.j*z)*sin(z)
-    for dindex in arange(1, nstop+1):
+    psixi[..., 0] = -1j*np.exp(1.j*z)*np.sin(z)
+    for dindex in np.arange(1, nstop+1):
         # Mackowski eqn 63
         psixi[..., dindex] = (psixi[..., dindex-1]
                               * ( (dindex/z) - dn1[..., dindex-1])
@@ -197,16 +226,35 @@ def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 # calculate ratio of RB's defined in Yang eqn. 23 by up recursion relation
 def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
            eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
-    '''
-    Calculate ratio of Riccati-Bessel functions defined in Yang eq. 23
-    by up recursion.
+    """Calculate ratio of Riccati-Bessel functions defined in Yang eq. 23 by
+    up recursion.
 
+    Notes
+    -----
     Logarithmic derivatives calculated automatically if not specified.
-    '''
-    # convert z1 and z2 to 128 bit complex to prevent division problems
-    z1 = np.atleast_2d(z1).transpose().astype(complex)
-    z2 = np.atleast_2d(z2).transpose().astype(complex)
 
+    Inputs z1 and z2 should be 2d complex arrays with shape [num_values,
+    num_layers], where num_values could be the number of wavelengths or other
+    variable.
+
+    Parameters
+    ----------
+    z1 : array-like with shape [num_values, num_layers]
+        m for layer * x for previous layer
+    z2 : array-like with shape [num_values, num_layers]
+        m for layer * x for layer
+    nstop : integer
+        maximum order of computation
+    eps1 : float
+        underflow criterion to pass to Lentz continued fraction calculation
+    eps2 : float
+        convergence criterion to pass to Lentz continued fraction calculation
+
+    Returns
+    -------
+    Qnl : array-like with shape [num_values, num_layers, order]
+        Q_n^l for all values (e.g. wavelengths) and layers in z
+    """
     if (dns1 is None) and (dns2 is None):
         logdersz1 = log_der_13(z1, nstop, eps1, eps2)
         logdersz2 = log_der_13(z2, nstop, eps1, eps2)
@@ -221,31 +269,35 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
         d3z2 = dns2[1]
 
     # initialize according to Yang eqn. 34
-    a1 = real(z1)
-    a2 = real(z2)
-    b1 = imag(z1)
-    b2 = imag(z2)
-    qns0 = (exp(-2.*(b2-b1)) * (exp(-1j*2.*a1)-exp(-2.*b1))
-             / (exp(-1j*2.*a2) - exp(-2.*b2)))
+    a1 = np.real(z1)
+    a2 = np.real(z2)
+    b1 = np.imag(z1)
+    b2 = np.imag(z2)
+    qns0 = (np.exp(-2.*(b2-b1)) * (np.exp(-1j*2.*a1)-np.exp(-2.*b1))
+             / (np.exp(-1j*2.*a2) - np.exp(-2.*b2)))
+    # shape is [num_values, num_layers, order]
+    qns0 = qns0[:, :, np.newaxis]
 
-    # Vectorized loop to do upwards recursion in eqn. 33
+    # Vectorized loop (using np.cumprod) to do upwards recursion in eqn. 33
     irange = np.arange(1, nstop+1)
-    i_over_z1 = irange[np.newaxis, :]/z1
-    i_over_z2 = irange[np.newaxis, :]/z2
+    # shape is [num_values, num_layers, order]
+    i_over_z1 = irange[np.newaxis, np.newaxis, :]/z1[:, :, np.newaxis]
+    i_over_z2 = irange[np.newaxis, np.newaxis, :]/z2[:, :, np.newaxis]
     prod = ((d3z1[..., 1:] + i_over_z1) * (d1z2[..., 1:] + i_over_z2)
             / ((d3z2[..., 1:] + i_over_z2) * (d1z1[..., 1:] + i_over_z1)))
     qns = np.concatenate((qns0, qns0 * np.cumprod(prod, axis=-1)), axis=-1)
 
     # equivalent non-vectorized loop is below
     #
-    # qns = zeros(z1.shape + (nstop+1,), dtype=complex)
-    # qns[..., 0] = (exp(-2.*(b2-b1)) * (exp(-1j*2.*a1)-exp(-2.*b1))
-    #                / (exp(-1j*2.*a2) - exp(-2.*b2)))
-    # for i in arange(1, nstop+1):
+    # qns = np.zeros(z1.shape + (nstop+1,), dtype=complex)
+    # qns[..., 0] = (np.exp(-2.*(b2-b1)) * (np.exp(-1j*2.*a1)-np.exp(-2.*b1))
+    #                / (np.exp(-1j*2.*a2) - np.exp(-2.*b2)))
+    # for i in np.arange(1, nstop+1):
     #     qns[..., i] = qns[..., i-1]* (((d3z1[..., i] + i/z1)
     #                                    * (d1z2[..., i] + i/z2))
     #                                   / ((d3z2[..., i] + i/z2)
     #                                      * (d1z1[..., i] + i/z1)))
+
     return qns
 
 def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
@@ -257,13 +309,13 @@ def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     z1 = np.atleast_1d(z1).astype(complex)
     z2 = np.atleast_1d(z2).astype(complex)
 
-    output = zeros(z1.shape + (nmax + 1,), dtype=complex)
-    output[..., 0] = sin(z1) / sin(z2)
+    output = np.zeros(z1.shape + (nmax + 1,), dtype=complex)
+    output[..., 0] = np.sin(z1) / np.sin(z2)
     dnz1 = dn_1_down(z1, nmax + 1, nmax, lentz_dn1(z1, nmax + 1, eps1, eps2))
     dnz2 = dn_1_down(z2, nmax + 1, nmax, lentz_dn1(z2, nmax + 1, eps1, eps2))
 
     # use up recursion
-    for i in arange(1, nmax + 1):
+    for i in np.arange(1, nmax + 1):
         output[..., i] = output[..., i-1] * ((dnz2[..., i] + i / z2)
                                              / (dnz1[..., i] + i / z1))
     return output

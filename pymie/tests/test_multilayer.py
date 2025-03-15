@@ -79,9 +79,14 @@ def test_sooty_particles():
     We will use the data in [Yang2003]_ Table 3 on  p. 1717, cases
     2, 3, and 4 as our gold standard.
     '''
+    # size parameter corresponding to outer radius
     x_L = 100
+
+    # index ratios
     m_med = 1.33
     m_abs = 2. + 1.j
+
+    # volume fraction
     f_v = 0.1
 
     def efficiencies_from_scat_units(m, x):

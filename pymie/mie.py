@@ -531,37 +531,43 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     hans = intl
     hbns = intl
 
+    # m_l x_{l-1}
+    z1 = marray[..., 1:] * xarray[..., :-1]
+    # # m_l x_l
+    z2 = marray[..., 1:] * xarray[..., 1:]
+
+    # pre-calculate logarithmic derivatives for all layers
+    derz1s = mie_specfuncs.log_der_13(z1, nstop, eps1, eps2)
+    derz2s = mie_specfuncs.log_der_13(z2, nstop, eps1, eps2)
+
+    # pre-calculate ratio Q_n^l for all layers
+    Qnl_arr = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s,
+                                   dns2 = derz2s, eps1 = eps1, eps2 = eps2)
+
     # lay is l-1 (index on layers used by Yang)
     for lay in np.arange(1, nlayers):
         m = marray[..., lay]
         mm1 = marray[..., lay-1]
-        x = xarray[..., lay]
-        xm1 = xarray[..., lay-1]
-        # m_l x_{l-1}
-        z1 = m*xm1
-        # m_l x_l
-        z2 = m*x
 
         # calculate logarithmic derivatives D_n^1 and D_n^3
-        derz1s = mie_specfuncs.log_der_13(z1, nstop, eps1, eps2)
-        derz2s = mie_specfuncs.log_der_13(z2, nstop, eps1, eps2)
+        dz1s0, dz1s1 = derz1s[0][:, lay-1], derz1s[1][:, lay-1]
+        dz2s0, dz2s1 = derz2s[0][:, lay-1], derz2s[1][:, lay-1]
 
         # calculate G1, G2, Gtilde1, Gtilde2 according to
         # eqns 26-29
         # using H^a_n and H^b_n from previous layer
-        G1 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*derz1s[0]
-        G2 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*derz1s[1]
-        Gt1 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*derz1s[0]
-        Gt2 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*derz1s[1]
+        G1 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*dz1s0
+        G2 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*dz1s1
+        Gt1 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*dz1s0
+        Gt2 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*dz1s1
 
         # calculate ratio Q_n^l for this layer
-        Qnl = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s, dns2 = derz2s,
-                                   eps1 = eps1, eps2 = eps2)
+        Qnl = Qnl_arr[:, lay-1]
 
         # now calculate H^a_n and H^b_n in current layer
         # see eqns 24 and 25
-        hans = (G2*derz2s[0] - Qnl*G1*derz2s[1]) / (G2 - Qnl*G1)
-        hbns = (Gt2*derz2s[0] - Qnl*Gt1*derz2s[1]) / (Gt2 - Qnl*Gt1)
+        hans = (G2*dz2s0 - Qnl*G1*dz2s1) / (G2 - Qnl*G1)
+        hbns = (Gt2*dz2s0 - Qnl*Gt1*dz2s1) / (Gt2 - Qnl*Gt1)
         # repeat for next layer
 
     # Relate H^a and H^b in the outer layer to the Mie scat coeffs
@@ -581,13 +587,13 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
                          np.zeros(psi.shape[:-1]), axis=-1)[..., 0:nstop+1]
     xishift = np.insert(xi, 0,
                          np.zeros(xi.shape[:-1]), axis=-1)[..., 0:nstop+1]
-
     mlast = marray[..., nlayers-1][:, np.newaxis]
     xlast = xarray[..., nlayers-1][:, np.newaxis]
     an = (((hans/mlast + n/xlast)*psi - psishift)
           / ((hans/mlast + n/xlast)*xi - xishift))
     bn = (((hbns*mlast + n/xlast)*psi- psishift)
           / ((hbns*mlast + n/xlast)*xi - xishift))
+
     # output begins at n=1
     return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]]).squeeze()
 
