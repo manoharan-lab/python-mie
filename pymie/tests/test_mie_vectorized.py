@@ -121,6 +121,14 @@ class TestVectorizedSpecialFuncs():
                 lentz[i, j] = mie_specfuncs.lentz_dn1(z, n).item()
         assert_equal(lentz_vec, lentz)
 
+        # check result against Lentz (1976) equation 9, which gives the ratio
+        # of Bessel functions of order nu = 9.5 at x = 1.  Converting nu to n
+        # gives n = 9, and then noting that A_n = -n/z + ratio of Bessel
+        # functions, we add n/z to the result:
+        expected_ratio = 18.95228198
+        assert_allclose(mie_specfuncs.lentz_dn1(1.0, 9) + 9, expected_ratio)
+
+
     def test_dn_1_down(self):
         """Tests that down-recurrence for logarithmic derivatives can be
         vectorized over wavelengths.
