@@ -21,7 +21,7 @@ Functions for Mie scattering calculations.
 
 Notes
 -----
-Based on miescatlib.py in HoloPpy, written by Jerome Fung. Also includes some
+Based on miescatlib.py in HoloPy, written by Jerome Fung. Also includes some
 functions from Jerome's old miescat_1d.py library and Jerome's multilayer
 scattering code, copied from HoloPy on 12 Sept 2017.
 
@@ -193,12 +193,12 @@ def calc_efficiencies(m, x):
 
     cscat, cext, cback = _cross_sections(coeffs[0], coeffs[1])
 
-    qscat = cscat * 2./np.abs(x)**2
-    qext = cext * 2./np.abs(x)**2
-    qback = cback * 1./np.abs(x)**2
+    qscat = cscat[..., np.newaxis] * 2./np.abs(x)**2
+    qext = cext[..., np.newaxis] * 2./np.abs(x)**2
+    qback = cback[..., np.newaxis] * 1./np.abs(x)**2
 
     # in order: scattering, extinction and backscattering efficiency
-    return qscat, qext, qback
+    return qscat.squeeze(), qext.squeeze(), qback.squeeze()
 
 def calc_g(m, x, nstop=None):
     """

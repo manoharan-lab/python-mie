@@ -377,6 +377,31 @@ class TestVectorized():
         assert_equal(cabs.magnitude, cabs_loop)
         assert_equal(asym.magnitude, asym_loop)
 
+    def test_vectorized_calc_efficiencies(self):
+        """Tests that mie.calc_efficiencies() vectorizes properly.
+
+        """
+        m = self.m[:, np.newaxis]
+        x = self.x
+        qscat, qext, qback = mie.calc_efficiencies(m, x)
+
+        # test shape
+        expected_shape = (self.num_wavelen,)
+        for q in [qscat, qext, qback]:
+            assert q.shape == expected_shape
+
+        # we should get same values from loop
+        qscat_loop = np.zeros(expected_shape, dtype=float)
+        qext_loop = np.zeros(expected_shape, dtype=float)
+        qback_loop = np.zeros(expected_shape, dtype=float)
+        for i in range(self.num_wavelen):
+            qs = mie.calc_efficiencies(m[i], x[i])
+            qscat_loop[i], qext_loop[i], qback_loop[i] = (q for q in qs)
+        assert_equal(qscat, qscat_loop)
+        assert_equal(qext, qext_loop)
+        assert_equal(qback, qback_loop)
+
+
     def test_vectorized_calc_ang_dist(self):
         """Tests that mie.calc_ang_dist() vectorizes properly. Also implicitly
         checks that _amplitude_scattering_matrix() and
@@ -550,3 +575,26 @@ class TestVectorizedMultilayer():
             coeffs_loop[:, i] = c
 
         assert_equal(coeffs, coeffs_loop)
+
+    def test_vectorized_calc_efficiencies_layered(self):
+        """Tests that mie.calc_efficiencies() vectorizes properly for a layered
+        sphere.
+
+        """
+        qscat, qext, qback = mie.calc_efficiencies(self.m, self.x)
+
+        # test shape
+        expected_shape = (self.num_wavelen, self.num_layer)
+        for q in [qscat, qext, qback]:
+            assert q.shape == expected_shape
+
+        # we should get same values from loop
+        qscat_loop = np.zeros(expected_shape, dtype=float)
+        qext_loop = np.zeros(expected_shape, dtype=float)
+        qback_loop = np.zeros(expected_shape, dtype=float)
+        for i in range(self.num_wavelen):
+            qs = mie.calc_efficiencies(self.m[i], self.x[i])
+            qscat_loop[i], qext_loop[i], qback_loop[i] = (q for q in qs)
+        assert_equal(qscat, qscat_loop)
+        assert_equal(qext, qext_loop)
+        assert_equal(qback, qback_loop)
