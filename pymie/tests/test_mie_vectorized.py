@@ -25,100 +25,98 @@ from .. import mie_specfuncs
 from numpy.testing import assert_allclose, assert_array_max_ulp, assert_equal
 import pytest
 
+def mx(num_wavelen, num_layer, start_wavelen=400, end_wavelen=800,
+       start_radius = 100, end_radius = 1000,
+       start_n_particle = 1.33+0j, end_n_particle = 1.59+0j,
+       n_matrix = 1.0):
+    """Convenience function to set up various combinations of wavelength and
+    layer inputs to test functions.
+
+    """
+    if num_layer > 1:
+        radius = Quantity(np.linspace(start_radius, end_radius, num_layer),
+                          'nm')
+        n_particle = np.linspace(start_n_particle, end_n_particle, num_layer)
+        n_particle = n_particle[np.newaxis, :]
+    else:
+        radius = Quantity(start_radius, 'nm')
+        n_particle = np.atleast_1d(start_n_particle)[np.newaxis, :]
+    if num_wavelen > 1:
+        wavelen = Quantity(np.linspace(start_wavelen, end_wavelen, num_wavelen),
+                           'nm')
+        # let index be the same at all wavelengths
+        n_particle = Quantity(np.ones((num_wavelen, num_layer))*n_particle, '')
+    else:
+        wavelen = Quantity(start_wavelen, 'nm')
+        n_particle = Quantity(n_particle, '')
+
+    n_matrix = Quantity(n_matrix, '')
+    m = index_ratio(n_particle, n_matrix)
+    x = size_parameter(wavelen, n_matrix, radius)
+
+    return m, x
+
+
+# all functions in this class are tested for various combinations of
+# wavelengths and layers
+@pytest.mark.parametrize("num_wavelen,num_layer",
+                         [(1, 1), (10, 1), (1, 5), (10, 5)])
 class TestVectorizedSpecialFuncs():
     """Tests that simplifying/removing loops from Mie special functions
     produces same results as using loops.
 
     """
-    num_wavelen = 10
-    num_angle = 19
-    wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
-    radius = Quantity('0.25 um')
-    n_matrix = Quantity(1.00, '')
-    # let index be the same at all wavelengths
-    n_particle = Quantity(np.ones(num_wavelen)*1.59, '')
-    m = index_ratio(n_particle, n_matrix)
-    x = size_parameter(wavelen, n_matrix, radius)
-    angles = Quantity(np.linspace(0, 180., num_angle), 'deg')
+    start_wavelen = 400
+    end_wavelen = 800
+    start_radius = 100
+    end_radius = 1000
+    start_n_particle = 1.33 + 0.001j
+    end_n_particle = 1.59 + 0.005j
 
     # vectorizing functions may lead to small differences from loops, due to
-    # floating point precision.  We set 16 ULP as a tolerance for differences,
-    # given that floating point errors tend to accumulate with multiple
-    # operations.
-    maxulp = 16
+    # floating point precision. We set 10^-14 as a relative tolerance for
+    # differences, given that floating point errors tend to accumulate with
+    # multiple operations.
+    rtol = 1e-14
 
-    def test_lentz_dn1(self):
+    def test_lentz_dn1(self, num_wavelen, num_layer):
         """Test whether Lentz continued fraction approximation for nth order
         logarithmic derivative parallelizes properly with both wavelengths and
         layers
 
         """
-        # First test across wavelengths for single layer.
-        # vectorized:
-        nstop = mie._nstop(self.x.max())
-        n = nstop + 1
-        z = self.m[:, np.newaxis] * self.x
-        lentz_vec = mie_specfuncs.lentz_dn1(z, n)
-        # loop:
-        lentz = np.zeros((self.num_wavelen, 1))
-        for i in range(self.num_wavelen):
-            z = self.m[i] * self.x[i]
-            lentz[i] = mie_specfuncs.lentz_dn1(z, n)
-        # these should be exactly the same because the iteration count should
-        # be determined individually for each z, even in the vectorized version
-        assert_equal(lentz_vec, lentz)
-
-        # Next test across single wavelength for multiple layers
-        num_layer = 5
-        wavelen = Quantity(400, 'nm')
-        radius = Quantity(np.linspace(0.1, 0.5, num_layer), 'um')
-        # let index be different at each layer; we'll use a complex index here
-        n_particle = np.linspace(1.33+0.01j, 1.59+0.03j, num_layer)[np.newaxis, :]
-        n_particle = Quantity(n_particle, '')
-        m = index_ratio(n_particle, self.n_matrix)
-        x = size_parameter(wavelen, self.n_matrix, radius)
+        m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer,
+                  start_wavelen=self.start_wavelen,
+                  end_wavelen=self.end_wavelen, start_radius=self.start_radius,
+                  end_radius=self.end_radius,
+                  start_n_particle=self.start_n_particle,
+                  end_n_particle=self.end_n_particle)
         # quick check on shapes
-        assert m.shape == (1, num_layer)
-        assert x.shape == (1, num_layer)
-        # vectorized:
-        nstop = mie._nstop(x.max())
+        if np.isscalar(m):
+            assert (num_wavelen, num_layer) == (1, 1)
+        else:
+            assert m.shape == (num_wavelen, num_layer)
+        if np.isscalar(x):
+            assert (num_wavelen, num_layer) == (1, 1)
+        else:
+            assert x.shape == (num_wavelen, num_layer)
+
+        # vectorized computation
+        nstop = mie._nstop(np.array(x).max())
         n = nstop + 1
         z = m * x
         lentz_vec = mie_specfuncs.lentz_dn1(z, n)
-        assert lentz_vec.shape == (1, num_layer)
-        # loop:
-        lentz = np.zeros((1, num_layer), dtype=complex)
-        for i in range(num_layer):
-            z = m[:, i] * x[:, i]
-            lentz[:, i] = mie_specfuncs.lentz_dn1(z, n)
-        assert_equal(lentz_vec, lentz)
 
-        # finally test multiple wavelengths, multiple layers
-        num_wavelen = 8
-        wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
-        radius = Quantity(np.linspace(0.1, 0.5, num_layer), 'um')
-        # let index be the same at all wavelengths, but different at each
-        # layer; we use a complex index here
-        n_particle = np.linspace(1.33+0.1j, 1.59+0.5j, num_layer)
-        n_particle = np.repeat(np.array([n_particle]), num_wavelen, axis=0)
-        n_particle = Quantity(n_particle, '')
-        m = index_ratio(n_particle, self.n_matrix)
-        x = size_parameter(wavelen, self.n_matrix, radius)
-        # quick check on shapes
-        assert m.shape == (num_wavelen, num_layer)
-        assert x.shape == (num_wavelen, num_layer)
-        # vectorized:
-        nstop = mie._nstop(x.max())
-        n = nstop + 1
-        z = m * x
-        lentz_vec = mie_specfuncs.lentz_dn1(z, n)
-        assert lentz_vec.shape == (num_wavelen, num_layer)
-        # loop
+        # looped computation
         lentz = np.zeros((num_wavelen, num_layer), dtype=complex)
         for i in range(num_wavelen):
             for j in range(num_layer):
-                z = m[i, j] * x[i, j]
+                z = np.atleast_2d(m)[i, j] * np.atleast_2d(x)[i, j]
                 lentz[i, j] = mie_specfuncs.lentz_dn1(z, n).item()
+
+        # vectorized and loop results should be exactly the same because the
+        # iteration count should be determined individually for each z, even in
+        # the vectorized version
         assert_equal(lentz_vec, lentz)
 
         # check result against Lentz (1976) equation 9, which gives the ratio
@@ -128,16 +126,23 @@ class TestVectorizedSpecialFuncs():
         expected_ratio = 18.95228198
         assert_allclose(mie_specfuncs.lentz_dn1(1.0, 9) + 9, expected_ratio)
 
-    def test_dn_1_down(self):
+    def test_dn_1_down(self, num_wavelen, num_layer):
         """Tests that down-recurrence for logarithmic derivatives can be
-        vectorized over wavelengths.
+        vectorized over wavelengths and layers.
 
         """
-        nstop = mie._nstop(self.x.max())
+        m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer,
+                  start_wavelen=self.start_wavelen,
+                  end_wavelen=self.end_wavelen, start_radius=self.start_radius,
+                  end_radius=self.end_radius,
+                  start_n_particle=self.start_n_particle,
+                  end_n_particle=self.end_n_particle)
+        nstop = mie._nstop(np.array(x).max())
         nmx = nstop + 1
 
-        z = self.m[:, np.newaxis] * self.x
+        z = m * x
         start_val = mie_specfuncs.lentz_dn1(z, nmx)
+
         # loop version of dn_1_down
         dn = np.zeros(start_val.shape + (nmx+1,), dtype=complex)
         dn[..., nmx] = start_val
@@ -145,58 +150,27 @@ class TestVectorizedSpecialFuncs():
             dn[..., i] = (i+1.)/z - 1.0/(dn[..., i+1] + (i+1.)/z)
         dn = dn[..., 0:nstop+1]
 
+        # vectorized version
         dn_vec = mie_specfuncs.dn_1_down(z, nmx, nstop, start_val)
-        # currently these differ at the 8.8*10-16 level (max) for some
-        # elements. The following test should pass:
-        np.testing.assert_array_max_ulp(dn_vec.imag, dn.imag,
-                                        maxulp=self.maxulp)
-        np.testing.assert_array_max_ulp(dn_vec.real, dn.real,
-                                        maxulp=self.maxulp)
 
-    def test_Qratio(self):
+        # currently these differ at the 10^-15 level for some
+        # elements. The following test should pass:
+        assert_allclose(dn_vec, dn, rtol=self.rtol)
+
+    def test_Qratio(self, num_wavelen, num_layer):
         """Tests that vectorized version of Qratio (without loop for up
-        recursion) works the same as loop version
+        recursion) works the same as loop version.  This test runs some of the
+        same code that is used to calculate the scattering coefficients for
+        multilayer particles.
 
         """
-        num_layer = 5
-        radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
-        n_matrix = Quantity(1.00, '')
-        # let index be the same at all wavelengths, but different at each layer
-        n_particle = np.linspace(1.33, 1.59, num_layer)
-        n_particle = np.repeat(np.array([n_particle]), self.num_wavelen, axis=0)
-        n_particle = Quantity(n_particle, '')
-        # m should have shape [num_wavelen, num_layer]
-        m = index_ratio(n_particle, n_matrix)
-        # x should have shape [num_wavelen, num_layer]
-        x = size_parameter(self.wavelen, n_matrix, radius)
-
-        marray = m.astype(complex)
-        xarray = x.astype(complex)
-
-        nstop = mie._nstop(xarray.max())
-
-        for lay in np.arange(1, num_layer):
-            # m_l x_{l-1}
-            z1 = marray[..., lay]*xarray[..., lay-1]
-            # m_l x_l
-            z2 = marray[..., lay]*xarray[..., lay]
-
-            z1 = np.atleast_2d(z1).transpose()
-            z2 = np.atleast_2d(z2).transpose()
-
-            # calculate logarithmic derivatives D_n^1 and D_n^3
-            derz1s = mie_specfuncs.log_der_13(z1, nstop)
-            derz2s = mie_specfuncs.log_der_13(z2, nstop)
-
-            # calculate ratio Q_n^l for this layer
-            Qnl = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s, dns2 =
-                                       derz2s)
-
-            # do same calculation with loop
-            d1z1 = derz1s[0]
-            d3z1 = derz1s[1]
-            d1z2 = derz2s[0]
-            d3z2 = derz2s[1]
+        def Qratio_loop(z1, z2, nstop, dns1, dns2):
+            # non-vectorized (loop-based) version of Qratio calculation, from
+            # previous version of pymie
+            d1z1 = dns1[0]
+            d3z1 = dns1[1]
+            d1z2 = dns2[0]
+            d3z2 = dns2[1]
 
             # initialize according to Yang eqn. 34
             a1 = np.real(z1)
@@ -204,37 +178,73 @@ class TestVectorizedSpecialFuncs():
             b1 = np.imag(z1)
             b2 = np.imag(z2)
             qns = np.zeros(z1.shape + (nstop+1,), dtype=complex)
-            qns[..., 0] = (np.exp(-2.*(b2-b1)) * (np.exp(-1j*2.*a1)
-                                                  -np.exp(-2.*b1))
+            qns[..., 0] = (np.exp(-2.*(b2-b1)) *
+                           (np.exp(-1j*2.*a1)-np.exp(-2.*b1))
                            / (np.exp(-1j*2.*a2) - np.exp(-2.*b2)))
             for i in np.arange(1, nstop+1):
                 qns[..., i] = qns[..., i-1]* (((d3z1[..., i] + i/z1)
                                                * (d1z2[..., i] + i/z2))
                                               / ((d3z2[..., i] + i/z2)
                                                  * (d1z1[..., i] + i/z1)))
-            assert_array_max_ulp(Qnl.real, qns.real, maxulp=self.maxulp)
-            # Use a different test to look at imaginary elements because the
-            # differences are pretty close to zero but can vary a lot in their
-            # magnitude.
-            assert_allclose(np.abs(Qnl.imag - qns.imag), 0, atol=1e-10)
+            return qns
 
-    def test_R_psi(self):
+        m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer,
+                  start_wavelen=self.start_wavelen,
+                  end_wavelen=self.end_wavelen, start_radius=850,
+                  end_radius=1000,
+                  start_n_particle=1.33,
+                  end_n_particle=1.59)
+
+        marray = np.atleast_1d(m).astype(complex)
+        xarray = np.atleast_1d(x).astype(complex)
+
+        nstop = mie._nstop(xarray.max())
+        # m_l x_{l-1}
+        z1 = marray[..., 1:] * xarray[..., :-1]
+        # # m_l x_l
+        z2 = marray[..., 1:] * xarray[..., 1:]
+
+        # pre-calculate logarithmic derivatives for all layers
+        derz1s = mie_specfuncs.log_der_13(z1, nstop)
+        derz2s = mie_specfuncs.log_der_13(z2, nstop)
+
+        # vectorized calculation of Q_n^l for all layers
+        Qnl_vec = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s,
+                                       dns2 = derz2s)
+        # non-vectorized (loop-based) calculation of Q_n^l
+        Qnl_loop = Qratio_loop(z1, z2, nstop, derz1s, derz2s)
+
+        assert_allclose(Qnl_vec.real, Qnl_loop.real, rtol=self.rtol)
+        # Use a different test to look at imaginary elements because the
+        # differences are pretty close to zero but can vary a lot in their
+        # magnitudes.
+        assert_allclose(np.abs(Qnl_vec.imag - Qnl_loop.imag), 0, atol=1e-10)
+
+    def test_R_psi(self, num_wavelen, num_layer):
         """Tests that the up-recurrence in the calculation of the ratio of
         Riccati-Bessel functions can be done without a loop
 
         """
         # The R_psi calculation shows up in the calculation of internal
         # coefficients, which is only valid (for now) for non-multilayer
-        # spheres.
-        z1 = self.x
-        z2 = self.m[:, np.newaxis] * self.x
-        nstop = mie._nstop(self.x.max())
+        # spheres. Nonetheless, the R_psi calculation can be vectorized over
+        # layers, and we test that it vectorizes properly over both wavelength
+        # and layers here
+        m, x = mx(num_wavelen, num_layer)
+        z1 = x
+        z2 = m * x
+        nstop = mie._nstop(np.array(x).max())
         nmax = nstop + 1
+
+        # note that inputs to R_psi must be 2-dimensional
+        if np.isscalar(z1):
+            z1 = z1 * np.ones((1,1))
+            z2 = z2 * np.ones((1,1))
 
         # vectorized version
         output_vec = mie_specfuncs.R_psi(z1, z2, nmax)
 
-        # loop version of R_psi
+        # loop version of R_psi (from a previous version of pymie)
         output = np.zeros(z1.shape + (nmax + 1,), dtype=complex)
         output[..., 0] = np.sin(z1) / np.sin(z2)
         dnz1 = mie_specfuncs.dn_1_down(z1, nmax + 1, nmax,
@@ -245,10 +255,8 @@ class TestVectorizedSpecialFuncs():
             output[..., i] = output[..., i-1] * ((dnz2[..., i] + i / z2)
                                                  / (dnz1[..., i] + i / z1))
 
-        np.testing.assert_array_max_ulp(output_vec.imag, output.imag,
-                                        maxulp=self.maxulp)
-        np.testing.assert_array_max_ulp(output_vec.real, output.real,
-                                        maxulp=self.maxulp)
+        assert_allclose(output_vec.imag, output.imag, rtol=self.rtol)
+        assert_allclose(output_vec.real, output.real, rtol=self.rtol)
 
 class TestVectorized():
     """Test vectorization of the Mie calculations over wavelength for solid
