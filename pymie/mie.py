@@ -193,9 +193,12 @@ def calc_efficiencies(m, x):
 
     cscat, cext, cback = _cross_sections(coeffs[0], coeffs[1])
 
-    qscat = cscat[..., np.newaxis] * 2./np.abs(x)**2
-    qext = cext[..., np.newaxis] * 2./np.abs(x)**2
-    qback = cback[..., np.newaxis] * 1./np.abs(x)**2
+    # for multilayer spheres, scale by the size parameter corresponding to
+    # outermost radius
+    x_outer = np.atleast_2d(x).max(axis=-1)[:, np.newaxis]
+    qscat = cscat[..., np.newaxis] * 2./np.abs(x_outer)**2
+    qext = cext[..., np.newaxis] * 2./np.abs(x_outer)**2
+    qback = cback[..., np.newaxis] * 1./np.abs(x_outer)**2
 
     # in order: scattering, extinction and backscattering efficiency
     return qscat.squeeze(), qext.squeeze(), qback.squeeze()

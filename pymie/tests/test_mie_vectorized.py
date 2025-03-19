@@ -655,8 +655,9 @@ class TestVectorizedMultilayer():
         """
         qscat, qext, qback = mie.calc_efficiencies(self.m, self.x)
 
-        # test shape
-        expected_shape = (self.num_wavelen, self.num_layer)
+        # test shape: should not have a second dimension since the efficiencies
+        # are calculated for the whole sphere, not each layer
+        expected_shape = (self.num_wavelen,)
         for q in [qscat, qext, qback]:
             assert q.shape == expected_shape
 
