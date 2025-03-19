@@ -122,5 +122,14 @@ def test_sooty_particles():
                     rtol = 1e-3)
     assert_allclose(efficiencies_from_scat_units(m_as, x_as), gold[1],
                     rtol = 2e-5)
-    assert_allclose(efficiencies_from_scat_units(m_sm, x_sm), gold[2],
-                    rtol = 1e-3)
+    sooty_efficiencies = efficiencies_from_scat_units(m_sm, x_sm)
+    assert_allclose(sooty_efficiencies, gold[2], rtol = 1e-3)
+
+    # also ensure that we get the same efficiencies from calc_efficiencies()
+    # for the 900-layer particle
+    qscat, qext, qback = mie.calc_efficiencies(m_sm, x_sm)
+    # Rearrange to match order in gold file.  We multiply qback by 4 pi to get
+    # the radar backscattering efficiency (factor of 2 is included in
+    # calc_efficiencies())
+    efficiencies = np.array([qext, qscat, qback*4*np.pi])
+    assert_allclose(efficiencies, sooty_efficiencies)
