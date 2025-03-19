@@ -433,15 +433,7 @@ class TestVectorizedUserFunctions():
               "end_n_particle": 1.33 + 0.005j,
               "n_matrix": Quantity(1.00, '')}
 
-    num_wavelen = 10
     num_angle = 19
-    wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
-    radius = Quantity('0.85 um')
-    n_matrix = Quantity(1.00, '')
-    # let index be the same at all wavelengths
-    n_particle = Quantity(np.ones(num_wavelen)*1.59, '')
-    m = index_ratio(n_particle, n_matrix)
-    x = size_parameter(wavelen, n_matrix, radius)
     angles = Quantity(np.linspace(0, 180., num_angle), 'deg')
 
     @pytest.mark.parametrize("num_wavelen, num_layer",
@@ -466,7 +458,7 @@ class TestVectorizedUserFunctions():
             # same value as used in the vectorized calculation.
             g_loop = np.zeros(expected_shape, dtype=float)
             nstop = mie._nstop(x.max())
-            for i in range(self.num_wavelen):
+            for i in range(num_wavelen):
                 g_loop[i] = mie.calc_g(m[i], x[i], nstop=nstop)
             assert_equal(g, g_loop)
 
@@ -539,7 +531,9 @@ class TestVectorizedUserFunctions():
             assert_equal(qext, qext_loop)
             assert_equal(qback, qback_loop)
 
-    def test_vectorized_calc_ang_dist(self):
+    @pytest.mark.parametrize("num_wavelen, num_layer",
+                             [(10, 1), (1, 5), (10, 5)])
+    def test_vectorized_calc_ang_dist(self, num_wavelen, num_layer):
         """Tests that mie.calc_ang_dist() vectorizes properly. Also implicitly
         checks that _amplitude_scattering_matrix() and
         _amplitude_scattering_matrix_RG() vectorize properly.  Also checks for
@@ -547,26 +541,41 @@ class TestVectorizedUserFunctions():
         for small refractive index difference.
 
         """
-        m = self.m[:, np.newaxis]
-        x = self.x
+        m, x = mx(num_wavelen, num_layer, **self.mxargs)
         form_factor = mie.calc_ang_dist(m, x, self.angles)
-        expected_shape = (self.num_wavelen, self.num_angle)
+        if num_wavelen == 1:
+            expected_shape = (self.num_angle,)
+            for pol in form_factor:
+                assert pol.shape == expected_shape
+            # no further test required since there is only one wavelength
+            return
+        else:
+            expected_shape = (num_wavelen, self.num_angle)
         for pol in form_factor:
             assert pol.shape == expected_shape
 
         # we should get same values from loop
         ipar_loop = np.zeros(expected_shape, dtype=float)
         iperp_loop = np.zeros(expected_shape, dtype=float)
-        for i in range(self.num_wavelen):
-            ipar, iperp = mie.calc_ang_dist(self.m[i], self.x[i], self.angles)
+        for i in range(num_wavelen):
+            ipar, iperp = mie.calc_ang_dist(m[i], x[i], self.angles)
             ipar_loop[i] = ipar
             iperp_loop[i] = iperp
         assert_equal(form_factor[0], ipar_loop)
         assert_equal(form_factor[1], iperp_loop)
 
         # check vectorization for Rayleigh-Gans approximation
-        form_factor_RG = mie.calc_ang_dist(m, x, self.angles, mie=False)
-        expected_shape = (self.num_wavelen, self.num_angle)
+        if num_layer > 1:
+            with pytest.raises(ValueError,
+                               match="Rayleigh-Gans approximation cannot"):
+                form_factor_RG = mie.calc_ang_dist(m, x, self.angles,
+                                                   mie=False)
+            return
+
+        form_factor_RG = mie.calc_ang_dist(m, x, self.angles,
+                                               mie=False)
+
+        expected_shape = (num_wavelen, self.num_angle)
         for pol in form_factor_RG:
             assert pol.shape == expected_shape
 
@@ -574,12 +583,16 @@ class TestVectorizedUserFunctions():
         # do for Mie in the limit of low refractive index
         radius = Quantity('0.85 um')
         n_matrix = Quantity(1.00, '')
-        # let index be the same at all wavelengths.  We look at small index
-        # contrast (1 + 1e-8) to be in the RG regime.  If we go smaller we run
+        # let index be the same at all wavelengths. We look at small index
+        # contrast (1 + 1e-8) to be in the RG regime. If we go smaller we run
         # into numerical issues
-        n_particle = Quantity(np.ones(self.num_wavelen)*(1 + 1e-8), '')
+        n_particle = Quantity(np.ones(num_wavelen)*(1 + 1e-8), '')
+        wavelen = Quantity(np.linspace(self.mxargs["start_wavelen"],
+                                       self.mxargs["end_wavelen"],
+                                       num_wavelen),
+                           'nm')
         m = index_ratio(n_particle, n_matrix)[:, np.newaxis]
-        x = size_parameter(self.wavelen, n_matrix, radius)
+        x = size_parameter(wavelen, n_matrix, radius)
         num_angle = 1000
         # 0 degree scattering may give differences between RG and Mie, so we
         # compare at a few degrees and higher; also we do a lot of angles to
@@ -590,6 +603,6 @@ class TestVectorizedUserFunctions():
 
         # Since we are comparing small numbers at the dips of the form factor,
         # the Mie and RG solutions may have a relative difference of up to a
-        # few percent.  But the absolute difference should be very small
+        # few percent. But the absolute difference should be very small
         # (smaller than the default atol for this test).
         assert_allclose(form_factor_RG, form_factor_mie, rtol=1e-1)

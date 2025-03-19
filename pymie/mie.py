@@ -1696,6 +1696,10 @@ def _amplitude_scattering_matrix_RG(prefactor, x, thetas):
     """Amplitude scattering matrix from Rayleigh-Gans approximation
 
     """
+    if np.atleast_2d(x).shape[-1] > 1:
+        raise ValueError("Rayleigh-Gans approximation cannot be used for "
+                         "layered spheres")
+
     u = 2 * x * np.sin(thetas/2.)
 
     # for theta=0 the limit is 1*prefactor; the following will avoid a divide
