@@ -122,7 +122,7 @@ def test_efficiencies():
                             1.02022022710453, 0.51835427781473,
                             0.331000402174976])
 
-    wavelen = Quantity('658.0 nm')
+    # wavelen = Quantity('658.0 nm')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
     m = index_ratio(n_particle, n_matrix)
@@ -149,7 +149,7 @@ def test_efficiencies():
 
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
-    wavelen = Quantity('658.0 nm')
+    # wavelen = Quantity('658.0 nm')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(0.1425812 + 3.6813284 * 1.0j, '')
     m = index_ratio(n_particle, n_matrix)
@@ -750,7 +750,7 @@ def test_value_errors():
         I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                             coordinate_system = 'weird', phis = phis_2d,
                             near_field=True)
-
+    with pytest.raises(ValueError):
         # try to calculate new
         I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                                 coordinate_system = 'cartesian', phis = phis_2d,
@@ -767,13 +767,13 @@ def test_value_errors():
         # integrate the differential scattered intensities
         cscat_xy = mie.integrate_intensity_complex_medium(I_x, I_y, distance,
                         thetas, k, coordinate_system = 'cartesian')[0]
-
+    with pytest.raises(ValueError):
         cscat_weird = mie.integrate_intensity_complex_medium(I_x, I_y, distance,
                         thetas, k, coordinate_system = 'weird')[0]
-
+    with pytest.raises(ValueError):
         as_vec_weird = mie.vector_scattering_amplitude(m, x, thetas_2d,
                             coordinate_system = 'weird', phis = phis_2d)
-
+    with pytest.raises(ValueError):
         as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d,
                             coordinate_system = 'cartesian')
 

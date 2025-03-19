@@ -22,7 +22,7 @@ Tests vectorization behavior of the mie module
 
 from .. import Quantity, index_ratio, size_parameter, np, mie
 from .. import mie_specfuncs
-from numpy.testing import assert_allclose, assert_array_max_ulp, assert_equal
+from numpy.testing import assert_allclose, assert_equal
 import pytest
 
 def mx(num_wavelen, num_layer, start_wavelen=400, end_wavelen=800,
@@ -346,7 +346,8 @@ class TestVectorizedInternalFunctions():
 
     _pis_and_taus() :
         not tested explicitly here, but tested implicitly in
-        `test_vectorized_calc_ang_dist()`
+        `test_vectorized_calc_ang_dist()`.  Vectorization over angles is tested
+        in `test_mie.py::test_pis_taus()`
     _scatcoeffs() :
         tested by `test_vectorized_scatcoeffs()`
     _scatcoeffs_multi() :
