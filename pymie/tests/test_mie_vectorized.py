@@ -134,13 +134,13 @@ class TestVectorizedSpecialFuncs():
     produces same results as using loops.
 
     """
-    start_wavelen = 400
-    end_wavelen = 800
-    start_radius = 100
-    end_radius = 1000
-    start_n_particle = 1.33 + 0.001j
-    end_n_particle = 1.59 + 0.005j
-    n_matrix = 1.0
+    mxargs = {"start_wavelen": 400,
+              "end_wavelen": 800,
+              "start_radius": 100,
+              "end_radius": 1000,
+              "start_n_particle": 1.59 + 0.001j,
+              "end_n_particle": 1.33 + 0.005j,
+              "n_matrix": Quantity(1.00, '')}
 
     # vectorizing functions may lead to small differences from loops, due to
     # floating point precision. We set 10^-14 as a relative tolerance for
@@ -154,12 +154,8 @@ class TestVectorizedSpecialFuncs():
         layers
 
         """
-        m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer,
-                  start_wavelen=self.start_wavelen,
-                  end_wavelen=self.end_wavelen, start_radius=self.start_radius,
-                  end_radius=self.end_radius,
-                  start_n_particle=self.start_n_particle,
-                  end_n_particle=self.end_n_particle)
+        m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs)
+
         # quick check on shapes
         if np.isscalar(m):
             assert (num_wavelen, num_layer) == (1, 1)
@@ -200,12 +196,7 @@ class TestVectorizedSpecialFuncs():
         vectorized over wavelengths and layers.
 
         """
-        m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer,
-                  start_wavelen=self.start_wavelen,
-                  end_wavelen=self.end_wavelen, start_radius=self.start_radius,
-                  end_radius=self.end_radius,
-                  start_n_particle=self.start_n_particle,
-                  end_n_particle=self.end_n_particle)
+        m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs)
         nstop = mie._nstop(np.array(x).max())
         nmx = nstop + 1
 
@@ -258,8 +249,8 @@ class TestVectorizedSpecialFuncs():
             return qns
 
         m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer,
-                  start_wavelen=self.start_wavelen,
-                  end_wavelen=self.end_wavelen, start_radius=850,
+                  start_wavelen=self.mxargs["start_wavelen"],
+                  end_wavelen=self.mxargs["end_wavelen"], start_radius=850,
                   end_radius=1000,
                   start_n_particle=1.33,
                   end_n_particle=1.59)
@@ -337,13 +328,13 @@ class TestVectorizedInternalFunctions():
     """
     mxargs = {"start_wavelen": 400,
               "end_wavelen": 800,
-              "start_radius": 850,
+              "start_radius": 100,
               "end_radius": 1000,
-              "start_n_particle": 1.33 + 0.001j,
-              "end_n_particle": 1.59 + 0.005j,
+              "start_n_particle": 1.59 + 0.001j,
+              "end_n_particle": 1.33 + 0.005j,
               "n_matrix": Quantity(1.00, '')}
 
-    @pytest.mark.parametrize("num_wavelen", [1, 10])
+    @pytest.mark.parametrize("num_wavelen", [1, 10, 100])
     def test_vectorized_nstop(self, num_wavelen):
         # Just checks that the shape of nstop is correct
         # (should scale with number of wavelengths)
@@ -426,8 +417,6 @@ class TestVectorizedInternalFunctions():
 
                 assert_equal(coeffs, coeffs_loop)
 
-#@pytest.mark.parametrize("num_wavelen,num_layer",
-#                         [(1, 1), (10, 1), (1, 5), (10, 5)])
 class TestVectorizedUserFunctions():
     """Test vectorization of the user-facing Mie calculation functions over
     wavelength for solid (one layer) spheres.  These tests check primarily that
@@ -436,12 +425,13 @@ class TestVectorizedUserFunctions():
     results.
 
     """
-    start_wavelen = 400
-    end_wavelen = 800
-    start_radius = 100
-    end_radius = 1000
-    start_n_particle = 1.33 + 0.001j
-    end_n_particle = 1.59 + 0.005j
+    mxargs = {"start_wavelen": 400,
+              "end_wavelen": 800,
+              "start_radius": 100,
+              "end_radius": 1000,
+              "start_n_particle": 1.59 + 0.001j,
+              "end_n_particle": 1.33 + 0.005j,
+              "n_matrix": Quantity(1.00, '')}
 
     num_wavelen = 10
     num_angle = 19
@@ -454,39 +444,51 @@ class TestVectorizedUserFunctions():
     x = size_parameter(wavelen, n_matrix, radius)
     angles = Quantity(np.linspace(0, 180., num_angle), 'deg')
 
-    def test_vectorized_asymmetry_parameter(self):
+    @pytest.mark.parametrize("num_wavelen, num_layer",
+                             [(10, 1), (1, 5), (10, 5)])
+    def test_vectorized_asymmetry_parameter(self, num_wavelen, num_layer):
         """Tests that mie.calc_g() vectorizes properly. Also implicitly checks
         that mie._asymmetry_parameter() vectorizes properly
 
         """
-        m = self.m[:, np.newaxis]
-        x = self.x
+        m, x = mx(num_wavelen, num_layer, **self.mxargs)
         # make sure shape is [num_wavelen]
         g = mie.calc_g(m,x)
-        expected_shape = (self.num_wavelen,)
-        assert g.shape == expected_shape
+        if num_wavelen == 1:
+            expected_shape = ()
+            assert g.shape == expected_shape
+            # no further test needed since no loop is required in this case
+        else:
+            expected_shape = (num_wavelen,)
+            assert g.shape == expected_shape
 
-        # we should get same values from loop. Need to set nstop to the same
-        # value as used in the vectorized calculation.
-        g_loop = np.zeros(expected_shape, dtype=float)
-        nstop = mie._nstop(x.max())
-        for i in range(self.num_wavelen):
-            g_loop[i] = mie.calc_g(m[i], x[i], nstop=nstop)
-        assert_equal(g, g_loop)
+            # we should get same values from loop. Need to set nstop to the
+            # same value as used in the vectorized calculation.
+            g_loop = np.zeros(expected_shape, dtype=float)
+            nstop = mie._nstop(x.max())
+            for i in range(self.num_wavelen):
+                g_loop[i] = mie.calc_g(m[i], x[i], nstop=nstop)
+            assert_equal(g, g_loop)
 
-    def test_vectorized_cross_sections(self):
+    @pytest.mark.parametrize("num_wavelen, num_layer",
+                             [(10, 1), (1, 5), (10, 5)])
+    def test_vectorized_cross_sections(self, num_wavelen, num_layer):
         """Tests that mie.calc_cross_sections() vectorizes properly. Also
         implicitly checks that _cross_sections() vectorizes properly
 
         """
-        m = self.m[:, np.newaxis]
-        x = self.x
+        m, x = mx(num_wavelen, num_layer, **self.mxargs)
         # wavelength in medium
-        wavelen = self.wavelen/self.n_matrix
-        cscat, cext, cback, cabs, asym = mie.calc_cross_sections(m, x, wavelen)
+        wavelen = Quantity(np.linspace(self.mxargs["start_wavelen"],
+                                       self.mxargs["end_wavelen"],
+                                       num_wavelen),
+                           "nm")
+        wavelen_med = wavelen/self.mxargs["n_matrix"]
+        cscat, cext, cback, cabs, asym = mie.calc_cross_sections(m, x,
+                                                                 wavelen_med)
 
         # test shape
-        expected_shape = (self.num_wavelen,)
+        expected_shape = (num_wavelen,)
         for cs in [cscat, cext, cback, cabs, asym]:
             assert cs.shape == expected_shape
 
@@ -496,7 +498,7 @@ class TestVectorizedUserFunctions():
         cback_loop = np.zeros(expected_shape, dtype=float)
         cabs_loop = np.zeros(expected_shape, dtype=float)
         asym_loop = np.zeros(expected_shape, dtype=float)
-        for i in range(self.num_wavelen):
+        for i in range(num_wavelen):
             cs = mie.calc_cross_sections(m[i], x[i], wavelen[i])
             cscat_loop[i], cext_loop[i], cback_loop[i], \
                 cabs_loop[i], asym_loop[i] = (c.magnitude for c in cs)
@@ -506,16 +508,17 @@ class TestVectorizedUserFunctions():
         assert_equal(cabs.magnitude, cabs_loop)
         assert_equal(asym.magnitude, asym_loop)
 
-    def test_vectorized_calc_efficiencies(self):
+    @pytest.mark.parametrize("num_wavelen, num_layer",
+                             [(10, 1)])#, (1, 5), (10, 5)])
+    def test_vectorized_calc_efficiencies(self, num_wavelen, num_layer):
         """Tests that mie.calc_efficiencies() vectorizes properly.
 
         """
-        m = self.m[:, np.newaxis]
-        x = self.x
+        m, x = mx(num_wavelen, num_layer, **self.mxargs)
         qscat, qext, qback = mie.calc_efficiencies(m, x)
 
         # test shape
-        expected_shape = (self.num_wavelen,)
+        expected_shape = (num_wavelen,)
         for q in [qscat, qext, qback]:
             assert q.shape == expected_shape
 
@@ -523,7 +526,7 @@ class TestVectorizedUserFunctions():
         qscat_loop = np.zeros(expected_shape, dtype=float)
         qext_loop = np.zeros(expected_shape, dtype=float)
         qback_loop = np.zeros(expected_shape, dtype=float)
-        for i in range(self.num_wavelen):
+        for i in range(num_wavelen):
             qs = mie.calc_efficiencies(m[i], x[i])
             qscat_loop[i], qext_loop[i], qback_loop[i] = (q for q in qs)
         assert_equal(qscat, qscat_loop)
