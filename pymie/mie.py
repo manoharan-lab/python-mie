@@ -722,7 +722,7 @@ def _nstop(x):
 
     # Criterion for calculating near-field properties with exact Mie solutions
     # (J. R. Allardice and E. C. Le Ru, Applied Optics, Vol. 53, No. 31 (2014).
-    return (np.round(np.absolute(x+11*x**(1./3.)+1))).astype('int')
+    return (np.round(np.absolute(x+11*x**(1./3.)+1))).squeeze().astype('int')
 
 def _asymmetry_parameter(al, bl):
     '''
