@@ -131,7 +131,24 @@ def test_parameter_shapes():
                          [(1, 1), (10, 1), (1, 5), (10, 5)])
 class TestVectorizedSpecialFuncs():
     """Tests that simplifying/removing loops from Mie special functions
-    produces same results as using loops.
+    produces same results as using loops.  Special functions and corresponding
+    tests of vectorization are as follows:
+
+    riccati_psi_xi() :
+        not tested in this class, but tested implicitly in
+        `test_vectorized_scatcoeffs()`
+    lentz_dn1() :
+        tested by `test_lentz_dn1()`
+    dn_1_down() :
+        tested by `test_dn_1_down()`
+    log_der_13() :
+        not tested explicitly but tested implicitly in `test_Qratio()` and in
+        testing of the multilayer scattering coefficients and internal
+        scattering coefficients in `TestVectorizedUserFunctions`
+    Qratio() :
+        tested by `test_Qratio()`
+    R_psi() :
+        tested by `test_R_psi()`
 
     """
     mxargs = {"start_wavelen": 400,
@@ -322,8 +339,58 @@ class TestVectorizedInternalFunctions():
     """Test vectorization of the internal Mie calculation functions (the ones
     starting with an underscore) over wavelength and layers. These tests check
     primarily that the functions return the same values for array arguments as
-    they do when one loops over the arrays. They do not check for correctness
+    they do when we loop over the arrays. They do not check for correctness
     of the results.
+
+    Internal functions and corresponding tests of vectorization are as follows:
+
+    _pis_and_taus() :
+        not tested explicitly here, but tested implicitly in
+        `test_vectorized_calc_ang_dist()`
+    _scatcoeffs() :
+        tested by `test_vectorized_scatcoeffs()`
+    _scatcoeffs_multi() :
+        tested by `test_vectorized_scatcoeffs()`
+    _internal_coeffs() :
+        tested by `test_vectorized_internal_coeffs()`
+    _trans_coeffs() :
+        * vectorization not yet tested
+    _time_coeffs() :
+        * vectorization not yet tested
+    _W0() :
+        * vectorization not yet tested
+    _nstop() :
+        tested by `test_vectorized_nstop()`
+    _asymmetry_parameter() :
+        not tested explicitly here, but tested implicitly in
+        `test_vectorized_asymmetry_parameter()`, which tests the user-facing
+        function for calculating asymmetry parameters
+    _cross_sections() :
+        not tested explicitly here, but tested implicitly in
+        `test_vectorized_cross_sections()`, which tests the user-facing
+        function for calculating cross-sections
+    _cross_sections_complex_medium_fu() :
+        * vectorization not yet tested
+    _cross_sections_complex_medium_sudiarta() :
+        * vectorization not yet tested
+    _scat_fields_complex_medium() :
+        * vectorization not yet tested
+    diff_scat_intensity_complex_medium() :
+        * vectorization not yet tested
+    integrate_intensity_complex_medium() :
+        * vectorization not yet tested
+    diff_abs_intensity_complex_medium() :
+        * vectorization not yet tested
+    amplitude_scattering_matrix() :
+        * vectorization not yet tested
+    vector_scattering_amplitude() :
+        * vectorization not yet tested
+    _amplitude_scattering_matrix() :
+        not tested explicitly here, but tested implicitly in
+        `test_vectorized_calc_ang_dist()`
+    _amplitude_scattering_matrix_RG() :
+        not tested explicitly here, but tested implicitly in
+        `test_vectorized_calc_ang_dist()`
 
     """
     mxargs = {"start_wavelen": 400,
@@ -421,8 +488,27 @@ class TestVectorizedUserFunctions():
     """Test vectorization of the user-facing Mie calculation functions over
     wavelength for solid (one layer) spheres.  These tests check primarily that
     the functions return the same values for array arguments as they do when
-    one loops over the arrays.  They do not check for correctness of the
+    we loop over the arrays.  They do not check for correctness of the
     results.
+
+    User functions and corresponding tests of vectorization are as follows:
+
+    calc_ang_dist() :
+        tested by test_vectorized_calc_ang_dist()
+    calc_cross_sections() :
+        tested by test_vectorized_cross_sections()
+    calc_efficiencies() :
+        tested by test_vectorized_calc_efficiencies()
+    calc_g() :
+        tested by test_vectorized_asymmetry_parameter
+    calc_integrated_cross_section() :
+        * vectorization not yet tested
+    calc_energy() :
+        * vectorization not yet tested
+    calc_dwell_time() :
+        * vectorization not yet tested
+    calc_reflectance() :
+        * vectorization not yet tested
 
     """
     mxargs = {"start_wavelen": 400,
