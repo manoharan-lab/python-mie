@@ -509,29 +509,35 @@ class TestVectorizedUserFunctions():
         assert_equal(asym.magnitude, asym_loop)
 
     @pytest.mark.parametrize("num_wavelen, num_layer",
-                             [(10, 1)])#, (1, 5), (10, 5)])
+                             [(10, 1), (1, 5), (10, 5)])
     def test_vectorized_calc_efficiencies(self, num_wavelen, num_layer):
-        """Tests that mie.calc_efficiencies() vectorizes properly.
+        """Tests that mie.calc_efficiencies() vectorizes properly with
+        wavelength, including with multi-layered particles.
 
         """
         m, x = mx(num_wavelen, num_layer, **self.mxargs)
         qscat, qext, qback = mie.calc_efficiencies(m, x)
 
         # test shape
-        expected_shape = (num_wavelen,)
+        if num_wavelen == 1:
+            expected_shape = ()
+            # no further test because no loop is needed in this case
+        else:
+            expected_shape = (num_wavelen,)
         for q in [qscat, qext, qback]:
             assert q.shape == expected_shape
 
-        # we should get same values from loop
-        qscat_loop = np.zeros(expected_shape, dtype=float)
-        qext_loop = np.zeros(expected_shape, dtype=float)
-        qback_loop = np.zeros(expected_shape, dtype=float)
-        for i in range(num_wavelen):
-            qs = mie.calc_efficiencies(m[i], x[i])
-            qscat_loop[i], qext_loop[i], qback_loop[i] = (q for q in qs)
-        assert_equal(qscat, qscat_loop)
-        assert_equal(qext, qext_loop)
-        assert_equal(qback, qback_loop)
+        if num_wavelen > 1:
+            # we should get same values from loop
+            qscat_loop = np.zeros(expected_shape, dtype=float)
+            qext_loop = np.zeros(expected_shape, dtype=float)
+            qback_loop = np.zeros(expected_shape, dtype=float)
+            for i in range(num_wavelen):
+                qs = mie.calc_efficiencies(m[i], x[i])
+                qscat_loop[i], qext_loop[i], qback_loop[i] = (q for q in qs)
+            assert_equal(qscat, qscat_loop)
+            assert_equal(qext, qext_loop)
+            assert_equal(qback, qback_loop)
 
     def test_vectorized_calc_ang_dist(self):
         """Tests that mie.calc_ang_dist() vectorizes properly. Also implicitly
@@ -587,87 +593,3 @@ class TestVectorizedUserFunctions():
         # few percent.  But the absolute difference should be very small
         # (smaller than the default atol for this test).
         assert_allclose(form_factor_RG, form_factor_mie, rtol=1e-1)
-
-
-
-class TestVectorizedMultilayer():
-    """Test vectorization of the Mie calculations over wavelength for
-    multilayer spheres.
-
-    """
-    num_wavelen = 10
-    num_angle = 19
-    num_layer = 5
-    wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
-    radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
-    n_matrix = Quantity(1.00, '')
-    # let index be the same at all wavelengths, but different at each layer
-    n_particle = np.linspace(1.33, 1.59, num_layer)
-    n_particle = np.repeat(np.array([n_particle]), num_wavelen, axis=0)
-    n_particle = Quantity(n_particle, '')
-    # m should have shape [num_wavelen, num_layer]
-    m = index_ratio(n_particle, n_matrix)
-    # x should have shape [num_wavelen, num_layer]
-    x = size_parameter(wavelen, n_matrix, radius)
-    angles = Quantity(np.linspace(0, 180., num_angle), 'deg')
-
-    def calc_coeffs(self):
-        nstop = mie._nstop(self.x.max())
-        m = self.m
-        x = self.x
-        coeffs = mie._scatcoeffs(m, x, nstop)
-
-        return nstop, coeffs
-
-    def test_vectorized_parameters(self):
-        expected_shape = (self.num_wavelen, self.num_layer)
-        assert self.x.shape == expected_shape
-        assert self.m.shape == expected_shape
-
-    def test_vectorized_scatcoeffs_multi(self):
-        """Tests that mie._scatcoeffs_multi() vectorizes properly
-
-        """
-        # first check that _scatcoeffs is actually calling the multilayer code
-        nstop, coeffs = self.calc_coeffs()
-        coeffs_direct = mie._scatcoeffs_multi(self.m, self.x)
-        assert_equal(coeffs, coeffs_direct)
-
-        # make sure shape is correct
-        expected_shape = (2, self.num_wavelen, nstop)
-        assert coeffs.shape == expected_shape
-
-        # we should get same values from loop
-        coeffs_loop = np.zeros(expected_shape, dtype=complex)
-        for i in range(self.m.shape[0]):
-            # need to specify nstop here; otherwise we will get a different
-            # number of scattering coefficients for each wavelength, since
-            # _scatcoeffs_multi() picks the largest x for each wavelength.
-            c = mie._scatcoeffs_multi(self.m[i], self.x[i], nstop)
-            coeffs_loop[:, i] = c
-
-        assert_equal(coeffs, coeffs_loop)
-
-    def test_vectorized_calc_efficiencies_layered(self):
-        """Tests that mie.calc_efficiencies() vectorizes properly for a layered
-        sphere.
-
-        """
-        qscat, qext, qback = mie.calc_efficiencies(self.m, self.x)
-
-        # test shape: should not have a second dimension since the efficiencies
-        # are calculated for the whole sphere, not each layer
-        expected_shape = (self.num_wavelen,)
-        for q in [qscat, qext, qback]:
-            assert q.shape == expected_shape
-
-        # we should get same values from loop
-        qscat_loop = np.zeros(expected_shape, dtype=float)
-        qext_loop = np.zeros(expected_shape, dtype=float)
-        qback_loop = np.zeros(expected_shape, dtype=float)
-        for i in range(self.num_wavelen):
-            qs = mie.calc_efficiencies(self.m[i], self.x[i])
-            qscat_loop[i], qext_loop[i], qback_loop[i] = (q for q in qs)
-        assert_equal(qscat, qscat_loop)
-        assert_equal(qext, qext_loop)
-        assert_equal(qback, qback_loop)
