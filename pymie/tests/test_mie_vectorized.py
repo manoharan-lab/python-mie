@@ -485,6 +485,7 @@ class TestVectorizedInternalFunctions():
 
                 assert_equal(coeffs, coeffs_loop)
 
+
 class TestVectorizedUserFunctions():
     """Test vectorization of the user-facing Mie calculation functions over
     wavelength for solid (one layer) spheres.  These tests check primarily that
@@ -707,3 +708,21 @@ class TestVectorizedUserFunctions():
         # few percent. But the absolute difference should be very small
         # (smaller than the default atol for this test).
         assert_allclose(form_factor_RG, form_factor_mie, rtol=1e-1)
+
+    @pytest.mark.parametrize("n_medium",
+                             [1.33, pytest.param(1.33+0.1j,
+                                                 marks = pytest.mark.xfail)])
+    def test_calc_reflectance(self, n_medium):
+        radius = Quantity(0.150, 'um')
+        num_wavelen = 10
+        wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
+        n_particle = Quantity(1.59, '')
+        n_medium = Quantity(n_medium, '')
+        refl = mie.calc_reflectance(radius, n_medium, n_particle, wavelen)
+
+        refl_loop = Quantity(np.zeros(num_wavelen), refl.units)
+        for i in range(num_wavelen):
+            refl_loop[i] = mie.calc_reflectance(radius, n_medium, n_particle,
+                                                wavelen[i])
+        assert_equal(refl.magnitude, refl_loop.magnitude)
+        assert refl.units == 1/wavelen.units**2

@@ -354,6 +354,9 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
 
     return dwell_time
 
+# TODO: document and test the correctness of this function, or delete (it is
+# not currently used anywhere)
+@ureg.check('[length]', '[]', '[]', '[length]', None, None)
 def calc_reflectance(radius, n_medium, n_particle, wavelen,
                      min_angle=np.pi/2, num_angles=50):
 
@@ -365,7 +368,7 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
     thetas = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
 
     # calculate reflectance cross section
-    if np.imag(x)>0:
+    if np.any(np.imag(x) > 0):
         angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
         distance = radius.max()
         k = 2*np.pi/wavelen_media
@@ -381,8 +384,8 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
         refl_cscat = calc_integrated_cross_section(m, x, wavelen_media,
                                                    thetas)
 
-    reflectance = refl_cscat/geometric_cross_sec/wavelen_media.magnitude**2
-    reflectance = reflectance.magnitude
+    reflectance = ((refl_cscat/geometric_cross_sec).to('')
+                   / wavelen_media**2)
 
     return reflectance
 
