@@ -383,9 +383,9 @@ class TestVectorizedInternalFunctions():
     diff_abs_intensity_complex_medium() :
         * vectorization not yet tested
     amplitude_scattering_matrix() :
-        tested by `test_vectorized_amplitude_scattering_matrix()`
+        tested by `test_vectorized_vector_scattering_amplitude()`
     vector_scattering_amplitude() :
-        * vectorization not yet tested
+        tested by `test_vectorized_vector_scattering_amplitude()`
     _amplitude_scattering_matrix() :
         not tested explicitly here, but tested implicitly in
         `test_vectorized_calc_ang_dist()`
@@ -402,7 +402,7 @@ class TestVectorizedInternalFunctions():
               "end_n_particle": 1.33 + 0.005j,
               "n_matrix": Quantity(1.00, '')}
 
-    num_theta = 100
+    num_theta = 20
     thetas = Quantity(np.linspace(0, np.pi, num_theta), 'rad')
 
     @pytest.mark.parametrize("num_wavelen", [1, 10, 100])
@@ -492,10 +492,11 @@ class TestVectorizedInternalFunctions():
                              [(1, 1), (10, 1), (1, 5), (10, 5)])
     @pytest.mark.parametrize("coordinate_system", ["scattering plane",
                                                    "cartesian"])
-    def test_vectorized_amplitude_scattering_matrix(self, num_wavelen,
+    def test_vectorized_vector_scattering_amplitude(self, num_wavelen,
                                                     num_layer,
                                                     coordinate_system):
-        """Tests that mie.amplitude_scattering_matrix() vectorizes properly
+        """Tests that mie.vector_scattering_amplitude() and
+        mie.amplitude_scattering_matrix() vectorize properly
 
         """
         m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs)
@@ -504,20 +505,29 @@ class TestVectorizedInternalFunctions():
         else:
             phis = Quantity(np.linspace(0, 2*np.pi, self.num_theta), '')
 
+
+        vsa = mie.vector_scattering_amplitude(m, x, self.thetas,
+                                              coordinate_system =
+                                              coordinate_system, phis = phis)
+
         mat = mie.amplitude_scattering_matrix(m, x, self.thetas,
                                               coordinate_system =
                                               coordinate_system,
                                               phis = phis)
-        for element in mat:
+
+        for element in vsa + mat:
             if num_wavelen > 1:
                 assert element.shape == (num_wavelen, self.num_theta)
             else:
                 assert element.shape == (self.num_theta, )
 
+        amp0 = np.zeros((num_wavelen, self.num_theta), dtype=complex)
+        amp1 = np.zeros_like(amp0)
         S1 = np.zeros((num_wavelen, self.num_theta), dtype=complex)
         S2 = np.zeros_like(S1)
         S3 = np.zeros_like(S1)
         S4 = np.zeros_like(S1)
+
         for i in range(num_wavelen):
             mat_loop = mie.amplitude_scattering_matrix(np.atleast_1d(m)[i],
                                                        np.atleast_1d(x)[i],
@@ -525,12 +535,23 @@ class TestVectorizedInternalFunctions():
                                                        coordinate_system =
                                                        coordinate_system,
                                                        phis = phis)
+
+            vsa_loop = mie.vector_scattering_amplitude(np.atleast_1d(m)[i],
+                                                       np.atleast_1d(x)[i],
+                                                       self.thetas,
+                                                       coordinate_system =
+                                                       coordinate_system,
+                                                       phis = phis)
             S1[i], S2[i], S3[i], S4[i] = mat_loop
+            amp0[i], amp1[i] = vsa_loop
 
         assert_equal(mat[0], S1.squeeze())
         assert_equal(mat[1], S2.squeeze())
         assert_equal(mat[2], S3.squeeze())
         assert_equal(mat[3], S4.squeeze())
+
+        assert_equal(vsa[0], amp0.squeeze())
+        assert_equal(vsa[1], amp1.squeeze())
 
 
 class TestVectorizedUserFunctions():
