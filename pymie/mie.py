@@ -1518,6 +1518,11 @@ def amplitude_scattering_matrix(m, x, thetas,
     n = np.arange(nstop)+1.
     prefactor  = (2*n+1)/(n*(n+1))
 
+    if isinstance(thetas, Quantity):
+        thetas = thetas.to('rad').magnitude
+    if isinstance(phis, Quantity):
+        phis = phis.to('rad').magnitude
+
     # calculate mie coefficients
     coeffs = _scatcoeffs(m, x, nstop)
 

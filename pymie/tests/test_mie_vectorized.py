@@ -490,16 +490,25 @@ class TestVectorizedInternalFunctions():
 
     @pytest.mark.parametrize("num_wavelen,num_layer",
                              [(1, 1), (10, 1), (1, 5), (10, 5)])
+    @pytest.mark.parametrize("coordinate_system", ["scattering plane",
+                                                   "cartesian"])
     def test_vectorized_amplitude_scattering_matrix(self, num_wavelen,
-                                                     num_layer):
+                                                    num_layer,
+                                                    coordinate_system):
         """Tests that mie.amplitude_scattering_matrix() vectorizes properly
 
         """
         m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs)
+        if coordinate_system == "scattering plane":
+            phis = None
+        else:
+            phis = Quantity(np.linspace(0, 2*np.pi, self.num_theta), '')
 
-        mat = mie.amplitude_scattering_matrix(m, x, self.thetas)
+        mat = mie.amplitude_scattering_matrix(m, x, self.thetas,
+                                              coordinate_system =
+                                              coordinate_system,
+                                              phis = phis)
         for element in mat:
-            print(np.array(element).shape)
             if num_wavelen > 1:
                 assert element.shape == (num_wavelen, self.num_theta)
             else:
@@ -512,7 +521,10 @@ class TestVectorizedInternalFunctions():
         for i in range(num_wavelen):
             mat_loop = mie.amplitude_scattering_matrix(np.atleast_1d(m)[i],
                                                        np.atleast_1d(x)[i],
-                                                       self.thetas)
+                                                       self.thetas,
+                                                       coordinate_system =
+                                                       coordinate_system,
+                                                       phis = phis)
             S1[i], S2[i], S3[i], S4[i] = mat_loop
 
         assert_equal(mat[0], S1.squeeze())
