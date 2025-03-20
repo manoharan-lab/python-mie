@@ -1525,8 +1525,8 @@ def amplitude_scattering_matrix(m, x, thetas,
     # system
     S2_sp, S1_sp = _amplitude_scattering_matrix(nstop, prefactor,
                                                 coeffs, thetas)
-    S3_sp = 0
-    S4_sp = 0
+    S3_sp = np.zeros_like(S1_sp)
+    S4_sp = np.zeros_like(S1_sp)
 
     if coordinate_system == 'cartesian':
         # raise error if no phis are specified

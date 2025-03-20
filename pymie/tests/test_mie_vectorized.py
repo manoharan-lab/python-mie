@@ -383,7 +383,7 @@ class TestVectorizedInternalFunctions():
     diff_abs_intensity_complex_medium() :
         * vectorization not yet tested
     amplitude_scattering_matrix() :
-        * vectorization not yet tested
+        tested by `test_vectorized_amplitude_scattering_matrix()`
     vector_scattering_amplitude() :
         * vectorization not yet tested
     _amplitude_scattering_matrix() :
@@ -401,6 +401,9 @@ class TestVectorizedInternalFunctions():
               "start_n_particle": 1.59 + 0.001j,
               "end_n_particle": 1.33 + 0.005j,
               "n_matrix": Quantity(1.00, '')}
+
+    num_theta = 100
+    thetas = Quantity(np.linspace(0, np.pi, num_theta), 'rad')
 
     @pytest.mark.parametrize("num_wavelen", [1, 10, 100])
     def test_vectorized_nstop(self, num_wavelen):
@@ -484,6 +487,38 @@ class TestVectorizedInternalFunctions():
                     coeffs_loop[:, i] = c
 
                 assert_equal(coeffs, coeffs_loop)
+
+    @pytest.mark.parametrize("num_wavelen,num_layer",
+                             [(1, 1), (10, 1), (1, 5), (10, 5)])
+    def test_vectorized_amplitude_scattering_matrix(self, num_wavelen,
+                                                     num_layer):
+        """Tests that mie.amplitude_scattering_matrix() vectorizes properly
+
+        """
+        m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs)
+
+        mat = mie.amplitude_scattering_matrix(m, x, self.thetas)
+        for element in mat:
+            print(np.array(element).shape)
+            if num_wavelen > 1:
+                assert element.shape == (num_wavelen, self.num_theta)
+            else:
+                assert element.shape == (self.num_theta, )
+
+        S1 = np.zeros((num_wavelen, self.num_theta), dtype=complex)
+        S2 = np.zeros_like(S1)
+        S3 = np.zeros_like(S1)
+        S4 = np.zeros_like(S1)
+        for i in range(num_wavelen):
+            mat_loop = mie.amplitude_scattering_matrix(np.atleast_1d(m)[i],
+                                                       np.atleast_1d(x)[i],
+                                                       self.thetas)
+            S1[i], S2[i], S3[i], S4[i] = mat_loop
+
+        assert_equal(mat[0], S1.squeeze())
+        assert_equal(mat[1], S2.squeeze())
+        assert_equal(mat[2], S3.squeeze())
+        assert_equal(mat[3], S4.squeeze())
 
 
 class TestVectorizedUserFunctions():
