@@ -501,9 +501,9 @@ class TestVectorizedUserFunctions():
     calc_efficiencies() :
         tested by test_vectorized_calc_efficiencies()
     calc_g() :
-        tested by test_vectorized_asymmetry_parameter
+        tested by test_vectorized_asymmetry_parameter()
     calc_integrated_cross_section() :
-        * vectorization not yet tested
+        tested by test_vectorized_cross_sections()
     calc_energy() :
         * vectorization not yet tested
     calc_dwell_time() :
@@ -552,7 +552,8 @@ class TestVectorizedUserFunctions():
     @pytest.mark.parametrize("num_wavelen, num_layer",
                              [(10, 1), (1, 5), (10, 5)])
     def test_vectorized_cross_sections(self, num_wavelen, num_layer):
-        """Tests that mie.calc_cross_sections() vectorizes properly. Also
+        """Tests that mie.calc_cross_sections() and
+        mie.calc_integrated_cross_sections() vectorize properly. Also
         implicitly checks that _cross_sections() vectorizes properly
 
         """
@@ -586,6 +587,19 @@ class TestVectorizedUserFunctions():
         assert_equal(cback.magnitude, cback_loop)
         assert_equal(cabs.magnitude, cabs_loop)
         assert_equal(asym.magnitude, asym_loop)
+
+        # check that numerical integration works too, and that it gives a
+        # similar value for the total cross section
+        num_angles = 100
+        thetas = Quantity(np.linspace(0, np.pi, num_angles), 'rad')
+        c_integrated = mie.calc_integrated_cross_section(m, x, wavelen_med,
+                                                         thetas)
+
+        c_integrated = c_integrated.to(cscat.units)
+        # small grid gives large integration error, but should still be within
+        # 10%
+        assert_allclose(c_integrated.magnitude, cscat.magnitude, rtol=1e-1)
+        assert c_integrated.shape == (num_wavelen,)
 
     @pytest.mark.parametrize("num_wavelen, num_layer",
                              [(10, 1), (1, 5), (10, 5)])

@@ -38,7 +38,7 @@ Small Particles" (1983)
 [2] Wiscombe, W. J. "Improved Mie Scattering Algorithms" Applied Optics 19, no.
 9 (1980): 1505. doi:10.1364/AO.19.001505
 [3] Yang, "Improved recursive algorithm for light scattering by a multilayered
-sphere," Applied Optics 42, 1710-1720, (1993).
+sphere," Applied Optics 42, 1710-1720 (2003).
 
 .. moduleauthor:: Jerome Fung <jerome.fung@gmail.com>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
@@ -218,8 +218,8 @@ def calc_g(m, x, nstop=None):
          * _asymmetry_parameter(coeffs[0], coeffs[1]))
     return g
 
-@ureg.check(None, None, '[length]', ('[]','[]', '[]'))
-def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
+@ureg.check(None, None, '[length]', '[]')
+def calc_integrated_cross_section(m, x, wavelen_media, thetas):
     """
     Calculate (dimensional) integrated cross section using quadrature
 
@@ -229,22 +229,19 @@ def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
     x: size parameter
     wavelen_media: structcol.Quantity [length]
         wavelength of incident light *in media*
-    theta_range: tuple of structcol.Quantity [dimensionless]
-        first two elements specify the range of polar angles over which to
-        integrate the scattering. Last element specifies the number of angles.
+    thetas: array of structcol.Quantity [dimensionless]
+        polar angles over which to integrate the scattering
 
     Returns
     -------
     cross_section : float
         Dimensional integrated cross-section
     """
-    theta_min = theta_range[0].to('rad').magnitude
-    theta_max = theta_range[1].to('rad').magnitude
-    angles = Quantity(np.linspace(theta_min, theta_max, theta_range[2]), 'rad')
+    angles = thetas.to('rad')
     form_factor = calc_ang_dist(m, x, angles)
 
-    integrand_par = form_factor[0]*np.sin(angles)
-    integrand_perp = form_factor[1]*np.sin(angles)
+    integrand_par = (form_factor[0]*np.sin(angles)).magnitude
+    integrand_perp = (form_factor[1]*np.sin(angles)).magnitude
 
     # scipy.integrate.trapezoid does not yet preserve units, so we will remove
     # the units before calling and put them back afterward. Can simplify code
@@ -358,8 +355,7 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
     return dwell_time
 
 def calc_reflectance(radius, n_medium, n_particle, wavelen,
-                     min_angle=np.pi/2, num_angles=50,
-                     eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+                     min_angle=np.pi/2, num_angles=50):
 
     m = index_ratio(n_particle, n_medium)
     x = size_parameter(wavelen, n_medium, radius)
@@ -374,19 +370,16 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
         distance = radius.max()
         k = 2*np.pi/wavelen_media
         (diff_cscat_par,
-         diff_cscat_perp) = diff_scat_intensity_complex_medium(m,
-                                        x, thetas,
-                                        k*distance)
+         diff_cscat_perp) = diff_scat_intensity_complex_medium(m, x, thetas,
+                                                               k*distance)
 
         refl_cscat = integrate_intensity_complex_medium(diff_cscat_par,
-                                                   diff_cscat_perp,
-                                                   distance,
-                                                   angles, k)[0]
+                                                        diff_cscat_perp,
+                                                        distance, angles, k)[0]
     else:
 
         refl_cscat = calc_integrated_cross_section(m, x, wavelen_media,
-                                                   (thetas[0], thetas[-1],
-                                                    num_angles))
+                                                   thetas)
 
     reflectance = refl_cscat/geometric_cross_sec/wavelen_media.magnitude**2
     reflectance = reflectance.magnitude
