@@ -371,11 +371,10 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
     if np.any(np.imag(x) > 0):
         angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
         distance = radius.max()
-        k = 2*np.pi/wavelen_media
+        k = np.atleast_1d(2*np.pi/wavelen_media)[:, np.newaxis]
         (diff_cscat_par,
          diff_cscat_perp) = diff_scat_intensity_complex_medium(m, x, thetas,
                                                                k*distance)
-
         refl_cscat = integrate_intensity_complex_medium(diff_cscat_par,
                                                         diff_cscat_perp,
                                                         distance, angles, k)[0]
@@ -385,7 +384,7 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
                                                    thetas)
 
     reflectance = ((refl_cscat/geometric_cross_sec).to('')
-                   / wavelen_media**2)
+                   / wavelen_media**2).squeeze()
 
     return reflectance
 
@@ -990,8 +989,8 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     # integrating to get the scattering cross section)
 
     # required for calculations with polarized light
-    th_shape = list(thetas.shape)
-    th_shape.append(len(n))
+    # reshape to (num_values, num_angles, order)
+    th_shape = (kd.shape[0],) + thetas.shape + (len(n),)
 
     En = np.broadcast_to(En, th_shape)
     an = np.broadcast_to(an, th_shape)
@@ -1010,12 +1009,13 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
         jn = spherical_jn(nstop_array, kd)
         yn = spherical_yn(nstop_array, kd)
         zn = jn + 1j*yn
-        zn = zn[1:]
+        zn = zn[..., 1:]
 
         _, xi = mie_specfuncs.riccati_psi_xi(kd, nstop)
-        xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
-        xi = xi[1:]
-        xishift = xishift[1:]
+        # insert zeroes at the beginning of second axis (order axis)
+        xishift = np.pad(xi, ((0,), (1,)))[:, 0:nstop+1]
+        xi = xi[..., 1:]
+        xishift = xishift[..., 1:]
         bessel_deriv = xishift - n*xi/kd
         zn = np.broadcast_to(zn, th_shape)
         bessel_deriv = np.broadcast_to(bessel_deriv, th_shape)
@@ -1169,6 +1169,9 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     if isinstance(kd, Quantity):
         kd = kd.to('').magnitude
 
+    # ensure that broadcasting will work correctly
+    kd = np.atleast_1d(kd)[:, np.newaxis]
+
     if near_field:
         if coordinate_system == 'scattering plane':
             # calculate scattered fields in scattering plane coordinate system
@@ -1204,7 +1207,8 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         I_1 = (np.abs(vec_scat_amp_1)**2)*factor # par or x
         I_2 = (np.abs(vec_scat_amp_2)**2)*factor # perp or y
 
-    return I_1.real, I_2.real # the intensities should be real
+    # the intensities should be real
+    return I_1.real.squeeze(), I_2.real.squeeze()
 
 def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                                        phi_min=Quantity(0.0, 'rad'),
@@ -1221,7 +1225,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
 
     Parameters
     ----------
-    I_1, I_2: nd arrays
+    I_1, I_2: array-like with shape (num_values, num_angles)
         differential scattered intensities, can be functions of theta or of
         theta and phi. If a function of theta and phi, the theta dimension MUST
         come first
@@ -1229,8 +1233,9 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         distance away from the scatterer
     thetas: nd array (Quantity in rad)
         scattering angles
-    k: wavevector given by 2 * pi * n_medium / wavelength
-       (Quantity in [1/length])
+    k : array-like of Quantity in [1/length]
+        wavevector given by 2 * pi * n_medium / wavelength.  Should have same
+        shape as I_1 and I_2
     phi_min: float (Quantity in rad).
         minimum azimuthal angle, default set to 0
         optional, only necessary if coordinate_system is 'scattering plane'
@@ -1346,12 +1351,14 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     # (see Sudiarta and Chylek (2001), eq 10).
     # if the imaginary part of k is close to 0 (because the medium index is
     # close to 0), then use the limit value of factor for the calculations
-    if k.imag <= Quantity(1e-8, '1/nm'):
-        factor = 2
-    else:
-        exponent = np.exp(2*distance*k.imag)
-        factor = 1 / (exponent / (2*distance*k.imag)+
-                     (1 - exponent) / (2*distance*k.imag)**2)
+    exponent = np.exp(2*distance*k.imag)
+    factor_limit = 2
+    # ignore division by zero in case k.imag=0; we'll replace the nans with the
+    # limit value of factor anyway
+    with np.errstate(divide='ignore', invalid='ignore'):
+        factor = np.where(k.imag <= Quantity(1e-8, '1/nm'), factor_limit,
+                          1 / (exponent / (2*distance*k.imag)
+                               + (1 - exponent) / (2*distance*k.imag)**2))
 
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
@@ -1375,17 +1382,21 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
 
     Parameters
     ----------
-    m: complex relative refractive index
-    x: size parameter using the medium's refractive index
-    thetas: array of scattering angles (Quantity in rad)
-    ktd: kt * distance, where kt = 2*np.pi*n_particle/wavelen, and distance is
+    m : array-like
+        complex relative refractive index
+    x : array-like
+        size parameter using the medium's refractive index
+    thetas: Quantity[angle], array-like
+        array of scattering angles (Quantity in rad or degrees)
+    ktd: Quantity[dimensionless], array-like
+        kt * distance, where kt = 2*np.pi*n_particle/wavelen, and distance is
         the distance away from the center of the particle. The far-field
-        solution is obtained when distance >> radius. (Quantity, dimensionless)
+        solution is obtained when distance >> radius.
 
     Returns
     -------
-    I_par, I_perp: differential absorption intensities for an array of theta
-                   (dimensionless).
+    I_par, I_perp : Quantity[dimensionless], array-like
+        differential absorption intensities for an array of theta
 
     Reference
     ---------
@@ -1394,8 +1405,10 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
 
     '''
     # convert units from whatever units the user specifies
-    thetas = thetas.to('rad').magnitude
-    ktd = ktd.to('').magnitude
+    if isinstance(thetas, Quantity):
+        thetas = thetas.to('rad').magnitude
+    if isinstance(ktd, Quantity):
+        ktd = ktd.to('').magnitude
 
     # calculate mie coefficients
     nstop = _nstop(np.array(x).max())
@@ -1491,7 +1504,7 @@ def amplitude_scattering_matrix(m, x, thetas,
         particle
     x: float, or array
         size parameter, array if multilayer particle
-    thetas: nd array
+    thetas: array
         theta angles
     coordinate_system: string
         default value 'scattering plane' means scattering calculations will be
@@ -1500,7 +1513,7 @@ def amplitude_scattering_matrix(m, x, thetas,
         'cartesian' which scattering calculations will be carried out in the
         basis defined by basis vectors x and y in the lab frame, with z
         as the direction of propagation.
-    phis: None or ndarray
+    phis: None or array
         azimuthal angles for which to calculate the scattering matrix. In the
         'scattering plane' coordinate system, the scattering matrix does not
         depend on phi, so phi should be set to None. In the 'cartesian'
@@ -1509,9 +1522,9 @@ def amplitude_scattering_matrix(m, x, thetas,
 
     Returns:
     --------
-    S1, S2, S3, S4: tuple of nd arrays
-       amplitude scattering matrix elements for all theta. S2 and S1 have the
-       same shape as theta.
+    S1, S2, S3, S4: tuple of arrays
+       amplitude scattering matrix elements for all values (e.g. wavelengths)
+       and theta. Shapes of all arrays are (num_values, num_theta)
     """
     # calculate n-array
     nstop = _nstop(np.array(x).max())
@@ -1606,11 +1619,11 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
 
     Parameters:
     ----------
-    m: float
+    m: float or array-like
         index ratio between the particle and sample
-    x: float
+    x: float or array-like
         size parameter
-    thetas: nd array
+    thetas: array-like
         scattering angles
     incident_vector: None or tuple
         vector describing the incident electric field. It is multiplied by the
@@ -1634,13 +1647,13 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
     coordinate_system: string
         describes the coordinate system. Can be either 'scattering plane' or
         'cartesian'
-    phis: nd array or None
+    phis: ndarray or None
         azimuthal angles
 
 
     Returns:
     --------
-    vector scattering amplitude: tuple
+    vector scattering amplitude: tuple of arrays (num_values, num_angles)
         tuple describing the vector scattering amplitude in the specified
         coordinate system. not normalized.
     '''

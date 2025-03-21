@@ -28,7 +28,7 @@ import pytest
 def mx(num_wavelen, num_layer, start_wavelen=400, end_wavelen=800,
        start_radius = 100, end_radius = 1000,
        start_n_particle = 1.33+0j, end_n_particle = 1.59+0j,
-       n_matrix = 1.0):
+       n_matrix = 1.0, return_all=False):
     """Convenience function to set up various combinations of wavelength and
     layer inputs to test functions.
 
@@ -54,7 +54,10 @@ def mx(num_wavelen, num_layer, start_wavelen=400, end_wavelen=800,
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
 
-    return m, x
+    if return_all:
+        return m, x, wavelen, radius, n_particle, n_matrix
+    else:
+        return m, x
 
 
 def calc_coeffs(m, x):
@@ -499,9 +502,14 @@ class TestVectorizedInternalFunctions():
         mie.amplitude_scattering_matrix(), and
         diff_scat_intensity_complex_medium() vectorize properly
 
-        TODO: test vectorized near-field calculation
+        TODO: test vectorized near-field calculation in
+        diff_scat_intensity_complex_medium()
+
         """
-        m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs)
+        m, x, wavelen, radius, n_particle, n_matrix = \
+            mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs,
+               return_all=True)
+
         if coordinate_system == "scattering plane":
             phis = None
         else:
@@ -517,14 +525,22 @@ class TestVectorizedInternalFunctions():
                                               coordinate_system,
                                               phis = phis)
 
-        # choose far field for differential scattering calculations
-        kd = 1000
+        # choose distance reasonably close to the particle for differential
+        # scattering calculations
+        k = 2*np.pi*n_matrix/wavelen
+        d = 10*np.atleast_1d(radius)[-1]
+        kd = np.atleast_1d(k*d)
         i12 = mie.diff_scat_intensity_complex_medium(m, x, self.thetas,
                                                      kd,
                                                      coordinate_system =
                                                      coordinate_system,
                                                      phis = phis)
 
+        # integral = integrate_intensity_complex_medium(*i12, distance, thetas, k,
+        #                                phi_min=Quantity(0.0, 'rad'),
+        #                                phi_max=Quantity(2*np.pi, 'rad'),
+        #                                coordinate_system = 'scattering plane',
+        #                                phis = None)
 
         for element in vsa + mat + i12:
             if num_wavelen > 1:
@@ -555,7 +571,7 @@ class TestVectorizedInternalFunctions():
                                                        phis = phis)
             i_loop = mie.diff_scat_intensity_complex_medium(m[i], x[i],
                                                             self.thetas,
-                                                            kd,
+                                                            kd[i],
                                                             coordinate_system =
                                                             coordinate_system,
                                                             phis = phis)
@@ -802,7 +818,11 @@ class TestVectorizedUserFunctions():
     @pytest.mark.parametrize("n_medium",
                              [1.33, pytest.param(1.33+0.1j,
                                                  marks = pytest.mark.xfail)])
-    def test_calc_reflectance(self, n_medium):
+    def test_vectorized_calc_reflectance(self, n_medium):
+        """Tests that vectorized calc_reflectance() returns same result as
+        loop.
+
+        """
         radius = Quantity(0.150, 'um')
         num_wavelen = 10
         wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
@@ -810,9 +830,10 @@ class TestVectorizedUserFunctions():
         n_medium = Quantity(n_medium, '')
         refl = mie.calc_reflectance(radius, n_medium, n_particle, wavelen)
 
-        refl_loop = Quantity(np.zeros(num_wavelen), refl.units)
+        refl_loop = np.zeros(num_wavelen, dtype=complex)
         for i in range(num_wavelen):
-            refl_loop[i] = mie.calc_reflectance(radius, n_medium, n_particle,
-                                                wavelen[i])
-        assert_equal(refl.magnitude, refl_loop.magnitude)
+            reflectance = mie.calc_reflectance(radius, n_medium, n_particle,
+                                               wavelen[i]).magnitude
+            refl_loop[i] = reflectance
+        assert_equal(refl.magnitude, refl_loop)
         assert refl.units == 1/wavelen.units**2
