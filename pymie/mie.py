@@ -1167,7 +1167,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
 
     '''
     if isinstance(kd, Quantity):
-        kd = kd.to('')
+        kd = kd.to('').magnitude
 
     if near_field:
         if coordinate_system == 'scattering plane':
@@ -1201,8 +1201,8 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         # get the final intensity in a non-absorbing medium (p. 113 of Bohren
         # and Huffman).
         factor = np.exp(-2*kd.imag) / ((kd.real)**2 + (kd.imag)**2)
-        I_1 = (np.abs(vec_scat_amp_1)**2)*factor.to('') # par or x
-        I_2 = (np.abs(vec_scat_amp_2)**2)*factor.to('') # perp or y
+        I_1 = (np.abs(vec_scat_amp_1)**2)*factor # par or x
+        I_2 = (np.abs(vec_scat_amp_2)**2)*factor # perp or y
 
     return I_1.real, I_2.real # the intensities should be real
 

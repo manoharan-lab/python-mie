@@ -677,7 +677,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     I_par_perp_mag = np.sqrt(I_par**2 + I_perp**2)
 
     # check that the magnitudes are equal
-    assert_array_almost_equal(I_xy_mag.magnitude, I_par_perp_mag.magnitude, decimal=16)
+    assert_array_almost_equal(I_xy_mag, I_par_perp_mag, decimal=16)
 
 def test_integrate_intensity_complex_medium_cartesian():
     '''

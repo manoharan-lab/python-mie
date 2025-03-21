@@ -377,15 +377,15 @@ class TestVectorizedInternalFunctions():
     _scat_fields_complex_medium() :
         * vectorization not yet tested
     diff_scat_intensity_complex_medium() :
-        * vectorization not yet tested
+        tested by `test_vectorized_angular_functions()`
     integrate_intensity_complex_medium() :
         * vectorization not yet tested
     diff_abs_intensity_complex_medium() :
         * vectorization not yet tested
     amplitude_scattering_matrix() :
-        tested by `test_vectorized_vector_scattering_amplitude()`
+        tested by `test_vectorized_angular_functions()`
     vector_scattering_amplitude() :
-        tested by `test_vectorized_vector_scattering_amplitude()`
+        tested by `test_vectorized_angular_functions()`
     _amplitude_scattering_matrix() :
         not tested explicitly here, but tested implicitly in
         `test_vectorized_calc_ang_dist()`
@@ -492,12 +492,14 @@ class TestVectorizedInternalFunctions():
                              [(1, 1), (10, 1), (1, 5), (10, 5)])
     @pytest.mark.parametrize("coordinate_system", ["scattering plane",
                                                    "cartesian"])
-    def test_vectorized_vector_scattering_amplitude(self, num_wavelen,
+    def test_vectorized_angular_functions(self, num_wavelen,
                                                     num_layer,
                                                     coordinate_system):
-        """Tests that mie.vector_scattering_amplitude() and
-        mie.amplitude_scattering_matrix() vectorize properly
+        """Tests that mie.vector_scattering_amplitude(),
+        mie.amplitude_scattering_matrix(), and
+        diff_scat_intensity_complex_medium() vectorize properly
 
+        TODO: test vectorized near-field calculation
         """
         m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs)
         if coordinate_system == "scattering plane":
@@ -515,11 +517,20 @@ class TestVectorizedInternalFunctions():
                                               coordinate_system,
                                               phis = phis)
 
-        for element in vsa + mat:
+        # choose far field for differential scattering calculations
+        kd = 1000
+        i12 = mie.diff_scat_intensity_complex_medium(m, x, self.thetas,
+                                                     kd,
+                                                     coordinate_system =
+                                                     coordinate_system,
+                                                     phis = phis)
+
+
+        for element in vsa + mat + i12:
             if num_wavelen > 1:
                 assert element.shape == (num_wavelen, self.num_theta)
             else:
-                assert element.shape == (self.num_theta, )
+                assert element.shape == (self.num_theta,)
 
         amp0 = np.zeros((num_wavelen, self.num_theta), dtype=complex)
         amp1 = np.zeros_like(amp0)
@@ -527,23 +538,31 @@ class TestVectorizedInternalFunctions():
         S2 = np.zeros_like(S1)
         S3 = np.zeros_like(S1)
         S4 = np.zeros_like(S1)
+        i1 = np.zeros_like(S1)
+        i2 = np.zeros_like(S1)
 
+        m = np.atleast_1d(m)
+        x = np.atleast_1d(x)
         for i in range(num_wavelen):
-            mat_loop = mie.amplitude_scattering_matrix(np.atleast_1d(m)[i],
-                                                       np.atleast_1d(x)[i],
-                                                       self.thetas,
+            mat_loop = mie.amplitude_scattering_matrix(m[i], x[i], self.thetas,
                                                        coordinate_system =
                                                        coordinate_system,
                                                        phis = phis)
 
-            vsa_loop = mie.vector_scattering_amplitude(np.atleast_1d(m)[i],
-                                                       np.atleast_1d(x)[i],
-                                                       self.thetas,
+            vsa_loop = mie.vector_scattering_amplitude(m[i], x[i], self.thetas,
                                                        coordinate_system =
                                                        coordinate_system,
                                                        phis = phis)
+            i_loop = mie.diff_scat_intensity_complex_medium(m[i], x[i],
+                                                            self.thetas,
+                                                            kd,
+                                                            coordinate_system =
+                                                            coordinate_system,
+                                                            phis = phis)
+
             S1[i], S2[i], S3[i], S4[i] = mat_loop
             amp0[i], amp1[i] = vsa_loop
+            i1[i], i2[i] = i_loop
 
         assert_equal(mat[0], S1.squeeze())
         assert_equal(mat[1], S2.squeeze())
@@ -552,6 +571,9 @@ class TestVectorizedInternalFunctions():
 
         assert_equal(vsa[0], amp0.squeeze())
         assert_equal(vsa[1], amp1.squeeze())
+
+        assert_equal(i12[0], i1.squeeze())
+        assert_equal(i12[1], i2.squeeze())
 
 
 class TestVectorizedUserFunctions():
