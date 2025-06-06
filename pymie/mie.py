@@ -71,13 +71,13 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
         complex particle relative refractive index, n_part/n_med
     x : complex or float, array-like
         size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
-    angles: ndarray(structcol.Quantity [dimensionless])
+    angles : ndarray(structcol.Quantity [dimensionless])
         array of angles. Must be entered as a Quantity to allow specifying
         units (degrees or radians) explicitly
-    mie: Boolean (optional)
+    mie : Boolean (optional)
         if true (default) does full Mie calculation; if false, uses RG
         approximation
-    check: Boolean (optional)
+    check : Boolean (optional)
         if true, outputs scattering efficiencies
 
     Returns
@@ -1058,7 +1058,7 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
 def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         coordinate_system = 'scattering plane', phis = None, near_field=False,
         incident_vector=None):
-    '''
+    """
     Calculates the differential scattered intensity in an absorbing medium.
     User can choose whether to include near fields.
 
@@ -1091,27 +1091,33 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
 
     Parameters
     ----------
-    m: complex relative refractive index
-    x: size parameter using the medium's refractive index
-    thetas: array of scattering angles (Quantity in rad)
-    kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
+    m : complex, array-like
+        complex particle relative refractive index, n_part/n_med
+    x : complex, array-like
+        size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
+    thetas : array-like (Quantity [angle])
+        scattering angles.  Should be 2D, as output from np.meshgrid, if
+        coordinate_system = 'cartesian'
+    kd : float (Quantity, dimensionless)
+        k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
         distance away from the center of the particle. The standard far-field
         solutions are obtained when distance >> radius in a non-absorbing
-        medium. (Quantity, dimensionless)
-    coordinate_system: string
+        medium.
+    coordinate_system : string
         default value 'scattering plane' means scattering calculations will be
         carried out in the basis defined by basis vectors parallel and
         perpendicular to scattering plane. Variable also accepts value
         'cartesian' which scattering calculations will be carried out in the
         basis defined by basis vectors x and y in the lab frame, with z
         as the direction of propagation.
-    phis: None or ndarray
+    phis : None or ndarray
         azimuthal angles for which to calculate the diff scat intensity. In the
         'scattering plane' coordinate system, the scattering matrix does not
         depend on phi, so phi should be set to None. In the 'cartesian'
         coordinate system, the scattering matrix does depend on phi, so an
-        array of values should be provided.
-    near_field: boolean
+        array of values should be provided.  For 'cartesian' both thetas and
+        phis should be 2D, as output from np.meshgrid.
+    near_field : boolean
         True to include the near-fields (default is False). Cannot be set to
         True while using coordinate_system='cartesian' because near field
         solutions are not implemented for cartesian coordinate system. Also
@@ -1125,7 +1131,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         near fields and still integrate at the surface of the particle, we use
         the asymptotic form of the spherical Hankel function in the far field
         (p. 94 of Bohren and Huffman).
-    incident_vector: None or tuple
+    incident_vector : None or tuple
         vector describing the incident electric field. It is multiplied by the
         amplitude scattering matrix to find the vector scattering amplitude. If
         coordinate_system is 'scattering plane', then this vector should be in
@@ -1147,16 +1153,18 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
 
     Returns
     -------
-    I components: tuple
+    I components : tuple of arrays
         tuple of the two orthogonal components of scattered intensity. If in
         cartesian coordinate system, each component is a function of theta and
         phi values. If in scattering plane coordinate system, each component
-        is an array of theta values (dimensionless).These intensities are
+        is an array of theta values (dimensionless). These intensities are
         technically 'unitless.' The intensities would get their units from
         the E_n term in the fields, which gets its units from an E_0 term,
         which is taken to be 1 here. To get an intensity with real units
         you would need to multiply these by |E_0|**2 where E_0 is the amplitude
-        of the incident wave at the origin.
+        of the incident wave at the origin.  If multiple wavelengths are
+        specified, the shape of each array is (num_values, num_theta,
+        [num_phi]).  Otherwise just (num_theta, [num_phi]).
 
     References
     ----------
@@ -1165,12 +1173,15 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     Q. Fu and W. Sun, "Mie theory for light scattering by a spherical particle
     in an absorbing medium". Applied Optics, 40, 9 (2001).
 
-    '''
+    """
     if isinstance(kd, Quantity):
         kd = kd.to('').magnitude
 
     # ensure that broadcasting will work correctly
     kd = np.atleast_1d(kd)[:, np.newaxis]
+    if coordinate_system == 'cartesian':
+        # add another axis to correspond to phi
+        kd = kd[:, np.newaxis]
 
     if near_field:
         if coordinate_system == 'scattering plane':
@@ -1215,7 +1226,7 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                                        phi_max=Quantity(2*np.pi, 'rad'),
                                        coordinate_system = 'scattering plane',
                                        phis = None):
-    '''
+    """
     Calculates the scattering cross section by integrating the differential
     scattered intensity at a distance of our choice in an absorbing medium.
     Choosing the right distance is essential in an absorbing medium because the
@@ -1225,43 +1236,73 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
 
     Parameters
     ----------
-    I_1, I_2: array-like with shape (num_values, num_angles)
+    I_1, I_2 : array-like with shape (num_values, num_thetas, [num_phis])
         differential scattered intensities, can be functions of theta or of
         theta and phi. If a function of theta and phi, the theta dimension MUST
         come first
-    distance: float (Quantity in [length])
+    distance : float (Quantity in [length])
         distance away from the scatterer
-    thetas: nd array (Quantity in rad)
+    thetas : array-like of Quantity in [angle], shape num_thetas
         scattering angles
-    k : array-like of Quantity in [1/length]
-        wavevector given by 2 * pi * n_medium / wavelength.  Should have same
-        shape as I_1 and I_2
-    phi_min: float (Quantity in rad).
+    k : array-like of Quantity in [1/length], shape num_values
+        wavevector given by 2 * pi * n_medium / wavelength
+    phi_min : float (Quantity in [angle]).
         minimum azimuthal angle, default set to 0
         optional, only necessary if coordinate_system is 'scattering plane'
-    phi_max: float (Quantity in rad).
+    phi_max : float (Quantity in [angle]).
         maximum azimuthal angle, default set to 2pi
         optional, only necessary if coordinate_system is 'scattering plane'
-    phis: None or ndarray
+    phis : None or ndarray (Quantity in [angle], shape num_phis)
         azimuthal angles
 
     Returns
     -------
-    sigma: float (in units of length**2)
+    sigma: array-like of Quantity in length**2 with shape num_values
         integrated cross section
-    sigma_1: float (in units of length**2)
+    sigma_1: array-like of Quantity in length**2 with shape num_values
         integrated cross section for first component of basis
-    sigma_2: float (in units of length**2)
+    sigma_2: array-like of Quantity in length**2 with shape num_values
         integrated cross section for second component of basis
-    dsigma_1: ndarray (in units of length**2)
+    dsigma_1: array-like (Quantity in length**2), shape num_values, num_angles
         differential cross section for first component of basis
-    dsigma_2: ndarray (in units of length**2)
+    dsigma_2: array-like (Quantity in length**2), shape num_values, num_angles
         differential cross section for second component of basis
 
-    '''
+    """
     # convert to radians from whatever units the user specifies
     if isinstance(thetas, Quantity):
         thetas = thetas.to('rad').magnitude
+
+    # check that if phis is specified, both thetas and phis are given as 2D
+    # arrays
+    if phis is not None:
+        # convert to radians
+        if isinstance(phis, Quantity):
+            phis = phis.to('rad').magnitude
+        if phis.ndim == 1:
+            phis, thetas = np.meshgrid(phis, thetas)
+
+    # reshape arrays for broadcasting. We use length of k (which should be
+    # num_values) to determine whether I_1 and I_2 are specified as
+    # (num_values, num_angles) or just (num_angles)
+    k = np.atleast_1d(k)
+    num_values = k.shape[0]
+    num_thetas = thetas.shape[0]
+    if phis is not None:
+        num_phis = phis.shape[-1]
+        k = k.reshape((num_values, 1, 1))
+        I_1 = I_1.reshape((num_values, num_thetas, num_phis))
+        I_2 = I_2.reshape((num_values, num_thetas, num_phis))
+        thetas = thetas[np.newaxis, ...]
+        # phis has only two dimensions because by the time we use it, we have
+        # already integrated over theta
+        phis = phis[0, :]
+        phis = phis.reshape(1, num_phis)
+    else:
+        I_1 = I_1.reshape((num_values, num_thetas))
+        I_2 = I_2.reshape((num_values, num_thetas))
+        k = k.reshape((num_values, 1))
+        thetas = thetas.reshape((1, num_thetas))
 
     # this line converts the unitless intensities to cross section
     # Multiply by distance (= to radius of particle in montecarlo.py) because
@@ -1273,12 +1314,12 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     dsigma_1 = I_1 * distance**2
     dsigma_2 = I_2 * distance**2
 
-    if coordinate_system == 'scattering plane':
+    if coordinate_system == "scattering plane":
         if phis is not None:
-            warnings.warn('''azimuthal angles specified for scattering plane
-                          calculations. Scattering plane calculations do not
-                          depend on azimuthal angle, so specified values will
-                          be ignored''')
+            warnings.warn("azimuthal angles specified for scattering plane "
+                          "calculations. Scattering plane calculations do not "
+                          "depend on azimuthal angle, so specified values "
+                          "will be ignored")
 
         # convert to radians
         phi_min = phi_min.to('rad').magnitude
@@ -1312,31 +1353,25 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         sigma_2 = (integral_perp * (phi_max/2 - np.sin(2*phi_max)/4 -
                           phi_min/2 + np.sin(2*phi_min)/4))
 
-    elif coordinate_system == 'cartesian':
+    elif coordinate_system == "cartesian":
         if phis is None:
-            raise ValueError('phis set to None, but azimuthal angle must be \
-                        specified for scattering calculations in \
-                        cartesian coordinate system')
-
-        # convert to radians
-        if isinstance(phis, Quantity):
-            phis = phis.to('rad').magnitude
-
-        # Integrate over theta and phi
-        thetas_bc = thetas.reshape((len(thetas),1)) # reshape for broadcasting
+            raise ValueError("phis set to None, but azimuthal angle must be "
+                             "specified for scattering calculations in "
+                             "cartesian coordinate system")
 
         # strip units from integrand
         if isinstance(dsigma_1, Quantity):
-            integrand_1 = dsigma_1.magnitude * np.abs(np.sin(thetas_bc))
+            integrand_1 = dsigma_1.magnitude * np.abs(np.sin(thetas))
         else:
-            integrand_1 = dsigma_1 * np.abs(np.sin(thetas_bc))
+            integrand_1 = dsigma_1 * np.abs(np.sin(thetas))
         if isinstance(dsigma_2, Quantity):
-            integrand_2 = dsigma_2.magnitude * np.abs(np.sin(thetas_bc))
+            integrand_2 = dsigma_2.magnitude * np.abs(np.sin(thetas))
         else:
-            integrand_2 = dsigma_2 * np.abs(np.sin(thetas_bc))
+            integrand_2 = dsigma_2 * np.abs(np.sin(thetas))
 
-        sigma_1 = trapezoid(trapezoid(integrand_1, x=thetas, axis=0), x=phis)
-        sigma_2 = trapezoid(trapezoid(integrand_2, x=thetas, axis=0), x=phis)
+        # Integrate over theta and phi
+        sigma_1 = trapezoid(trapezoid(integrand_1, x=thetas, axis=1), x=phis)
+        sigma_2 = trapezoid(trapezoid(integrand_2, x=thetas, axis=1), x=phis)
 
         # restore units to integral
         if isinstance(dsigma_1, Quantity):
@@ -1344,8 +1379,9 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         if isinstance(dsigma_2, Quantity):
             sigma_2 = Quantity(sigma_2, dsigma_2.units)
     else:
-        raise ValueError('The coordinate system specified has not yet been \
-                implemented. Change to \'cartesian\' or \'scattering plane\'')
+        raise ValueError("The coordinate system specified has not yet been "
+                         "implemented. Change to \'cartesian\' or "
+                         "\'scattering plane\'")
 
     # multiply by factor that accounts for attenuation in the incident light
     # (see Sudiarta and Chylek (2001), eq 10).
@@ -1360,11 +1396,16 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                           1 / (exponent / (2*distance*k.imag)
                                + (1 - exponent) / (2*distance*k.imag)**2))
 
+    # prepare for broadcasting (this will add trailing axes of size 1)
+    sigma_1 = sigma_1.reshape(factor.shape)
+    sigma_2 = sigma_2.reshape(factor.shape)
+
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
 
-    return(sigma, sigma_1*factor, sigma_2*factor, dsigma_1*factor/2,
-           dsigma_2*factor/2)
+    return(sigma.squeeze(), (sigma_1*factor).squeeze(),
+           (sigma_2*factor).squeeze(), (dsigma_1*factor/2).squeeze(),
+           (dsigma_2*factor/2).squeeze())
 
 def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     '''
@@ -1524,7 +1565,7 @@ def amplitude_scattering_matrix(m, x, thetas,
     --------
     S1, S2, S3, S4: tuple of arrays
        amplitude scattering matrix elements for all values (e.g. wavelengths)
-       and theta. Shapes of all arrays are (num_values, num_theta)
+       and theta. Shapes of all arrays are (num_values, num_theta, [num_phi])
     """
     # calculate n-array
     nstop = _nstop(np.array(x).max())
@@ -1562,7 +1603,6 @@ def amplitude_scattering_matrix(m, x, thetas,
         S2_xy = S2_sp*(cosphi)**2 + S1_sp*(sinphi)**2
         S3_xy = S2_sp*sinphi*cosphi - S1_sp*sinphi*cosphi
         S4_xy = S2_sp*cosphi*sinphi - S1_sp*cosphi*sinphi
-
         return S1_xy, S2_xy, S3_xy, S4_xy
     elif coordinate_system == 'scattering plane':
         if phis is not None:

@@ -382,7 +382,7 @@ class TestVectorizedInternalFunctions():
     diff_scat_intensity_complex_medium() :
         tested by `test_vectorized_angular_functions()`
     integrate_intensity_complex_medium() :
-        * vectorization not yet tested
+        tested by `test_vectorized_angular_functions()`
     diff_abs_intensity_complex_medium() :
         * vectorization not yet tested
     amplitude_scattering_matrix() :
@@ -499,8 +499,9 @@ class TestVectorizedInternalFunctions():
                                                     num_layer,
                                                     coordinate_system):
         """Tests that mie.vector_scattering_amplitude(),
-        mie.amplitude_scattering_matrix(), and
-        diff_scat_intensity_complex_medium() vectorize properly
+        mie.amplitude_scattering_matrix(),
+        diff_scat_intensity_complex_medium(), and
+        integrate_intensity_complex_medium() vectorize properly
 
         TODO: test vectorized near-field calculation in
         diff_scat_intensity_complex_medium()
@@ -512,15 +513,16 @@ class TestVectorizedInternalFunctions():
 
         if coordinate_system == "scattering plane":
             phis = None
+            thetas = self.thetas
         else:
             phis = Quantity(np.linspace(0, 2*np.pi, self.num_theta), '')
+            thetas, phis = np.meshgrid(self.thetas, phis)
 
-
-        vsa = mie.vector_scattering_amplitude(m, x, self.thetas,
+        vsa = mie.vector_scattering_amplitude(m, x, thetas,
                                               coordinate_system =
                                               coordinate_system, phis = phis)
 
-        mat = mie.amplitude_scattering_matrix(m, x, self.thetas,
+        mat = mie.amplitude_scattering_matrix(m, x, thetas,
                                               coordinate_system =
                                               coordinate_system,
                                               phis = phis)
@@ -530,55 +532,78 @@ class TestVectorizedInternalFunctions():
         k = 2*np.pi*n_matrix/wavelen
         d = 10*np.atleast_1d(radius)[-1]
         kd = np.atleast_1d(k*d)
-        i12 = mie.diff_scat_intensity_complex_medium(m, x, self.thetas,
+        i12 = mie.diff_scat_intensity_complex_medium(m, x, thetas,
                                                      kd,
                                                      coordinate_system =
                                                      coordinate_system,
                                                      phis = phis)
 
-        # integral = integrate_intensity_complex_medium(*i12, distance, thetas, k,
-        #                                phi_min=Quantity(0.0, 'rad'),
-        #                                phi_max=Quantity(2*np.pi, 'rad'),
-        #                                coordinate_system = 'scattering plane',
-        #                                phis = None)
+        integral = mie.integrate_intensity_complex_medium(*i12, d,
+                        thetas, k, phi_min = Quantity(0.0, 'rad'),
+                        phi_max = Quantity(2*np.pi, 'rad'),
+                        coordinate_system = coordinate_system, phis = phis)
 
+        # check that shapes of all the computed quantities are correct
         for element in vsa + mat + i12:
             if num_wavelen > 1:
-                assert element.shape == (num_wavelen, self.num_theta)
+                assert element.shape == (num_wavelen, ) + thetas.shape
             else:
-                assert element.shape == (self.num_theta,)
+                assert element.shape == thetas.shape
 
-        amp0 = np.zeros((num_wavelen, self.num_theta), dtype=complex)
+        # check that vectorized calculations match looped calculations over
+        # scalars
+        amp0 = np.zeros((num_wavelen, ) + thetas.shape, dtype=complex)
         amp1 = np.zeros_like(amp0)
-        S1 = np.zeros((num_wavelen, self.num_theta), dtype=complex)
+        S1 = np.zeros((num_wavelen, ) + thetas.shape, dtype=complex)
         S2 = np.zeros_like(S1)
         S3 = np.zeros_like(S1)
         S4 = np.zeros_like(S1)
         i1 = np.zeros_like(S1)
         i2 = np.zeros_like(S1)
 
+        sigma = np.zeros(num_wavelen)
+        sigma_1 = np.zeros_like(sigma)
+        sigma_2 = np.zeros_like(sigma)
+        dsigma_1 = np.zeros((num_wavelen, ) + thetas.shape)
+        dsigma_2 = np.zeros_like(dsigma_1)
+
         m = np.atleast_1d(m)
         x = np.atleast_1d(x)
+        k = np.atleast_1d(k)
         for i in range(num_wavelen):
-            mat_loop = mie.amplitude_scattering_matrix(m[i], x[i], self.thetas,
+            mat_loop = mie.amplitude_scattering_matrix(m[i], x[i], thetas,
                                                        coordinate_system =
                                                        coordinate_system,
                                                        phis = phis)
 
-            vsa_loop = mie.vector_scattering_amplitude(m[i], x[i], self.thetas,
+            vsa_loop = mie.vector_scattering_amplitude(m[i], x[i], thetas,
                                                        coordinate_system =
                                                        coordinate_system,
                                                        phis = phis)
             i_loop = mie.diff_scat_intensity_complex_medium(m[i], x[i],
-                                                            self.thetas,
+                                                            thetas,
                                                             kd[i],
                                                             coordinate_system =
                                                             coordinate_system,
                                                             phis = phis)
 
+            integral_loop = mie.integrate_intensity_complex_medium(*i_loop, d,
+                        thetas, k[i], phi_min = Quantity(0.0, 'rad'),
+                        phi_max = Quantity(2*np.pi, 'rad'),
+                        coordinate_system = coordinate_system, phis = phis)
+
             S1[i], S2[i], S3[i], S4[i] = mat_loop
             amp0[i], amp1[i] = vsa_loop
             i1[i], i2[i] = i_loop
+            # can't assign using tuple notation because pint will confuse numpy
+            # by trying to assign units to each element, so we have to take
+            # the magnitudes here
+            units = integral_loop[0].units
+            sigma[i] = integral_loop[0].magnitude
+            sigma_1[i] = integral_loop[1].magnitude
+            sigma_2[i] = integral_loop[2].magnitude
+            dsigma_1[i] = integral_loop[3].magnitude
+            dsigma_2[i] = integral_loop[4].magnitude
 
         assert_equal(mat[0], S1.squeeze())
         assert_equal(mat[1], S2.squeeze())
@@ -590,6 +615,12 @@ class TestVectorizedInternalFunctions():
 
         assert_equal(i12[0], i1.squeeze())
         assert_equal(i12[1], i2.squeeze())
+
+        assert_equal(integral[0].magnitude, sigma.squeeze())
+        assert_equal(integral[1].magnitude, sigma_1.squeeze())
+        assert_equal(integral[2].magnitude, sigma_2.squeeze())
+        assert_equal(integral[3].magnitude, dsigma_1.squeeze())
+        assert_equal(integral[4].magnitude, dsigma_2.squeeze())
 
 
 class TestVectorizedUserFunctions():
@@ -616,7 +647,7 @@ class TestVectorizedUserFunctions():
     calc_dwell_time() :
         * vectorization not yet tested
     calc_reflectance() :
-        * vectorization not yet tested
+        tested by test_vectorized_calc_reflectance()
 
     """
     mxargs = {"start_wavelen": 400,
