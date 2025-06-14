@@ -363,23 +363,25 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
     m = index_ratio(n_particle, n_medium)
     x = size_parameter(wavelen, n_medium, radius)
     wavelen_media = wavelen/n_medium
-    geometric_cross_sec = np.pi*radius**2
+    # geometric cross section is defined by outermost radius
+    if np.isscalar(radius):
+        rmax = radius
+    else:
+        rmax = radius.max()
+    geometric_cross_sec = np.pi*rmax**2
 
     thetas = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
-
     # calculate reflectance cross section
     if np.any(np.imag(x) > 0):
-        angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
-        distance = radius.max()
-        k = np.atleast_1d(2*np.pi/wavelen_media)[:, np.newaxis]
+        distance = rmax
+        k = np.atleast_1d(2*np.pi/wavelen_media)
         (diff_cscat_par,
          diff_cscat_perp) = diff_scat_intensity_complex_medium(m, x, thetas,
                                                                k*distance)
         refl_cscat = integrate_intensity_complex_medium(diff_cscat_par,
                                                         diff_cscat_perp,
-                                                        distance, angles, k)[0]
+                                                        distance, thetas, k)[0]
     else:
-
         refl_cscat = calc_integrated_cross_section(m, x, wavelen_media,
                                                    thetas)
 

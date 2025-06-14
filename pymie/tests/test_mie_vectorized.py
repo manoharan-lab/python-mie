@@ -847,24 +847,28 @@ class TestVectorizedUserFunctions():
         assert_allclose(form_factor_RG, form_factor_mie, rtol=1e-1)
 
     @pytest.mark.parametrize("n_medium",
-                             [1.33, pytest.param(1.33+0.1j,
-                                                 marks = pytest.mark.xfail)])
-    def test_vectorized_calc_reflectance(self, n_medium):
+                             [1.33, pytest.param(1.33+0.1j)])
+    @pytest.mark.parametrize("num_wavelen, num_layer",
+                             [(10, 1), (1, 5), (10, 5)])
+    def test_vectorized_calc_reflectance(self, n_medium, num_wavelen,
+                                         num_layer):
         """Tests that vectorized calc_reflectance() returns same result as
         loop.
 
         """
-        radius = Quantity(0.150, 'um')
-        num_wavelen = 10
-        wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
-        n_particle = Quantity(1.59, '')
+        m, x, wavelen, radius, n_particle, n_matrix = \
+            mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs,
+               return_all=True)
         n_medium = Quantity(n_medium, '')
         refl = mie.calc_reflectance(radius, n_medium, n_particle, wavelen)
 
         refl_loop = np.zeros(num_wavelen, dtype=complex)
+        wavelen = np.atleast_1d(wavelen)
+        n_particle = np.atleast_1d(n_particle)
         for i in range(num_wavelen):
-            reflectance = mie.calc_reflectance(radius, n_medium, n_particle,
+            reflectance = mie.calc_reflectance(radius, n_medium, n_particle[i],
                                                wavelen[i]).magnitude
             refl_loop[i] = reflectance
-        assert_equal(refl.magnitude, refl_loop)
+
+        assert_allclose(refl.magnitude, refl_loop, rtol=1e-14)
         assert refl.units == 1/wavelen.units**2
