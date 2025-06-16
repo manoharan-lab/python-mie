@@ -491,6 +491,72 @@ class TestVectorizedInternalFunctions():
 
                 assert_equal(coeffs, coeffs_loop)
 
+    @pytest.mark.parametrize("num_wavelen", [1, 10])
+    def test_vectorized_cross_sections_complex_medium(self, num_wavelen):
+        """
+        Test the vectorized versions of the (Fu, Sun) and (Sudiarta, Chylek)
+        solutions for the cross-sections in absorbing medium:
+            mie._cross_sections_complex_medium_fu()
+            mie._cross_sections_complex_medium_sudiarta()
+        Note that these functions should work only for non-layered particles.
+        """
+        m, x, wavelen, radius, n_particle, n_matrix = \
+            mx(num_wavelen=num_wavelen, num_layer=1, **self.mxargs,
+               return_all=True)
+        m = np.atleast_1d(m)
+        x = np.atleast_1d(x)
+        nstop = mie._nstop(x.max())
+
+        # Calculate coefficients. For the Fu solution, the internal
+        # coefficiences cl and dl are needed for the calculation of the
+        # absorption and extinction cross sections.
+        al, bl = mie._scatcoeffs(m, x, nstop)
+        cl, dl = mie._internal_coeffs(m, x, nstop)
+
+        c_sudiarta = mie._cross_sections_complex_medium_sudiarta(al, bl,
+                                                                 x, radius)
+
+        # # With Fu
+        x_scat = size_parameter(wavelen, n_particle, radius)
+        c_fu = mie._cross_sections_complex_medium_fu(al, bl, cl, dl, radius,
+                                                     n_particle, n_matrix,
+                                                     x_scat, x, wavelen)
+
+        c_sud_sca = np.zeros(num_wavelen)
+        c_sud_abs = np.zeros_like(c_sud_sca)
+        c_sud_ext = np.zeros_like(c_sud_sca)
+        c_fu_sca = np.zeros(num_wavelen)
+        c_fu_abs = np.zeros_like(c_fu_sca)
+        c_fu_ext = np.zeros_like(c_fu_sca)
+        wavelen = np.atleast_1d(wavelen)
+        al = np.reshape(al, (num_wavelen, al.shape[-1]))
+        bl = np.reshape(bl, (num_wavelen, bl.shape[-1]))
+        cl = np.reshape(cl, (num_wavelen, cl.shape[-1]))
+        dl = np.reshape(dl, (num_wavelen, dl.shape[-1]))
+        for i in range(num_wavelen):
+            c_sud_loop = \
+                mie._cross_sections_complex_medium_sudiarta(al[i], bl[i], x[i],
+                                                            radius)
+            c_sud_sca[i] = c_sud_loop[0].magnitude
+            c_sud_abs[i] = c_sud_loop[1].magnitude
+            c_sud_ext[i] = c_sud_loop[2].magnitude
+
+            x_scat = size_parameter(wavelen[i], n_particle[i], radius)
+            c_fu_loop = \
+                mie._cross_sections_complex_medium_fu(al[i], bl[i], cl[i],
+                                                      dl[i], radius,
+                                                      n_particle[i],
+                                                      n_matrix,
+                                                      x_scat, x[i],
+                                                      wavelen[i])
+            c_fu_sca[i] = c_fu_loop[0].magnitude
+            c_fu_abs[i] = c_fu_loop[1].magnitude
+            c_fu_ext[i] = c_fu_loop[2].magnitude
+
+        assert_equal(c_fu[0].magnitude, c_fu_sca)
+        assert_equal(c_fu[1].magnitude, c_fu_abs)
+        assert_equal(c_fu[2].magnitude, c_fu_ext)
+
     @pytest.mark.parametrize("num_wavelen,num_layer",
                              [(1, 1), (10, 1), (1, 5), (10, 5)])
     @pytest.mark.parametrize("coordinate_system", ["scattering plane",

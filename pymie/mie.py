@@ -792,6 +792,10 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     in an absorbing medium". Applied Optics, 40, 9 (2001).
 
     '''
+    # ensure broadcasting will work correctly
+    num_wavelen = np.atleast_1d(wavelen).shape[0]
+    wavelen = np.reshape(wavelen, (num_wavelen, 1))
+
     # if the imaginary part of the medium index is close to 0, then use the
     # limit value of prefactor1 for the calculations
     if n_medium.imag.magnitude <= 1e-7:
@@ -801,9 +805,9 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
         prefactor1 = eta**2 * wavelen / (2*np.pi*radius**2*n_medium.real*
                                         (1+(eta-1)*np.exp(eta)))
 
-    lmax = al.shape[-1]
+    lmax = np.atleast_1d(al).shape[-1]
     l = np.arange(lmax) + 1
-    prefactor2 = (2. * l + 1.)
+    prefactor2 = (2. * l + 1.)[np.newaxis, ...]
 
     # calculate the scattering efficiency
     _, xi = mie_specfuncs.riccati_psi_xi(x_medium, lmax)
@@ -815,7 +819,7 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     Bn = (np.abs(al)**2 * (xishift - l*xi/x_medium) * np.conj(xi) -
           np.abs(bl)**2 * xi *
           np.conj(xishift -  l*xi/x_medium)) / (2*np.pi*n_medium/wavelen)
-    Qscat = prefactor1 * np.sum(prefactor2 * Bn.imag, axis=-1)
+    Qscat = prefactor1 * np.sum(prefactor2 * Bn.imag, axis=-1)[..., np.newaxis]
 
     # calculate the absorption and extinction efficiencies
     psi, _ = mie_specfuncs.riccati_psi_xi(x_scatterer, lmax)
@@ -827,15 +831,16 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     An = (np.abs(cl)**2 * psi * np.conj(psishift - l*psi/x_scatterer) -
           np.abs(dl)**2 * (psishift - l*psi/x_scatterer)*
           np.conj(psi)) / (2*np.pi*n_particle/wavelen)
-    Qabs = prefactor1 * np.sum(prefactor2 * An.imag, axis=-1)
-    Qext = prefactor1 * np.sum(prefactor2 * (An+Bn).imag, axis=-1)
+    Qabs = prefactor1 * np.sum(prefactor2 * An.imag, axis=-1)[..., np.newaxis]
+    Qext = (prefactor1 *
+            np.sum(prefactor2 * (An+Bn).imag, axis=-1)[..., np.newaxis])
 
     # calculate the cross sections
     Cscat = Qscat *np.pi * radius**2
     Cabs = Qabs *np.pi * radius**2
     Cext = Qext *np.pi * radius**2
 
-    return(Cscat, Cabs, Cext)
+    return(Cscat.squeeze(), Cabs.squeeze(), Cext.squeeze())
 
 def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     '''
@@ -857,13 +862,13 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     x = np.array(x).max()
 
     k = x/radius
-    lmax = al.shape[-1]
+    lmax = np.atleast_1d(al).shape[-1]
     l = np.arange(lmax) + 1
     prefactor = (2. * l + 1.)
 
     # if the imaginary part of k is close to 0 (because the medium index is
     # close to 0), then use the limit value of factor for the calculations
-    if k.imag.magnitude <= 1e-8:
+    if k.imag.to('1/nm').magnitude <= 1e-8:
         factor = 1/2
     else:
         exponent = np.exp(2*radius*k.imag)
