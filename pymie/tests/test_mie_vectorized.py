@@ -577,6 +577,12 @@ class TestVectorizedInternalFunctions():
             assert_equal(c_fu[1].magnitude, c_fu_abs)
             assert_equal(c_fu[2].magnitude, c_fu_ext)
 
+            # also check that the Fu and Sudiarta cross sections agree for both
+            # real and complex matrix indices
+            for i in range(len(c_fu)):
+                assert_allclose(c_fu[i].magnitude, c_sudiarta[i].magnitude,
+                                rtol=1e-10)
+
     @pytest.mark.parametrize("num_wavelen,num_layer",
                              [(1, 1), (10, 1), (1, 5), (10, 5)])
     @pytest.mark.parametrize("coordinate_system", ["scattering plane",

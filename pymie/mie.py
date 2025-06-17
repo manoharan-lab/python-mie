@@ -898,7 +898,8 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     term1 = (-1j * np.abs(al)**2 *xideriv * np.conj(xi) +
               1j* np.abs(bl)**2 * xi * np.conj(xideriv))
 
-    numer1 = (np.sum(prefactor * term1, axis=-1)[..., np.newaxis] * k).real
+    numer1 = (np.sum(prefactor * term1, axis=-1)[..., np.newaxis]
+              * np.conj(k)).real
     Cscat = np.pi / np.abs(k)**2 * numer1 / I_denom
 
     # calculate the absorption cross section from eq 7 of Sudiarta and Chylek
@@ -907,14 +908,16 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
              1j*np.abs(al)**2*xideriv*np.conj(xi) -
              1j*np.abs(bl)**2*xi*np.conj(xideriv) -
              1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
-    numer2 = (np.sum(prefactor * term2, axis=-1)[..., np.newaxis] * k).real
+    numer2 = (np.sum(prefactor * term2, axis=-1)[..., np.newaxis]
+              * np.conj(k)).real
     Cabs = np.pi / np.abs(k)**2 * numer2 / I_denom
 
     # calculate the extinction cross section from eq 8 of Sudiarta and Chylek
     term3 = (1j*np.conj(psi)*psideriv - 1j*psi*np.conj(psideriv) +
              1j*bl*np.conj(psideriv)*xi + 1j*np.conj(bl)*psi*np.conj(xideriv) -
              1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
-    numer3 = (np.sum(prefactor * term3, axis=-1)[..., np.newaxis] * k).real
+    numer3 = (np.sum(prefactor * term3, axis=-1)[..., np.newaxis]
+              * np.conj(k)).real
     Cext = np.pi / np.abs(k)**2 * numer3 / I_denom
 
     return(Cscat.squeeze(), Cabs.squeeze(), Cext.squeeze())
