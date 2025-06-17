@@ -374,9 +374,9 @@ class TestVectorizedInternalFunctions():
         `test_vectorized_cross_sections()`, which tests the user-facing
         function for calculating cross-sections
     _cross_sections_complex_medium_fu() :
-        * vectorization not yet tested
+        tested by `test_vectorized_cross_sections_complex_medium()`
     _cross_sections_complex_medium_sudiarta() :
-        * vectorization not yet tested
+        tested by `test_vectorized_cross_sections_complex_medium()`
     _scat_fields_complex_medium() :
         * vectorization not yet tested
     diff_scat_intensity_complex_medium() :
