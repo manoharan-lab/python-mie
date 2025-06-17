@@ -858,59 +858,66 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     (2001).
 
     '''
+    # if multilayer, use outermost radius and size parameter corresponding to
+    # outermost radius
     radius = np.array(radius.magnitude).max() * radius.units
-    x = np.array(x).max()
+    x = np.array(x).max(axis=-1)[..., np.newaxis]
 
     k = x/radius
     lmax = np.atleast_1d(al).shape[-1]
     l = np.arange(lmax) + 1
-    prefactor = (2. * l + 1.)
+    prefactor = (2. * l + 1.)[np.newaxis, ...]
 
     # if the imaginary part of k is close to 0 (because the medium index is
     # close to 0), then use the limit value of factor for the calculations
-    if k.imag.to('1/nm').magnitude <= 1e-8:
-        factor = 1/2
-    else:
-        exponent = np.exp(2*radius*k.imag)
-        factor = (exponent/(2*radius*k.imag)+(1-exponent)/(2*radius*k.imag)**2)
+    # (see eq 10 of Sudiarta and Chylek for I_denom; the cross-section is
+    # calculated from W/I_denom)
+    factor_limit = 1/2
+    exponent = np.exp(2*radius*k.imag)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        factor = np.where(k.imag <= Quantity(1e-8, '1/nm'), factor_limit,
+                          (exponent/(2*radius*k.imag) +
+                           (1-exponent)/(2*radius*k.imag)**2))
     I_denom = k.real * factor
 
-    _, xi = mie_specfuncs.riccati_psi_xi(x, lmax)
-    xishift = np.concatenate((np.zeros(1), xi))[0:lmax+1]
-    xi = xi[1:]
-    xishift = xishift[1:]
+    psi, xi = mie_specfuncs.riccati_psi_xi(x, lmax)
+
+    xishift = np.insert(xi, 0,
+                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    xi = xi[..., 1:]
+    xishift = xishift[..., 1:]
     xideriv = xishift - l*xi/x
 
-    psi, _ = mie_specfuncs.riccati_psi_xi(x, lmax)
-    psishift = np.concatenate((np.zeros(1), psi))[0:lmax+1]
-    psi = psi[1:]
-    psishift = psishift[1:]
+    psishift = np.insert(psi, 0,
+                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    psi = psi[..., 1:]
+    psishift = psishift[..., 1:]
     psideriv = psishift - l*psi/x
 
-    # calculate the scattering cross section
+    # calculate the scattering cross section from eq 5 of Sudiarta and Chylek
     term1 = (-1j * np.abs(al)**2 *xideriv * np.conj(xi) +
               1j* np.abs(bl)**2 * xi * np.conj(xideriv))
 
-    numer1 = (np.sum(prefactor * term1) * k).real
+    numer1 = (np.sum(prefactor * term1, axis=-1)[..., np.newaxis] * k).real
     Cscat = np.pi / np.abs(k)**2 * numer1 / I_denom
 
-    # calculate the absorption cross section
+    # calculate the absorption cross section from eq 7 of Sudiarta and Chylek
     term2 = (1j*np.conj(psi)*psideriv - 1j*psi*np.conj(psideriv) +
              1j*bl*np.conj(psideriv)*xi + 1j*np.conj(bl)*psi*np.conj(xideriv) +
              1j*np.abs(al)**2*xideriv*np.conj(xi) -
              1j*np.abs(bl)**2*xi*np.conj(xideriv) -
              1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
-    numer2 = (np.sum(prefactor * term2) * k).real
+    numer2 = (np.sum(prefactor * term2, axis=-1)[..., np.newaxis] * k).real
     Cabs = np.pi / np.abs(k)**2 * numer2 / I_denom
 
-    # calculate the extinction cross section
+    # calculate the extinction cross section from eq 8 of Sudiarta and Chylek
     term3 = (1j*np.conj(psi)*psideriv - 1j*psi*np.conj(psideriv) +
              1j*bl*np.conj(psideriv)*xi + 1j*np.conj(bl)*psi*np.conj(xideriv) -
              1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
-    numer3 = (np.sum(prefactor * term3) * k).real
+    numer3 = (np.sum(prefactor * term3, axis=-1)[..., np.newaxis] * k).real
     Cext = np.pi / np.abs(k)**2 * numer3 / I_denom
 
-    return(Cscat, Cabs, Cext)
+    return(Cscat.squeeze(), Cabs.squeeze(), Cext.squeeze())
 
 
 def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):

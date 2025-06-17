@@ -491,18 +491,28 @@ class TestVectorizedInternalFunctions():
 
                 assert_equal(coeffs, coeffs_loop)
 
-    @pytest.mark.parametrize("num_wavelen", [1, 10])
-    def test_vectorized_cross_sections_complex_medium(self, num_wavelen):
+    @pytest.mark.parametrize("n_matrix",
+                             [1.33, pytest.param(1.33+0.001j),
+                              pytest.param(1.33+0.1j)])
+    @pytest.mark.parametrize("num_wavelen,num_layer",
+                             [(1, 1), (10, 1), (1, 5), (10, 5)])
+    def test_vectorized_cross_sections_complex_medium(self, num_wavelen,
+                                                      num_layer, n_matrix):
         """
         Test the vectorized versions of the (Fu, Sun) and (Sudiarta, Chylek)
         solutions for the cross-sections in absorbing medium:
             mie._cross_sections_complex_medium_fu()
             mie._cross_sections_complex_medium_sudiarta()
-        Note that these functions should work only for non-layered particles.
+        Note that these functions should work properly only for non-layered
+        particles, but we test that the Sudiarta function runs anyway for
+        layered spheres (it will take the largest radius).
         """
+        mxargs = self.mxargs.copy()
+        mxargs['n_matrix'] = n_matrix
         m, x, wavelen, radius, n_particle, n_matrix = \
-            mx(num_wavelen=num_wavelen, num_layer=1, **self.mxargs,
+            mx(num_wavelen=num_wavelen, num_layer=num_layer, **mxargs,
                return_all=True)
+
         m = np.atleast_1d(m)
         x = np.atleast_1d(x)
         nstop = mie._nstop(x.max())
@@ -511,16 +521,17 @@ class TestVectorizedInternalFunctions():
         # coefficiences cl and dl are needed for the calculation of the
         # absorption and extinction cross sections.
         al, bl = mie._scatcoeffs(m, x, nstop)
-        cl, dl = mie._internal_coeffs(m, x, nstop)
+        if num_layer == 1:
+            x_scat = size_parameter(wavelen, n_particle, radius)
+            cl, dl = mie._internal_coeffs(m, x, nstop)
+            c_fu = mie._cross_sections_complex_medium_fu(al, bl, cl, dl,
+                                                         radius, n_particle,
+                                                         n_matrix, x_scat, x,
+                                                         wavelen)
 
         c_sudiarta = mie._cross_sections_complex_medium_sudiarta(al, bl,
                                                                  x, radius)
 
-        # # With Fu
-        x_scat = size_parameter(wavelen, n_particle, radius)
-        c_fu = mie._cross_sections_complex_medium_fu(al, bl, cl, dl, radius,
-                                                     n_particle, n_matrix,
-                                                     x_scat, x, wavelen)
 
         c_sud_sca = np.zeros(num_wavelen)
         c_sud_abs = np.zeros_like(c_sud_sca)
@@ -531,8 +542,9 @@ class TestVectorizedInternalFunctions():
         wavelen = np.atleast_1d(wavelen)
         al = np.reshape(al, (num_wavelen, al.shape[-1]))
         bl = np.reshape(bl, (num_wavelen, bl.shape[-1]))
-        cl = np.reshape(cl, (num_wavelen, cl.shape[-1]))
-        dl = np.reshape(dl, (num_wavelen, dl.shape[-1]))
+        if num_layer == 1:
+            cl = np.reshape(cl, (num_wavelen, cl.shape[-1]))
+            dl = np.reshape(dl, (num_wavelen, dl.shape[-1]))
         for i in range(num_wavelen):
             c_sud_loop = \
                 mie._cross_sections_complex_medium_sudiarta(al[i], bl[i], x[i],
@@ -542,20 +554,28 @@ class TestVectorizedInternalFunctions():
             c_sud_ext[i] = c_sud_loop[2].magnitude
 
             x_scat = size_parameter(wavelen[i], n_particle[i], radius)
-            c_fu_loop = \
-                mie._cross_sections_complex_medium_fu(al[i], bl[i], cl[i],
-                                                      dl[i], radius,
-                                                      n_particle[i],
-                                                      n_matrix,
-                                                      x_scat, x[i],
-                                                      wavelen[i])
-            c_fu_sca[i] = c_fu_loop[0].magnitude
-            c_fu_abs[i] = c_fu_loop[1].magnitude
-            c_fu_ext[i] = c_fu_loop[2].magnitude
+            if num_layer == 1:
+                c_fu_loop = \
+                    mie._cross_sections_complex_medium_fu(al[i], bl[i], cl[i],
+                                                          dl[i], radius,
+                                                          n_particle[i],
+                                                          n_matrix,
+                                                          x_scat, x[i],
+                                                          wavelen[i])
+                c_fu_sca[i] = c_fu_loop[0].magnitude
+                c_fu_abs[i] = c_fu_loop[1].magnitude
+                c_fu_ext[i] = c_fu_loop[2].magnitude
 
-        assert_equal(c_fu[0].magnitude, c_fu_sca)
-        assert_equal(c_fu[1].magnitude, c_fu_abs)
-        assert_equal(c_fu[2].magnitude, c_fu_ext)
+
+        # the loop calculations might differ at the 1e-15 level for Sudiarta
+        rtol = 1e-15
+        assert_allclose(c_sudiarta[0].magnitude, c_sud_sca, rtol=rtol)
+        assert_allclose(c_sudiarta[1].magnitude, c_sud_abs, rtol=rtol)
+        assert_allclose(c_sudiarta[2].magnitude, c_sud_ext, rtol=rtol)
+        if num_layer == 1:
+            assert_equal(c_fu[0].magnitude, c_fu_sca)
+            assert_equal(c_fu[1].magnitude, c_fu_abs)
+            assert_equal(c_fu[2].magnitude, c_fu_ext)
 
     @pytest.mark.parametrize("num_wavelen,num_layer",
                              [(1, 1), (10, 1), (1, 5), (10, 5)])
