@@ -47,6 +47,7 @@ jobs:
       with:
         environment-file: environment.yml
         miniforge-version: latest
+        conda-remove-defaults: "true"
     - name: Install plugin to annotate test results
       run: pip install pytest-github-actions-annotate-failures
     - name: Test with pytest
