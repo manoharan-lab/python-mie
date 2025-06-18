@@ -1,7 +1,7 @@
-# dependencies for structural color package
+# dependencies for pymie package
 #
 # To use:
-#   conda env create -f .\environment.yml
+#   conda env create -f environment.yml
 # and then
 #   conda activate pymie
 #
