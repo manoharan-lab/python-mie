@@ -1,3 +1,28 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pymie"
+version = "0.2"
+description = "Pure Python package for Mie scattering calculations"
+readme = "README.md"
+authors = [
+    { name = "Manoharan Lab, Harvard University", email = "vnm@seas.harvard.edu" },
+]
+dependencies = [
+    "numpy",
+    "pint",
+    "scipy",
+    # pytest and pyyaml are needed for running unit tests
+    "pytest",
+    "pyyaml",
+]
+license-files = ["LICENSE",]
+
+[project.urls]
+Homepage = "https://github.com/manoharan-lab/python-mie"
+
 # convert all warnings to errors
 [tool.pytest.ini_options]
 filterwarnings = [
@@ -24,3 +49,6 @@ select = [
 # Ignore "ambiguous variable name" when we use "l" as a variable in Mie
 # calculations
 "pymie/mie.py" = ["E741"]
+
+[tool.setuptools.packages.find]
+include = ["pymie"]
