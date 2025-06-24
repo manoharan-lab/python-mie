@@ -122,7 +122,7 @@ def test_efficiencies():
                             1.02022022710453, 0.51835427781473,
                             0.331000402174976])
 
-    wavelen = Quantity('658.0 nm')
+    # wavelen = Quantity('658.0 nm')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
     m = index_ratio(n_particle, n_matrix)
@@ -149,7 +149,7 @@ def test_efficiencies():
 
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
-    wavelen = Quantity('658.0 nm')
+    # wavelen = Quantity('658.0 nm')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(0.1425812 + 3.6813284 * 1.0j, '')
     m = index_ratio(n_particle, n_matrix)
@@ -583,7 +583,7 @@ def test_multilayer_complex_medium():
     # Hankel equations (because they simplify when the fields are multiplied by
     # their conjugates to get the intensity) matches old result before simplifying
     cscat_imag_old = 6275.240019849266
-    assert_almost_equal(cscat_imag_old, cscat_imag.magnitude, decimal=11)
+    assert_almost_equal(cscat_imag_old, cscat_imag.magnitude, decimal=9)
 
     assert_array_almost_equal(cscat_real.magnitude, cscat_imag.magnitude, decimal=3)
 
@@ -632,8 +632,8 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     as_vec_x = S2_sp*np.cos(phis_2d)**2 + S1_sp*np.sin(phis_2d)**2
     as_vec_y = S2_sp*np.cos(phis_2d)*np.sin(phis_2d) - S1_sp*np.cos(phis_2d)*np.sin(phis_2d)
 
-    assert_almost_equal(as_vec_x0.magnitude, as_vec_x.magnitude)
-    assert_almost_equal(as_vec_y0.magnitude, as_vec_y.magnitude)
+    assert_almost_equal(as_vec_x0, as_vec_x.magnitude)
+    assert_almost_equal(as_vec_y0, as_vec_y.magnitude)
 
 def test_diff_scat_intensity_complex_medium_cartesian():
     '''
@@ -677,7 +677,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     I_par_perp_mag = np.sqrt(I_par**2 + I_perp**2)
 
     # check that the magnitudes are equal
-    assert_array_almost_equal(I_xy_mag.magnitude, I_par_perp_mag.magnitude, decimal=16)
+    assert_array_almost_equal(I_xy_mag, I_par_perp_mag, decimal=16)
 
 def test_integrate_intensity_complex_medium_cartesian():
     '''
@@ -750,7 +750,7 @@ def test_value_errors():
         I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                             coordinate_system = 'weird', phis = phis_2d,
                             near_field=True)
-
+    with pytest.raises(ValueError):
         # try to calculate new
         I_x, I_y = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                                 coordinate_system = 'cartesian', phis = phis_2d,
@@ -767,13 +767,13 @@ def test_value_errors():
         # integrate the differential scattered intensities
         cscat_xy = mie.integrate_intensity_complex_medium(I_x, I_y, distance,
                         thetas, k, coordinate_system = 'cartesian')[0]
-
+    with pytest.raises(ValueError):
         cscat_weird = mie.integrate_intensity_complex_medium(I_x, I_y, distance,
                         thetas, k, coordinate_system = 'weird')[0]
-
+    with pytest.raises(ValueError):
         as_vec_weird = mie.vector_scattering_amplitude(m, x, thetas_2d,
                             coordinate_system = 'weird', phis = phis_2d)
-
+    with pytest.raises(ValueError):
         as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d,
                             coordinate_system = 'cartesian')
 

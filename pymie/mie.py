@@ -21,23 +21,28 @@ Functions for Mie scattering calculations.
 
 Notes
 -----
-Based on miescatlib.py in holopy. Also includes some functions from Jerome's
-old miescat_1d.py library.
+Based on miescatlib.py in HoloPy, written by Jerome Fung. Also includes some
+functions from Jerome's old miescat_1d.py library and Jerome's multilayer
+scattering code, copied from HoloPy on 12 Sept 2017.
 
 Numerical stability not guaranteed for large nstop, so be careful when
 calculating very large size parameters. A better-tested (and faster) version of
 this code is in the HoloPy package (http://manoharan.seas.harvard.edu/holopy).
 
+Key reference for multilayer algorithm is [3]_
+
 References
 ----------
-[1] Bohren, C. F. and Huffman, D. R. ""Absorption and Scattering of Light by
+[1] Bohren, C. F. and Huffman, D. R. "Absorption and Scattering of Light by
 Small Particles" (1983)
 [2] Wiscombe, W. J. "Improved Mie Scattering Algorithms" Applied Optics 19, no.
 9 (1980): 1505. doi:10.1364/AO.19.001505
+[3] Yang, "Improved recursive algorithm for light scattering by a multilayered
+sphere," Applied Optics 42, 1710-1720 (2003).
 
-.. moduleauthor :: Jerome Fung <jerome.fung@gmail.com>
-.. moduleauthor :: Vinothan N. Manoharan <vnm@seas.harvard.edu>
-.. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>
+.. moduleauthor:: Jerome Fung <jerome.fung@gmail.com>
+.. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+.. moduleauthor:: Sofia Magkiriadou <sofia@physics.harvard.edu>
 """
 import warnings
 
@@ -47,7 +52,6 @@ from scipy.special import legendre_p_all
 from scipy.integrate import trapezoid
 
 from . import Quantity, index_ratio, mie_specfuncs
-from . import multilayer_sphere_lib as msl
 from . import size_parameter, ureg
 from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2  # default tolerances
 
@@ -63,15 +67,17 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
 
     Parameters
     ----------
-    m: complex particle relative refractive index, n_part/n_med
-    x: size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
-    angles: ndarray(structcol.Quantity [dimensionless])
+    m : complex or float, array-like
+        complex particle relative refractive index, n_part/n_med
+    x : complex or float, array-like
+        size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
+    angles : ndarray(structcol.Quantity [dimensionless])
         array of angles. Must be entered as a Quantity to allow specifying
         units (degrees or radians) explicitly
-    mie: Boolean (optional)
+    mie : Boolean (optional)
         if true (default) does full Mie calculation; if false, uses RG
         approximation
-    check: Boolean (optional)
+    check : Boolean (optional)
         if true, outputs scattering efficiencies
 
     Returns
@@ -89,20 +95,11 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     if isinstance(x, Quantity):
         x = x.to('').magnitude
 
-    #initialize arrays for holding ipar and iperp
-    ipar = np.array([])
-    iperp = np.array([])
-
     if mie:
         # Mie scattering preliminaries
         nstop = _nstop(np.array(x).max())
 
-        # if the index ratio m is an array with more than 1 element, it's a
-        # multilayer particle
-        if len(np.atleast_1d(m)) > 1:
-            coeffs = msl.scatcoeffs_multi(m, x)
-        else:
-            coeffs = _scatcoeffs(m, x, nstop)
+        coeffs = _scatcoeffs(m, x, nstop)
         n = np.arange(nstop)+1.
         prefactor = (2*n+1.)/(n*(n+1.))
 
@@ -168,16 +165,9 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
     where I_0 is the incident intensity.  See van de Hulst, p. 14.
     """
     # This is adapted from mie.py in holopy
-    # TODO take arrays for m and x to describe a multilayer sphere and return
-    # multilayer scattering coefficients
 
     lmax = _nstop(np.array(x).max())
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        albl = msl.scatcoeffs_multi(m, x, eps1=eps1, eps2=eps2)
-    else:
-        albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
+    albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
 
     cscat, cext, cback =  tuple(np.abs(wavelen_media)**2 * c/2/np.pi for c in
                                 _cross_sections(albl[0], albl[1]))
@@ -199,41 +189,37 @@ def calc_efficiencies(m, x):
     geometrical cross-section
     """
     nstop = _nstop(np.array(x).max())
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        coeffs = msl.scatcoeffs_multi(m, x)
-    else:
-        coeffs = _scatcoeffs(m, x, nstop)
+    coeffs = _scatcoeffs(m, x, nstop)
 
     cscat, cext, cback = _cross_sections(coeffs[0], coeffs[1])
 
-    qscat = cscat * 2./np.abs(x)**2
-    qext = cext * 2./np.abs(x)**2
-    qback = cback * 1./np.abs(x)**2
+    # for multilayer spheres, scale by the size parameter corresponding to
+    # outermost radius
+    x_outer = np.atleast_2d(x).max(axis=-1)[:, np.newaxis]
+    qscat = cscat[..., np.newaxis] * 2./np.abs(x_outer)**2
+    qext = cext[..., np.newaxis] * 2./np.abs(x_outer)**2
+    qback = cback[..., np.newaxis] * 1./np.abs(x_outer)**2
 
     # in order: scattering, extinction and backscattering efficiency
-    return qscat, qext, qback
+    return qscat.squeeze(), qext.squeeze(), qback.squeeze()
 
-def calc_g(m, x):
+def calc_g(m, x, nstop=None):
     """
     Asymmetry parameter
     """
-    nstop = _nstop(np.array(x).max())
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        coeffs = msl.scatcoeffs_multi(m, x)
-    else:
-        coeffs = _scatcoeffs(m, x, nstop)
+    if nstop is None:
+        nstop = _nstop(np.array(x).max())
+    coeffs = _scatcoeffs(m, x, nstop)
 
-    cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./np.array(x).max()**2
-    g = ((4./(np.array(x).max()**2 * cscat))
+    # for multilayer particle, need to scale by the x of the outermost layer
+    outer_x = np.array(x).max(axis=-1).squeeze()
+    cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./outer_x**2
+    g = ((4./(outer_x**2 * cscat))
          * _asymmetry_parameter(coeffs[0], coeffs[1]))
     return g
 
-@ureg.check(None, None, '[length]', ('[]','[]', '[]'))
-def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
+@ureg.check(None, None, '[length]', '[]')
+def calc_integrated_cross_section(m, x, wavelen_media, thetas):
     """
     Calculate (dimensional) integrated cross section using quadrature
 
@@ -243,22 +229,19 @@ def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
     x: size parameter
     wavelen_media: structcol.Quantity [length]
         wavelength of incident light *in media*
-    theta_range: tuple of structcol.Quantity [dimensionless]
-        first two elements specify the range of polar angles over which to
-        integrate the scattering. Last element specifies the number of angles.
+    thetas: array of structcol.Quantity [dimensionless]
+        polar angles over which to integrate the scattering
 
     Returns
     -------
     cross_section : float
         Dimensional integrated cross-section
     """
-    theta_min = theta_range[0].to('rad').magnitude
-    theta_max = theta_range[1].to('rad').magnitude
-    angles = Quantity(np.linspace(theta_min, theta_max, theta_range[2]), 'rad')
+    angles = thetas.to('rad')
     form_factor = calc_ang_dist(m, x, angles)
 
-    integrand_par = form_factor[0]*np.sin(angles)
-    integrand_perp = form_factor[1]*np.sin(angles)
+    integrand_par = (form_factor[0]*np.sin(angles)).magnitude
+    integrand_perp = (form_factor[1]*np.sin(angles)).magnitude
 
     # scipy.integrate.trapezoid does not yet preserve units, so we will remove
     # the units before calling and put them back afterward. Can simplify code
@@ -371,39 +354,39 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
 
     return dwell_time
 
+# TODO: document and test the correctness of this function, or delete (it is
+# not currently used anywhere)
+@ureg.check('[length]', '[]', '[]', '[length]', None, None)
 def calc_reflectance(radius, n_medium, n_particle, wavelen,
-                     min_angle=np.pi/2, num_angles=50,
-                     eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+                     min_angle=np.pi/2, num_angles=50):
 
     m = index_ratio(n_particle, n_medium)
     x = size_parameter(wavelen, n_medium, radius)
     wavelen_media = wavelen/n_medium
-    geometric_cross_sec = np.pi*radius**2
+    # geometric cross section is defined by outermost radius
+    if np.isscalar(radius):
+        rmax = radius
+    else:
+        rmax = radius.max()
+    geometric_cross_sec = np.pi*rmax**2
 
     thetas = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
-
     # calculate reflectance cross section
-    if np.imag(x)>0:
-        angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
-        distance = radius.max()
-        k = 2*np.pi/wavelen_media
+    if np.any(np.imag(x) > 0):
+        distance = rmax
+        k = np.atleast_1d(2*np.pi/wavelen_media)
         (diff_cscat_par,
-         diff_cscat_perp) = diff_scat_intensity_complex_medium(m,
-                                        x, thetas,
-                                        k*distance)
-
+         diff_cscat_perp) = diff_scat_intensity_complex_medium(m, x, thetas,
+                                                               k*distance)
         refl_cscat = integrate_intensity_complex_medium(diff_cscat_par,
-                                                   diff_cscat_perp,
-                                                   distance,
-                                                   angles, k)[0]
+                                                        diff_cscat_perp,
+                                                        distance, thetas, k)[0]
     else:
-
         refl_cscat = calc_integrated_cross_section(m, x, wavelen_media,
-                                                   (thetas[0], thetas[-1],
-                                                    num_angles))
+                                                   thetas)
 
-    reflectance = refl_cscat/geometric_cross_sec/wavelen_media.magnitude**2
-    reflectance = reflectance.magnitude
+    reflectance = ((refl_cscat/geometric_cross_sec).to('')
+                   / wavelen_media**2).squeeze()
 
     return reflectance
 
@@ -468,21 +451,151 @@ def _pis_and_taus(nstop, thetas):
     return pis[...,1:nstop+1], taus[...,1:nstop+1]
 
 def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+    # index ratio should be specified as a 2D array with shape
+    # [num_values, num_layers] to calculate over a set of different values,
+    # such as wavelengths. If specified as a 1D array, shape is [num_layers].
+    if np.atleast_2d(m).shape[-1] > 1:
+        return _scatcoeffs_multi(m, x)
+
+    # Scattering coefficients for single-layer particles.
     # see B/H eqn 4.88
     # implement criterion used by BHMIE plus a couple more orders to be safe
     # nmx = np.array([nstop, np.round(np.absolute(m*x))]).max() + 20
     # Dnmx = mie_specfuncs.log_der_1(m*x, nmx, nstop)
     # above replaced with Lentz algorithm
-    Dnmx = mie_specfuncs.dn_1_down(m * x, nstop + 1, nstop,
-                                   mie_specfuncs.lentz_dn1(m * x, nstop + 1,
+    z = np.atleast_1d(m * x).squeeze()
+    Dnmx = mie_specfuncs.dn_1_down(z, nstop + 1, nstop,
+                                   mie_specfuncs.lentz_dn1(z, nstop + 1,
                                                            eps1, eps2))
     n = np.arange(nstop+1)
+    x = np.atleast_2d(x)
     psi, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
-    psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
-    xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
+
+    # insert zeroes at the beginning of second axis (order axis)
+    psishift = np.pad(psi, ((0,), (1,)))[:, 0:nstop+1]
+    xishift = np.pad(xi, ((0,), (1,)))[:, 0:nstop+1]
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
-    return np.array([an[1:nstop+1], bn[1:nstop+1]]) # output begins at n=1
+
+    # coefficient array has shape [2, num_values, nstop] or [2, nstop] if
+    # only one value (only one wavelength, for example)
+    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]]).squeeze()
+
+def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
+    '''Calculate scattered field expansion coefficients (in the Mie formalism)
+    for a particle with an arbitrary number of spherically symmetric layers
+    with different refractive indices.
+
+    Parameters
+    ----------
+    marray : array_like, complex128
+        array of layer indexes, innermost first.  If specified as a 2D array,
+        axis=0 corresponds to the values over which to vectorize (e.g.
+        wavelengths), and axis=1 corresponds to the layer indexes
+    xarray : array_like, real
+        array of layer size parameters (k * outer radius), innermost first.  If
+        specified as a 2D array, axis=0 corresponds to the values over which to
+        vectorize and axis=1 corresponds to the layer size parameters.
+    nstop : int
+        maximum order.  If not specified, uses largest value of x to determine
+    eps1 : float, optional
+        underflow criterion for Lentz continued fraction for Dn1
+    eps2 : float, optional
+        convergence criterion for Lentz continued fraction for Dn1
+
+    Returns
+    -------
+    scat_coeffs : ndarray (complex)
+        Scattering coefficients
+
+    '''
+    # ensure correct data types and shapes
+    marray = np.atleast_2d(marray).astype(complex)
+    xarray = np.atleast_2d(xarray).astype(complex)
+
+    # sanity check: marray and xarray must be same size
+    if marray.size != xarray.size:
+        raise ValueError("Arrays of layer indices and size parameters must "
+                         "have the same dimensions")
+
+    # need number of layers L
+    nlayers = marray.shape[-1]
+
+    # calculate nstop based on largest radius
+    if nstop is None:
+        nstop = _nstop(xarray.max())
+
+    # initialize H_n^a and H_n^b in the core, see eqns. 12a and 13a
+    intl = mie_specfuncs.log_der_13(marray[..., 0] * xarray[..., 0],
+                                    nstop, eps1, eps2)[0]
+    hans = intl
+    hbns = intl
+
+    # m_l x_{l-1}
+    z1 = marray[..., 1:] * xarray[..., :-1]
+    # # m_l x_l
+    z2 = marray[..., 1:] * xarray[..., 1:]
+
+    # pre-calculate logarithmic derivatives for all layers
+    derz1s = mie_specfuncs.log_der_13(z1, nstop, eps1, eps2)
+    derz2s = mie_specfuncs.log_der_13(z2, nstop, eps1, eps2)
+
+    # pre-calculate ratio Q_n^l for all layers
+    Qnl_arr = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s,
+                                   dns2 = derz2s, eps1 = eps1, eps2 = eps2)
+
+    # lay is l-1 (index on layers used by Yang)
+    for lay in np.arange(1, nlayers):
+        m = marray[..., lay]
+        mm1 = marray[..., lay-1]
+
+        # calculate logarithmic derivatives D_n^1 and D_n^3
+        dz1s0, dz1s1 = derz1s[0][:, lay-1], derz1s[1][:, lay-1]
+        dz2s0, dz2s1 = derz2s[0][:, lay-1], derz2s[1][:, lay-1]
+
+        # calculate G1, G2, Gtilde1, Gtilde2 according to
+        # eqns 26-29
+        # using H^a_n and H^b_n from previous layer
+        G1 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*dz1s0
+        G2 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*dz1s1
+        Gt1 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*dz1s0
+        Gt2 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*dz1s1
+
+        # calculate ratio Q_n^l for this layer
+        Qnl = Qnl_arr[:, lay-1]
+
+        # now calculate H^a_n and H^b_n in current layer
+        # see eqns 24 and 25
+        hans = (G2*dz2s0 - Qnl*G1*dz2s1) / (G2 - Qnl*G1)
+        hbns = (Gt2*dz2s0 - Qnl*Gt1*dz2s1) / (Gt2 - Qnl*Gt1)
+        # repeat for next layer
+
+    # Relate H^a and H^b in the outer layer to the Mie scat coeffs
+    # see Yang eqns 14 and 15
+    #
+    # n = 0 to nstop
+    # (below we vectorize over the first dimension of xarray; we calculate the
+    # max x over layers for each value of the first dimension)
+    psiandxi = mie_specfuncs.riccati_psi_xi(xarray.max(axis=1)[:, np.newaxis],
+                                            nstop)
+    n = np.arange(nstop+1)
+    psi = psiandxi[0]
+    xi = psiandxi[1]
+    # this doesn't bother to calculate psi/xi_{-1} correctly,
+    # but OK since we're throwing out a_0, b_0 where it appears
+    psishift = np.insert(psi, 0,
+                         np.zeros(psi.shape[:-1]), axis=-1)[..., 0:nstop+1]
+    xishift = np.insert(xi, 0,
+                         np.zeros(xi.shape[:-1]), axis=-1)[..., 0:nstop+1]
+    mlast = marray[..., nlayers-1][:, np.newaxis]
+    xlast = xarray[..., nlayers-1][:, np.newaxis]
+    an = (((hans/mlast + n/xlast)*psi - psishift)
+          / ((hans/mlast + n/xlast)*xi - xishift))
+    bn = (((hbns*mlast + n/xlast)*psi- psishift)
+          / ((hbns*mlast + n/xlast)*xi - xishift))
+
+    # output begins at n=1
+    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]]).squeeze()
 
 def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
@@ -493,14 +606,25 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     have different conventions (labeling of c_n and d_n and factors of m)
     for their internal coefficients.
     '''
-    ratio = mie_specfuncs.R_psi(x, m * x, n_max, eps1, eps2)
+    if np.atleast_2d(x).shape[-1] > 1:
+        raise ValueError("Internal Mie coefficients cannot yet be calculated "
+                         "for layered sphere")
+
+    m = np.reshape(m, (np.size(m), 1)).astype(complex)
+    x = np.reshape(x, (np.size(x), 1)).astype(complex)
+    z = np.array(m * x)
+
+    ratio = mie_specfuncs.R_psi(x, z, n_max, eps1, eps2)
     D1x, D3x = mie_specfuncs.log_der_13(x, n_max, eps1, eps2)
-    D1mx = mie_specfuncs.dn_1_down(m * x, n_max + 1, n_max,
-                                   mie_specfuncs.lentz_dn1(m * x, n_max + 1,
+    D1mx = mie_specfuncs.dn_1_down(z, n_max + 1, n_max,
+                                   mie_specfuncs.lentz_dn1(z, n_max + 1,
                                                            eps1, eps2))
-    cl = m * ratio * (D3x - D1x) / (D3x - m * D1mx)
-    dl = m * ratio * (D3x - D1x) / (m * D3x - D1mx)
-    return np.array([cl[1:], dl[1:]]) # start from l = 1
+    cl = (m[..., np.newaxis] * ratio * (D3x - D1x)
+          / (D3x - m[..., np.newaxis] * D1mx))
+    dl = (m[..., np.newaxis] * ratio * (D3x - D1x)
+          / (m[..., np.newaxis] * D3x - D1mx))
+    # start from l = 1
+    return np.array([cl[..., 1:], dl[..., 1:]]).squeeze()
 
 def _trans_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
@@ -598,7 +722,7 @@ def _nstop(x):
 
     # Criterion for calculating near-field properties with exact Mie solutions
     # (J. R. Allardice and E. C. Le Ru, Applied Optics, Vol. 53, No. 31 (2014).
-    return (np.round(np.absolute(x+11*x**(1./3.)+1))).astype('int')
+    return (np.round(np.absolute(x+11*x**(1./3.)+1))).squeeze().astype('int')
 
 def _asymmetry_parameter(al, bl):
     '''
@@ -607,13 +731,14 @@ def _asymmetry_parameter(al, bl):
     See discussion in Bohren & Huffman p. 120.
     The output of this function omits the prefactor of 4/(x^2 Q_sca).
     '''
-    lmax = al.shape[0]
+    # axis -1 (last axis) is order axis
+    lmax = al.shape[-1]
     l = np.arange(lmax) + 1
     selfterm = (l[:-1] * (l[:-1] + 2.) / (l[:-1] + 1.) *
-                np.real(al[:-1] * np.conj(al[1:]) +
-                        bl[:-1] * np.conj(bl[1:]))).sum()
+                np.real(al[..., :-1] * np.conj(al[..., 1:]) +
+                        bl[..., :-1] * np.conj(bl[..., 1:]))).sum(axis=-1)
     crossterm = ((2. * l + 1.)/(l * (l + 1)) *
-                 np.real(al * np.conj(bl))).sum()
+                 np.real(al * np.conj(bl))).sum(axis=-1)
     return selfterm + crossterm
 
 def _cross_sections(al, bl):
@@ -625,13 +750,13 @@ def _cross_sections(al, bl):
 
     The output omits a scaling prefactor of 2 * pi / k^2 = lambda_media^2/2/pi.
     '''
-    lmax = al.shape[0]
+    lmax = al.shape[-1]
 
     l = np.arange(lmax) + 1
     prefactor = (2. * l + 1.)
 
-    cscat = (prefactor * (np.abs(al)**2 + np.abs(bl)**2)).sum()
-    cext = (prefactor * np.real(al + bl)).sum()
+    cscat = (prefactor * (np.abs(al)**2 + np.abs(bl)**2)).sum(axis=-1)
+    cext = (prefactor * np.real(al + bl)).sum(axis=-1)
 
     # see p. 122 and discussion in that section. The formula on p. 122
     # calculates the backscattering cross-section according to the traditional
@@ -639,7 +764,7 @@ def _cross_sections(al, bl):
     # jettison the factor of 4*pi to get values that correspond to the
     # differential scattering cross-section in the backscattering direction.
     alts = 2. * (np.arange(lmax) % 2) - 1
-    cback = (np.abs((prefactor * alts * (al - bl)).sum())**2)/4.0/np.pi
+    cback = (np.abs((prefactor * alts * (al - bl)).sum(axis=-1))**2)/4.0/np.pi
 
     return cscat, cext, cback
 
@@ -667,6 +792,10 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     in an absorbing medium". Applied Optics, 40, 9 (2001).
 
     '''
+    # ensure broadcasting will work correctly
+    num_wavelen = np.atleast_1d(wavelen).shape[0]
+    wavelen = np.reshape(wavelen, (num_wavelen, 1))
+
     # if the imaginary part of the medium index is close to 0, then use the
     # limit value of prefactor1 for the calculations
     if n_medium.imag.magnitude <= 1e-7:
@@ -676,39 +805,42 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
         prefactor1 = eta**2 * wavelen / (2*np.pi*radius**2*n_medium.real*
                                         (1+(eta-1)*np.exp(eta)))
 
-    lmax = al.shape[0]
+    lmax = np.atleast_1d(al).shape[-1]
     l = np.arange(lmax) + 1
-    prefactor2 = (2. * l + 1.)
+    prefactor2 = (2. * l + 1.)[np.newaxis, ...]
 
     # calculate the scattering efficiency
     _, xi = mie_specfuncs.riccati_psi_xi(x_medium, lmax)
-    xishift = np.concatenate((np.zeros(1), xi))[0:lmax+1]
-    xi = xi[1:]
-    xishift = xishift[1:]
+    xishift = np.insert(xi, 0,
+                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    xi = xi[..., 1:]
+    xishift = xishift[..., 1:]
 
     Bn = (np.abs(al)**2 * (xishift - l*xi/x_medium) * np.conj(xi) -
           np.abs(bl)**2 * xi *
           np.conj(xishift -  l*xi/x_medium)) / (2*np.pi*n_medium/wavelen)
-    Qscat = prefactor1 * np.sum(prefactor2 * Bn.imag)
+    Qscat = prefactor1 * np.sum(prefactor2 * Bn.imag, axis=-1)[..., np.newaxis]
 
     # calculate the absorption and extinction efficiencies
     psi, _ = mie_specfuncs.riccati_psi_xi(x_scatterer, lmax)
-    psishift = np.concatenate((np.zeros(1), psi))[0:lmax+1]
-    psi = psi[1:]
-    psishift = psishift[1:]
+    psishift = np.insert(psi, 0,
+                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    psi = psi[..., 1:]
+    psishift = psishift[..., 1:]
 
     An = (np.abs(cl)**2 * psi * np.conj(psishift - l*psi/x_scatterer) -
           np.abs(dl)**2 * (psishift - l*psi/x_scatterer)*
           np.conj(psi)) / (2*np.pi*n_particle/wavelen)
-    Qabs = prefactor1 * np.sum(prefactor2 * An.imag)
-    Qext = prefactor1 * np.sum(prefactor2 * (An+Bn).imag)
+    Qabs = prefactor1 * np.sum(prefactor2 * An.imag, axis=-1)[..., np.newaxis]
+    Qext = (prefactor1 *
+            np.sum(prefactor2 * (An+Bn).imag, axis=-1)[..., np.newaxis])
 
     # calculate the cross sections
     Cscat = Qscat *np.pi * radius**2
     Cabs = Qabs *np.pi * radius**2
     Cext = Qext *np.pi * radius**2
 
-    return(Cscat, Cabs, Cext)
+    return(Cscat.squeeze(), Cabs.squeeze(), Cext.squeeze())
 
 def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     '''
@@ -726,59 +858,69 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     (2001).
 
     '''
+    # if multilayer, use outermost radius and size parameter corresponding to
+    # outermost radius
     radius = np.array(radius.magnitude).max() * radius.units
-    x = np.array(x).max()
+    x = np.array(x).max(axis=-1)[..., np.newaxis]
 
     k = x/radius
-    lmax = al.shape[0]
+    lmax = np.atleast_1d(al).shape[-1]
     l = np.arange(lmax) + 1
-    prefactor = (2. * l + 1.)
+    prefactor = (2. * l + 1.)[np.newaxis, ...]
 
     # if the imaginary part of k is close to 0 (because the medium index is
     # close to 0), then use the limit value of factor for the calculations
-    if k.imag.magnitude <= 1e-8:
-        factor = 1/2
-    else:
-        exponent = np.exp(2*radius*k.imag)
-        factor = (exponent/(2*radius*k.imag)+(1-exponent)/(2*radius*k.imag)**2)
+    # (see eq 10 of Sudiarta and Chylek for I_denom; the cross-section is
+    # calculated from W/I_denom)
+    factor_limit = 1/2
+    exponent = np.exp(2*radius*k.imag)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        factor = np.where(k.imag <= Quantity(1e-8, '1/nm'), factor_limit,
+                          (exponent/(2*radius*k.imag) +
+                           (1-exponent)/(2*radius*k.imag)**2))
     I_denom = k.real * factor
 
-    _, xi = mie_specfuncs.riccati_psi_xi(x, lmax)
-    xishift = np.concatenate((np.zeros(1), xi))[0:lmax+1]
-    xi = xi[1:]
-    xishift = xishift[1:]
+    psi, xi = mie_specfuncs.riccati_psi_xi(x, lmax)
+
+    xishift = np.insert(xi, 0,
+                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    xi = xi[..., 1:]
+    xishift = xishift[..., 1:]
     xideriv = xishift - l*xi/x
 
-    psi, _ = mie_specfuncs.riccati_psi_xi(x, lmax)
-    psishift = np.concatenate((np.zeros(1), psi))[0:lmax+1]
-    psi = psi[1:]
-    psishift = psishift[1:]
+    psishift = np.insert(psi, 0,
+                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    psi = psi[..., 1:]
+    psishift = psishift[..., 1:]
     psideriv = psishift - l*psi/x
 
-    # calculate the scattering cross section
+    # calculate the scattering cross section from eq 5 of Sudiarta and Chylek
     term1 = (-1j * np.abs(al)**2 *xideriv * np.conj(xi) +
               1j* np.abs(bl)**2 * xi * np.conj(xideriv))
 
-    numer1 = (np.sum(prefactor * term1) * k).real
+    numer1 = (np.sum(prefactor * term1, axis=-1)[..., np.newaxis]
+              * np.conj(k)).real
     Cscat = np.pi / np.abs(k)**2 * numer1 / I_denom
 
-    # calculate the absorption cross section
+    # calculate the absorption cross section from eq 7 of Sudiarta and Chylek
     term2 = (1j*np.conj(psi)*psideriv - 1j*psi*np.conj(psideriv) +
              1j*bl*np.conj(psideriv)*xi + 1j*np.conj(bl)*psi*np.conj(xideriv) +
              1j*np.abs(al)**2*xideriv*np.conj(xi) -
              1j*np.abs(bl)**2*xi*np.conj(xideriv) -
              1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
-    numer2 = (np.sum(prefactor * term2) * k).real
+    numer2 = (np.sum(prefactor * term2, axis=-1)[..., np.newaxis]
+              * np.conj(k)).real
     Cabs = np.pi / np.abs(k)**2 * numer2 / I_denom
 
-    # calculate the extinction cross section
+    # calculate the extinction cross section from eq 8 of Sudiarta and Chylek
     term3 = (1j*np.conj(psi)*psideriv - 1j*psi*np.conj(psideriv) +
              1j*bl*np.conj(psideriv)*xi + 1j*np.conj(bl)*psi*np.conj(xideriv) -
              1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
-    numer3 = (np.sum(prefactor * term3) * k).real
+    numer3 = (np.sum(prefactor * term3, axis=-1)[..., np.newaxis]
+              * np.conj(k)).real
     Cext = np.pi / np.abs(k)**2 * numer3 / I_denom
 
-    return(Cscat, Cabs, Cext)
+    return(Cscat.squeeze(), Cabs.squeeze(), Cext.squeeze())
 
 
 def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
@@ -850,12 +992,7 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     nstop = _nstop(np.array(x).max())
     n = np.arange(nstop)+1.
 
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        an, bn = msl.scatcoeffs_multi(m, x)
-    else:
-        an, bn = _scatcoeffs(m, x, nstop)
+    an, bn = _scatcoeffs(m, x, nstop)
 
     # calculate prefactor (omitting the incident electric field because it
     # cancels out when calculating the scattered intensity)
@@ -869,8 +1006,8 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     # integrating to get the scattering cross section)
 
     # required for calculations with polarized light
-    th_shape = list(thetas.shape)
-    th_shape.append(len(n))
+    # reshape to (num_values, num_angles, order)
+    th_shape = (kd.shape[0],) + thetas.shape + (len(n),)
 
     En = np.broadcast_to(En, th_shape)
     an = np.broadcast_to(an, th_shape)
@@ -889,12 +1026,13 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
         jn = spherical_jn(nstop_array, kd)
         yn = spherical_yn(nstop_array, kd)
         zn = jn + 1j*yn
-        zn = zn[1:]
+        zn = zn[..., 1:]
 
         _, xi = mie_specfuncs.riccati_psi_xi(kd, nstop)
-        xishift = np.concatenate((np.zeros(1), xi))[0:nstop+1]
-        xi = xi[1:]
-        xishift = xishift[1:]
+        # insert zeroes at the beginning of second axis (order axis)
+        xishift = np.pad(xi, ((0,), (1,)))[:, 0:nstop+1]
+        xi = xi[..., 1:]
+        xishift = xishift[..., 1:]
         bessel_deriv = xishift - n*xi/kd
         zn = np.broadcast_to(zn, th_shape)
         bessel_deriv = np.broadcast_to(bessel_deriv, th_shape)
@@ -937,7 +1075,7 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
 def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         coordinate_system = 'scattering plane', phis = None, near_field=False,
         incident_vector=None):
-    '''
+    """
     Calculates the differential scattered intensity in an absorbing medium.
     User can choose whether to include near fields.
 
@@ -970,27 +1108,33 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
 
     Parameters
     ----------
-    m: complex relative refractive index
-    x: size parameter using the medium's refractive index
-    thetas: array of scattering angles (Quantity in rad)
-    kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
+    m : complex, array-like
+        complex particle relative refractive index, n_part/n_med
+    x : complex, array-like
+        size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
+    thetas : array-like (Quantity [angle])
+        scattering angles.  Should be 2D, as output from np.meshgrid, if
+        coordinate_system = 'cartesian'
+    kd : float (Quantity, dimensionless)
+        k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
         distance away from the center of the particle. The standard far-field
         solutions are obtained when distance >> radius in a non-absorbing
-        medium. (Quantity, dimensionless)
-    coordinate_system: string
+        medium.
+    coordinate_system : string
         default value 'scattering plane' means scattering calculations will be
         carried out in the basis defined by basis vectors parallel and
         perpendicular to scattering plane. Variable also accepts value
         'cartesian' which scattering calculations will be carried out in the
         basis defined by basis vectors x and y in the lab frame, with z
         as the direction of propagation.
-    phis: None or ndarray
+    phis : None or ndarray
         azimuthal angles for which to calculate the diff scat intensity. In the
         'scattering plane' coordinate system, the scattering matrix does not
         depend on phi, so phi should be set to None. In the 'cartesian'
         coordinate system, the scattering matrix does depend on phi, so an
-        array of values should be provided.
-    near_field: boolean
+        array of values should be provided.  For 'cartesian' both thetas and
+        phis should be 2D, as output from np.meshgrid.
+    near_field : boolean
         True to include the near-fields (default is False). Cannot be set to
         True while using coordinate_system='cartesian' because near field
         solutions are not implemented for cartesian coordinate system. Also
@@ -1004,7 +1148,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         near fields and still integrate at the surface of the particle, we use
         the asymptotic form of the spherical Hankel function in the far field
         (p. 94 of Bohren and Huffman).
-    incident_vector: None or tuple
+    incident_vector : None or tuple
         vector describing the incident electric field. It is multiplied by the
         amplitude scattering matrix to find the vector scattering amplitude. If
         coordinate_system is 'scattering plane', then this vector should be in
@@ -1026,16 +1170,18 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
 
     Returns
     -------
-    I components: tuple
+    I components : tuple of arrays
         tuple of the two orthogonal components of scattered intensity. If in
         cartesian coordinate system, each component is a function of theta and
         phi values. If in scattering plane coordinate system, each component
-        is an array of theta values (dimensionless).These intensities are
+        is an array of theta values (dimensionless). These intensities are
         technically 'unitless.' The intensities would get their units from
         the E_n term in the fields, which gets its units from an E_0 term,
         which is taken to be 1 here. To get an intensity with real units
         you would need to multiply these by |E_0|**2 where E_0 is the amplitude
-        of the incident wave at the origin.
+        of the incident wave at the origin.  If multiple wavelengths are
+        specified, the shape of each array is (num_values, num_theta,
+        [num_phi]).  Otherwise just (num_theta, [num_phi]).
 
     References
     ----------
@@ -1044,9 +1190,15 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
     Q. Fu and W. Sun, "Mie theory for light scattering by a spherical particle
     in an absorbing medium". Applied Optics, 40, 9 (2001).
 
-    '''
+    """
     if isinstance(kd, Quantity):
-        kd = kd.to('')
+        kd = kd.to('').magnitude
+
+    # ensure that broadcasting will work correctly
+    kd = np.atleast_1d(kd)[:, np.newaxis]
+    if coordinate_system == 'cartesian':
+        # add another axis to correspond to phi
+        kd = kd[:, np.newaxis]
 
     if near_field:
         if coordinate_system == 'scattering plane':
@@ -1080,17 +1232,18 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         # get the final intensity in a non-absorbing medium (p. 113 of Bohren
         # and Huffman).
         factor = np.exp(-2*kd.imag) / ((kd.real)**2 + (kd.imag)**2)
-        I_1 = (np.abs(vec_scat_amp_1)**2)*factor.to('') # par or x
-        I_2 = (np.abs(vec_scat_amp_2)**2)*factor.to('') # perp or y
+        I_1 = (np.abs(vec_scat_amp_1)**2)*factor # par or x
+        I_2 = (np.abs(vec_scat_amp_2)**2)*factor # perp or y
 
-    return I_1.real, I_2.real # the intensities should be real
+    # the intensities should be real
+    return I_1.real.squeeze(), I_2.real.squeeze()
 
 def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
                                        phi_min=Quantity(0.0, 'rad'),
                                        phi_max=Quantity(2*np.pi, 'rad'),
                                        coordinate_system = 'scattering plane',
                                        phis = None):
-    '''
+    """
     Calculates the scattering cross section by integrating the differential
     scattered intensity at a distance of our choice in an absorbing medium.
     Choosing the right distance is essential in an absorbing medium because the
@@ -1100,42 +1253,73 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
 
     Parameters
     ----------
-    I_1, I_2: nd arrays
+    I_1, I_2 : array-like with shape (num_values, num_thetas, [num_phis])
         differential scattered intensities, can be functions of theta or of
         theta and phi. If a function of theta and phi, the theta dimension MUST
         come first
-    distance: float (Quantity in [length])
+    distance : float (Quantity in [length])
         distance away from the scatterer
-    thetas: nd array (Quantity in rad)
+    thetas : array-like of Quantity in [angle], shape num_thetas
         scattering angles
-    k: wavevector given by 2 * pi * n_medium / wavelength
-       (Quantity in [1/length])
-    phi_min: float (Quantity in rad).
+    k : array-like of Quantity in [1/length], shape num_values
+        wavevector given by 2 * pi * n_medium / wavelength
+    phi_min : float (Quantity in [angle]).
         minimum azimuthal angle, default set to 0
         optional, only necessary if coordinate_system is 'scattering plane'
-    phi_max: float (Quantity in rad).
+    phi_max : float (Quantity in [angle]).
         maximum azimuthal angle, default set to 2pi
         optional, only necessary if coordinate_system is 'scattering plane'
-    phis: None or ndarray
+    phis : None or ndarray (Quantity in [angle], shape num_phis)
         azimuthal angles
 
     Returns
     -------
-    sigma: float (in units of length**2)
+    sigma: array-like of Quantity in length**2 with shape num_values
         integrated cross section
-    sigma_1: float (in units of length**2)
+    sigma_1: array-like of Quantity in length**2 with shape num_values
         integrated cross section for first component of basis
-    sigma_2: float (in units of length**2)
+    sigma_2: array-like of Quantity in length**2 with shape num_values
         integrated cross section for second component of basis
-    dsigma_1: ndarray (in units of length**2)
+    dsigma_1: array-like (Quantity in length**2), shape num_values, num_angles
         differential cross section for first component of basis
-    dsigma_2: ndarray (in units of length**2)
+    dsigma_2: array-like (Quantity in length**2), shape num_values, num_angles
         differential cross section for second component of basis
 
-    '''
+    """
     # convert to radians from whatever units the user specifies
     if isinstance(thetas, Quantity):
         thetas = thetas.to('rad').magnitude
+
+    # check that if phis is specified, both thetas and phis are given as 2D
+    # arrays
+    if phis is not None:
+        # convert to radians
+        if isinstance(phis, Quantity):
+            phis = phis.to('rad').magnitude
+        if phis.ndim == 1:
+            phis, thetas = np.meshgrid(phis, thetas)
+
+    # reshape arrays for broadcasting. We use length of k (which should be
+    # num_values) to determine whether I_1 and I_2 are specified as
+    # (num_values, num_angles) or just (num_angles)
+    k = np.atleast_1d(k)
+    num_values = k.shape[0]
+    num_thetas = thetas.shape[0]
+    if phis is not None:
+        num_phis = phis.shape[-1]
+        k = k.reshape((num_values, 1, 1))
+        I_1 = I_1.reshape((num_values, num_thetas, num_phis))
+        I_2 = I_2.reshape((num_values, num_thetas, num_phis))
+        thetas = thetas[np.newaxis, ...]
+        # phis has only two dimensions because by the time we use it, we have
+        # already integrated over theta
+        phis = phis[0, :]
+        phis = phis.reshape(1, num_phis)
+    else:
+        I_1 = I_1.reshape((num_values, num_thetas))
+        I_2 = I_2.reshape((num_values, num_thetas))
+        k = k.reshape((num_values, 1))
+        thetas = thetas.reshape((1, num_thetas))
 
     # this line converts the unitless intensities to cross section
     # Multiply by distance (= to radius of particle in montecarlo.py) because
@@ -1147,12 +1331,12 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     dsigma_1 = I_1 * distance**2
     dsigma_2 = I_2 * distance**2
 
-    if coordinate_system == 'scattering plane':
+    if coordinate_system == "scattering plane":
         if phis is not None:
-            warnings.warn('''azimuthal angles specified for scattering plane
-                          calculations. Scattering plane calculations do not
-                          depend on azimuthal angle, so specified values will
-                          be ignored''')
+            warnings.warn("azimuthal angles specified for scattering plane "
+                          "calculations. Scattering plane calculations do not "
+                          "depend on azimuthal angle, so specified values "
+                          "will be ignored")
 
         # convert to radians
         phi_min = phi_min.to('rad').magnitude
@@ -1186,31 +1370,25 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         sigma_2 = (integral_perp * (phi_max/2 - np.sin(2*phi_max)/4 -
                           phi_min/2 + np.sin(2*phi_min)/4))
 
-    elif coordinate_system == 'cartesian':
+    elif coordinate_system == "cartesian":
         if phis is None:
-            raise ValueError('phis set to None, but azimuthal angle must be \
-                        specified for scattering calculations in \
-                        cartesian coordinate system')
-
-        # convert to radians
-        if isinstance(phis, Quantity):
-            phis = phis.to('rad').magnitude
-
-        # Integrate over theta and phi
-        thetas_bc = thetas.reshape((len(thetas),1)) # reshape for broadcasting
+            raise ValueError("phis set to None, but azimuthal angle must be "
+                             "specified for scattering calculations in "
+                             "cartesian coordinate system")
 
         # strip units from integrand
         if isinstance(dsigma_1, Quantity):
-            integrand_1 = dsigma_1.magnitude * np.abs(np.sin(thetas_bc))
+            integrand_1 = dsigma_1.magnitude * np.abs(np.sin(thetas))
         else:
-            integrand_1 = dsigma_1 * np.abs(np.sin(thetas_bc))
+            integrand_1 = dsigma_1 * np.abs(np.sin(thetas))
         if isinstance(dsigma_2, Quantity):
-            integrand_2 = dsigma_2.magnitude * np.abs(np.sin(thetas_bc))
+            integrand_2 = dsigma_2.magnitude * np.abs(np.sin(thetas))
         else:
-            integrand_2 = dsigma_2 * np.abs(np.sin(thetas_bc))
+            integrand_2 = dsigma_2 * np.abs(np.sin(thetas))
 
-        sigma_1 = trapezoid(trapezoid(integrand_1, x=thetas, axis=0), x=phis)
-        sigma_2 = trapezoid(trapezoid(integrand_2, x=thetas, axis=0), x=phis)
+        # Integrate over theta and phi
+        sigma_1 = trapezoid(trapezoid(integrand_1, x=thetas, axis=1), x=phis)
+        sigma_2 = trapezoid(trapezoid(integrand_2, x=thetas, axis=1), x=phis)
 
         # restore units to integral
         if isinstance(dsigma_1, Quantity):
@@ -1218,25 +1396,33 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         if isinstance(dsigma_2, Quantity):
             sigma_2 = Quantity(sigma_2, dsigma_2.units)
     else:
-        raise ValueError('The coordinate system specified has not yet been \
-                implemented. Change to \'cartesian\' or \'scattering plane\'')
+        raise ValueError("The coordinate system specified has not yet been "
+                         "implemented. Change to \'cartesian\' or "
+                         "\'scattering plane\'")
 
     # multiply by factor that accounts for attenuation in the incident light
     # (see Sudiarta and Chylek (2001), eq 10).
     # if the imaginary part of k is close to 0 (because the medium index is
     # close to 0), then use the limit value of factor for the calculations
-    if k.imag <= Quantity(1e-8, '1/nm'):
-        factor = 2
-    else:
-        exponent = np.exp(2*distance*k.imag)
-        factor = 1 / (exponent / (2*distance*k.imag)+
-                     (1 - exponent) / (2*distance*k.imag)**2)
+    exponent = np.exp(2*distance*k.imag)
+    factor_limit = 2
+    # ignore division by zero in case k.imag=0; we'll replace the nans with the
+    # limit value of factor anyway
+    with np.errstate(divide='ignore', invalid='ignore'):
+        factor = np.where(k.imag <= Quantity(1e-8, '1/nm'), factor_limit,
+                          1 / (exponent / (2*distance*k.imag)
+                               + (1 - exponent) / (2*distance*k.imag)**2))
+
+    # prepare for broadcasting (this will add trailing axes of size 1)
+    sigma_1 = sigma_1.reshape(factor.shape)
+    sigma_2 = sigma_2.reshape(factor.shape)
 
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
 
-    return(sigma, sigma_1*factor, sigma_2*factor, dsigma_1*factor/2,
-           dsigma_2*factor/2)
+    return(sigma.squeeze(), (sigma_1*factor).squeeze(),
+           (sigma_2*factor).squeeze(), (dsigma_1*factor/2).squeeze(),
+           (dsigma_2*factor/2).squeeze())
 
 def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     '''
@@ -1254,17 +1440,21 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
 
     Parameters
     ----------
-    m: complex relative refractive index
-    x: size parameter using the medium's refractive index
-    thetas: array of scattering angles (Quantity in rad)
-    ktd: kt * distance, where kt = 2*np.pi*n_particle/wavelen, and distance is
+    m : array-like
+        complex relative refractive index
+    x : array-like
+        size parameter using the medium's refractive index
+    thetas: Quantity[angle], array-like
+        array of scattering angles (Quantity in rad or degrees)
+    ktd: Quantity[dimensionless], array-like
+        kt * distance, where kt = 2*np.pi*n_particle/wavelen, and distance is
         the distance away from the center of the particle. The far-field
-        solution is obtained when distance >> radius. (Quantity, dimensionless)
+        solution is obtained when distance >> radius.
 
     Returns
     -------
-    I_par, I_perp: differential absorption intensities for an array of theta
-                   (dimensionless).
+    I_par, I_perp : Quantity[dimensionless], array-like
+        differential absorption intensities for an array of theta
 
     Reference
     ---------
@@ -1273,8 +1463,10 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
 
     '''
     # convert units from whatever units the user specifies
-    thetas = thetas.to('rad').magnitude
-    ktd = ktd.to('').magnitude
+    if isinstance(thetas, Quantity):
+        thetas = thetas.to('rad').magnitude
+    if isinstance(ktd, Quantity):
+        ktd = ktd.to('').magnitude
 
     # calculate mie coefficients
     nstop = _nstop(np.array(x).max())
@@ -1370,7 +1562,7 @@ def amplitude_scattering_matrix(m, x, thetas,
         particle
     x: float, or array
         size parameter, array if multilayer particle
-    thetas: nd array
+    thetas: array
         theta angles
     coordinate_system: string
         default value 'scattering plane' means scattering calculations will be
@@ -1379,7 +1571,7 @@ def amplitude_scattering_matrix(m, x, thetas,
         'cartesian' which scattering calculations will be carried out in the
         basis defined by basis vectors x and y in the lab frame, with z
         as the direction of propagation.
-    phis: None or ndarray
+    phis: None or array
         azimuthal angles for which to calculate the scattering matrix. In the
         'scattering plane' coordinate system, the scattering matrix does not
         depend on phi, so phi should be set to None. In the 'cartesian'
@@ -1388,29 +1580,29 @@ def amplitude_scattering_matrix(m, x, thetas,
 
     Returns:
     --------
-    S1, S2, S3, S4: tuple of nd arrays
-       amplitude scattering matrix elements for all theta. S2 and S1 have the
-       same shape as theta.
+    S1, S2, S3, S4: tuple of arrays
+       amplitude scattering matrix elements for all values (e.g. wavelengths)
+       and theta. Shapes of all arrays are (num_values, num_theta, [num_phi])
     """
     # calculate n-array
     nstop = _nstop(np.array(x).max())
     n = np.arange(nstop)+1.
     prefactor  = (2*n+1)/(n*(n+1))
 
+    if isinstance(thetas, Quantity):
+        thetas = thetas.to('rad').magnitude
+    if isinstance(phis, Quantity):
+        phis = phis.to('rad').magnitude
+
     # calculate mie coefficients
-    # if the index ratio m is an array with more than 1 element, it's a
-    # multilayer particle
-    if len(np.atleast_1d(m)) > 1:
-        coeffs = msl.scatcoeffs_multi(m, x)
-    else:
-        coeffs = _scatcoeffs(m, x, nstop)
+    coeffs = _scatcoeffs(m, x, nstop)
 
     # calculate amplitude scattering matrix in 'scattering plane' coordinate
     # system
     S2_sp, S1_sp = _amplitude_scattering_matrix(nstop, prefactor,
                                                 coeffs, thetas)
-    S3_sp = 0
-    S4_sp = 0
+    S3_sp = np.zeros_like(S1_sp)
+    S4_sp = np.zeros_like(S1_sp)
 
     if coordinate_system == 'cartesian':
         # raise error if no phis are specified
@@ -1428,7 +1620,6 @@ def amplitude_scattering_matrix(m, x, thetas,
         S2_xy = S2_sp*(cosphi)**2 + S1_sp*(sinphi)**2
         S3_xy = S2_sp*sinphi*cosphi - S1_sp*sinphi*cosphi
         S4_xy = S2_sp*cosphi*sinphi - S1_sp*cosphi*sinphi
-
         return S1_xy, S2_xy, S3_xy, S4_xy
     elif coordinate_system == 'scattering plane':
         if phis is not None:
@@ -1485,11 +1676,11 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
 
     Parameters:
     ----------
-    m: float
+    m: float or array-like
         index ratio between the particle and sample
-    x: float
+    x: float or array-like
         size parameter
-    thetas: nd array
+    thetas: array-like
         scattering angles
     incident_vector: None or tuple
         vector describing the incident electric field. It is multiplied by the
@@ -1513,13 +1704,13 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
     coordinate_system: string
         describes the coordinate system. Can be either 'scattering plane' or
         'cartesian'
-    phis: nd array or None
+    phis: ndarray or None
         azimuthal angles
 
 
     Returns:
     --------
-    vector scattering amplitude: tuple
+    vector scattering amplitude: tuple of arrays (num_values, num_angles)
         tuple describing the vector scattering amplitude in the specified
         coordinate system. not normalized.
     '''
@@ -1547,21 +1738,47 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
 
 
 def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, thetas):
-    # amplitude scattering matrix from Mie coefficients
+    """Amplitude scattering matrix from Mie coefficients
+
+    """
     pis, taus = _pis_and_taus(n_stop, thetas)
+
+    # to broadcast correctly over the dimensions of coeffs (which may be
+    # wavelength or other variable), we need to add leading dimensions to the
+    # pis and taus, which have shape [num_angles, order].  Result should have
+    #   pis, taus shape: [1, ..., 1, num_angles, order]
+    # Similarly, we need to insert dimensions in coeffs corresponding to the
+    # angles in pis and taus.  Result should have
+    #   coeffs[0].shape: [num_values, ..., 1, order]
+    num_leading_dims = len(coeffs[0].shape[:-1])
+    num_insert_dims = len(pis.shape[:-1])
+    new_coeffs_shape = (coeffs.shape[:-1] + num_insert_dims*(1,)
+                        + (coeffs.shape[-1],))
+    pis = pis.reshape(num_leading_dims*(1,) + pis.shape)
+    taus = taus.reshape(num_leading_dims*(1,) + taus.shape)
+    coeffs = coeffs.reshape(new_coeffs_shape)
+
+    # result should have shape [num_values, ..., num_angles]
     S1 = np.sum(prefactor*(coeffs[0]*pis + coeffs[1]*taus), axis=-1)
     S2 = np.sum(prefactor*(coeffs[0]*taus + coeffs[1]*pis), axis=-1)
     return S2, S1
 
 def _amplitude_scattering_matrix_RG(prefactor, x, thetas):
-    # amplitude scattering matrix from Rayleigh-Gans approximation
+    """Amplitude scattering matrix from Rayleigh-Gans approximation
+
+    """
+    if np.atleast_2d(x).shape[-1] > 1:
+        raise ValueError("Rayleigh-Gans approximation cannot be used for "
+                         "layered spheres")
+
     u = 2 * x * np.sin(thetas/2.)
-    S1 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u))
-    S2 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u)) * np.cos(thetas)
+
+    # for theta=0 the limit is 1*prefactor; the following will avoid a divide
+    # by zero error by dividing everywhere that u!=0 and returning 1 where u=0
+    p = np.divide(np.sin(u) - u*np.cos(u), u**3, out=np.ones_like(u),
+                  where=u!=0)
+
+    # result should have shape [num_values, ..., num_angles]
+    S1 = prefactor * 3 * p
+    S2 = S1 * np.cos(thetas)
     return S2, S1
-
-
-
-# TODO: copy multilayer code from multilayer_sphere_lib.py in holopy and
-# integrate with functions for calculating scattering cross sections and form
-# factor.
