@@ -21,7 +21,8 @@ Tests for the mie module
 """
 
 from .. import Quantity, index_ratio, size_parameter, np, mie
-from numpy.testing import assert_almost_equal, assert_array_almost_equal, assert_approx_equal
+from numpy.testing import (assert_almost_equal, assert_array_almost_equal,
+                           assert_approx_equal, assert_allclose)
 from pint.errors import DimensionalityError
 import pytest
 
@@ -439,6 +440,49 @@ def test_pis_taus():
 
     assert_almost_equal(pis, pis_v)
     assert_almost_equal(taus, taus_v)
+
+
+def test_differential_cross_section():
+    """
+    Tests that the differential cross-sections from diff_scat_complex_medium()
+    and calc_ang_dist() are the same for a non-absorbing medium.
+    """
+    # set parameters
+    wavelen = Quantity("400.0 nm")
+    n_particle = Quantity(1.5, "")
+    n_matrix = Quantity(1.0, "")
+    radius = Quantity(150.0, "nm")
+    theta = Quantity(np.linspace(0, np.pi, 1000), "rad")
+    distance = Quantity(10000.0, "nm")
+
+    m = index_ratio(n_particle, n_matrix)
+    k = 2*np.pi*n_matrix/wavelen
+    x = size_parameter(wavelen, n_matrix, radius)
+
+    # With far-field Mie solutions
+    I_par_cad, I_perp_cad = mie.calc_ang_dist(m, x, theta)
+
+    # With Mie solutions at surface of particle (but neglecting near-fields)
+    kd = (k*distance).to("").magnitude
+    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta,
+                                                                     kd)
+
+    # calc_ang_dist returns dimensionless differential cross-sections (times
+    # k^2).  As noted in diff_scat_intensity_complex_medium(), this function
+    # returns dimensionless values (scaled by k^2) muliplied by a factor of
+    # 1/kd^2 for a non-absorbing medium.  Therefore the
+    # diff_scat_intensity_complex_medium() results are the dimensional
+    # cross-sections scaled by 1/d^2, where d is the distance at which the
+    # calculation is done.  In short, both functions return dimensionless
+    # cross-sections, but the ones returned by
+    # diff_scat_intensity_complex_medium() need to be multiplied by a factor of
+    # kd^2 to compare them to those of calc_ang_dist()
+    #
+    # since both of these functions rely on the same routine to calculate the
+    # amplitude scattering matrix, they should give results to within
+    # floating-point precision
+    assert_allclose(I_par_scat*kd**2, I_par_cad, rtol=1e-14)
+    assert_allclose(I_perp_scat*kd**2, I_perp_cad, rtol=1e-14)
 
 
 def test_cross_section_complex_medium():
