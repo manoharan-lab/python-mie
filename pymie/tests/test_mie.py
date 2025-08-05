@@ -464,8 +464,12 @@ def test_differential_cross_section():
 
     # With Mie solutions at surface of particle (but neglecting near-fields)
     kd = (k*distance).to("").magnitude
-    I_par_scat, I_perp_scat = mie.diff_scat_intensity_complex_medium(m, x, theta,
-                                                                     kd)
+    incident_vector = [1, 1]
+    I_par, I_perp = mie.diff_scat_intensity_complex_medium(m, x, theta, kd,
+                                                           incident_vector =
+                                                           incident_vector,
+                                                           coordinate_system =
+                                                           "scattering plane")
 
     # calc_ang_dist returns dimensionless differential cross-sections (times
     # k^2).  As noted in diff_scat_intensity_complex_medium(), this function
@@ -481,8 +485,8 @@ def test_differential_cross_section():
     # since both of these functions rely on the same routine to calculate the
     # amplitude scattering matrix, they should give results to within
     # floating-point precision
-    assert_allclose(I_par_scat*kd**2, I_par_cad, rtol=1e-14)
-    assert_allclose(I_perp_scat*kd**2, I_perp_cad, rtol=1e-14)
+    assert_allclose(I_par*kd**2, I_par_cad, rtol=1e-14)
+    assert_allclose(I_perp*kd**2, I_perp_cad, rtol=1e-14)
 
 
 def test_cross_section_complex_medium():

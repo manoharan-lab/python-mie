@@ -1183,6 +1183,14 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         specified, the shape of each array is (num_values, num_theta,
         [num_phi]).  Otherwise just (num_theta, [num_phi]).
 
+    Notes
+    -----
+    To get dimensional cross-sections, multiply by d^2, where d is the distance
+    at which the differential cross-sections are calculated. To compare
+    differential cross-sections for non-absorbing media and the far-field to
+    those reported by calc_ang_dist(), which are nondimensionalized by k^2,
+    multiply the results from this function by kd^2.
+
     References
     ----------
     C. F. Bohren and D. R. Huffman. Absorption and scattering of light by
@@ -1365,11 +1373,12 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in
         # parallel and perpendicular polarizations, respectively)
+        # This factor is needed to account for polarization, which introduces
+        # factors of cos(phi) and sin(phi) for the electric fields.
         sigma_1 = (integral_par * (phi_max/2 + np.sin(2*phi_max)/4 -
                          phi_min/2 - np.sin(2*phi_min)/4))
         sigma_2 = (integral_perp * (phi_max/2 - np.sin(2*phi_max)/4 -
                           phi_min/2 + np.sin(2*phi_min)/4))
-
     elif coordinate_system == "cartesian":
         if phis is None:
             raise ValueError("phis set to None, but azimuthal angle must be "
