@@ -463,8 +463,7 @@ def test_differential_cross_section():
     I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, kd,
                                                        incident_vector =
                                                        incident_vector,
-                                                       coordinate_system =
-                                                       "scattering plane")
+                                                       cartesian=False)
 
     # calc_ang_dist returns dimensionless differential cross-sections (times
     # k^2).  As noted in diff_scat_intensity_complex_medium(), this function
@@ -665,7 +664,7 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
 
     # calculate the amplitude scattering matrix in xy basis
     as_vec_x0, as_vec_y0 = mie.vector_scattering_amplitude(m, x, thetas_2d,
-                            coordinate_system = 'cartesian', phis = phis_2d)
+                            cartesian=True, phis = phis_2d)
 
     # calcualte the amplitude scattering matrix in par/perp basis
     S1_sp, S2_sp, S3_sp, S4_sp = mie.amplitude_scattering_matrix(m, x, thetas_2d)
@@ -710,7 +709,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     # if incident vector is unpolarized (1,1), then the resulting differential
     # scattered intensity should be the same as I_par, I_perp
     I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                            coordinate_system = 'cartesian', phis = phis_2d,
+                            cartesian=True, phis = phis_2d,
                             near_field=False, incident_vector = (1, 1))
 
     # assert equality of their magnitudes
@@ -743,16 +742,15 @@ def test_integrate_intensity_complex_medium_cartesian():
 
     # calculate the differential scattered intensities
     I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                            coordinate_system = 'cartesian', phis = phis_2d,
-                            near_field=False)
+                                                  cartesian=True, phis=phis_2d,
+                                                  near_field=False)
     I_parperp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
                                                        near_field=False)
 
     # integrate the differential scattered intensities
     cscat_xy = mie.integrate_intensity_complex_medium(I_xy, distance, thetas,
-                                                      k, coordinate_system =
-                                                      'cartesian', phis =
-                                                      phis)[0]
+                                                      k, cartesian=True,
+                                                      phis=phis)[0]
 
     # check that intensity equations without the asymptotic form of the spherical
     # Hankel equations (because they simplify when the fields are multiplied by
@@ -789,19 +787,15 @@ def test_value_errors():
     kd = k*distance
 
     with pytest.raises(ValueError):
-        # try to calculate differential scattered intensity in weird coordinate system
+        # try to calculate near field in cartesian
         _ = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                            coordinate_system = 'weird', phis = phis_2d,
-                            near_field=True)
-    with pytest.raises(ValueError):
-        # try to calculate new
-        _ = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                            coordinate_system = 'cartesian', phis = phis_2d,
-                            near_field=True)
+                                                   cartesian=True,
+                                                   phis=phis_2d,
+                                                   near_field=True)
     # calculate the differenetial scattered intensities
     I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                            coordinate_system = 'cartesian', phis = phis_2d,
-                            near_field=False)
+                                                  cartesian=True, phis=phis_2d,
+                                                  near_field=False)
 
     _ = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
                                                near_field=True)
@@ -809,16 +803,11 @@ def test_value_errors():
     with pytest.raises(ValueError):
         # integrate the differential scattered intensities
         cscat_xy = mie.integrate_intensity_complex_medium(I_xy, distance,
-                        thetas, k, coordinate_system = 'cartesian')[0]
-    with pytest.raises(ValueError):
-        cscat_weird = mie.integrate_intensity_complex_medium(I_xy, distance,
-                        thetas, k, coordinate_system = 'weird')[0]
-    with pytest.raises(ValueError):
-        as_vec_weird = mie.vector_scattering_amplitude(m, x, thetas_2d,
-                            coordinate_system = 'weird', phis = phis_2d)
+                                                          thetas, k,
+                                                          cartesian=True)[0]
     with pytest.raises(ValueError):
         as_vec_xy = mie.vector_scattering_amplitude(m, x, thetas_2d,
-                            coordinate_system = 'cartesian')
+                                                    cartesian=True)
 
 def test_dwell_time_and_energy():
     #Test that the dwell time function matches example given in

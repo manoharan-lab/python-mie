@@ -585,11 +585,10 @@ class TestVectorizedInternalFunctions():
 
     @pytest.mark.parametrize("num_wavelen,num_layer",
                              [(1, 1), (10, 1), (1, 5), (10, 5)])
-    @pytest.mark.parametrize("coordinate_system", ["scattering plane",
-                                                   "cartesian"])
+    @pytest.mark.parametrize("cartesian", [False, True])
     def test_vectorized_angular_functions(self, num_wavelen,
                                                     num_layer,
-                                                    coordinate_system):
+                                                    cartesian):
         """Tests that mie.vector_scattering_amplitude(),
         mie.amplitude_scattering_matrix(),
         diff_scat_intensity_complex_medium(), and
@@ -603,7 +602,7 @@ class TestVectorizedInternalFunctions():
             mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs,
                return_all=True)
 
-        if coordinate_system == "scattering plane":
+        if not cartesian:
             phis = None
             thetas = self.thetas
         else:
@@ -611,12 +610,11 @@ class TestVectorizedInternalFunctions():
             thetas, phis = np.meshgrid(self.thetas, phis)
 
         vsa = mie.vector_scattering_amplitude(m, x, thetas,
-                                              coordinate_system =
-                                              coordinate_system, phis = phis)
+                                              cartesian=cartesian,
+                                              phis = phis)
 
         mat = mie.amplitude_scattering_matrix(m, x, thetas,
-                                              coordinate_system =
-                                              coordinate_system,
+                                              cartesian=cartesian,
                                               phis = phis)
 
         # choose distance reasonably close to the particle for differential
@@ -626,14 +624,13 @@ class TestVectorizedInternalFunctions():
         kd = np.atleast_1d(k*d)
         i12 = mie.diff_scat_intensity_complex_medium(m, x, thetas,
                                                      kd,
-                                                     coordinate_system =
-                                                     coordinate_system,
+                                                     cartesian=cartesian,
                                                      phis = phis)
 
         integral = mie.integrate_intensity_complex_medium(i12, d,
                         thetas, k, phi_min = Quantity(0.0, 'rad'),
                         phi_max = Quantity(2*np.pi, 'rad'),
-                        coordinate_system = coordinate_system, phis = phis)
+                        cartesian=cartesian, phis = phis)
 
         # check that shapes of all the computed quantities are correct
         for element in vsa + mat:
@@ -668,25 +665,23 @@ class TestVectorizedInternalFunctions():
         k = np.atleast_1d(k)
         for i in range(num_wavelen):
             mat_loop = mie.amplitude_scattering_matrix(m[i], x[i], thetas,
-                                                       coordinate_system =
-                                                       coordinate_system,
+                                                       cartesian=cartesian,
                                                        phis = phis)
 
             vsa_loop = mie.vector_scattering_amplitude(m[i], x[i], thetas,
-                                                       coordinate_system =
-                                                       coordinate_system,
+                                                       cartesian=cartesian,
                                                        phis = phis)
             i_loop = mie.diff_scat_intensity_complex_medium(m[i], x[i],
                                                             thetas,
                                                             kd[i],
-                                                            coordinate_system =
-                                                            coordinate_system,
+                                                            cartesian =
+                                                            cartesian,
                                                             phis = phis)
 
             integral_loop = mie.integrate_intensity_complex_medium(i_loop, d,
                         thetas, k[i], phi_min = Quantity(0.0, 'rad'),
                         phi_max = Quantity(2*np.pi, 'rad'),
-                        coordinate_system = coordinate_system, phis = phis)
+                        cartesian=cartesian, phis = phis)
 
             S1[i], S2[i], S3[i], S4[i] = mat_loop
             amp0[i], amp1[i] = vsa_loop
