@@ -126,7 +126,7 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
         ipar = np.absolute(S2)**2
         iperp = np.absolute(S1)**2
 
-    return ipar, iperp
+    return np.array([ipar, iperp])
 
 @ureg.check(None, None, '[length]', None, None)
 def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
@@ -375,11 +375,9 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
     if np.any(np.imag(x) > 0):
         distance = rmax
         k = np.atleast_1d(2*np.pi/wavelen_media)
-        (diff_cscat_par,
-         diff_cscat_perp) = diff_scat_intensity_complex_medium(m, x, thetas,
-                                                               k*distance)
-        refl_cscat = integrate_intensity_complex_medium(diff_cscat_par,
-                                                        diff_cscat_perp,
+        diff_cscat = diff_scat_intensity_complex_medium(m, x, thetas,
+                                                        k*distance)
+        refl_cscat = integrate_intensity_complex_medium(diff_cscat,
                                                         distance, thetas, k)[0]
     else:
         refl_cscat = calc_integrated_cross_section(m, x, wavelen_media,
@@ -1244,9 +1242,9 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         I_2 = (np.abs(vec_scat_amp_2)**2)*factor # perp or y
 
     # the intensities should be real
-    return I_1.real.squeeze(), I_2.real.squeeze()
+    return np.array([I_1.real.squeeze(), I_2.real.squeeze()])
 
-def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
+def integrate_intensity_complex_medium(dscat, distance, thetas, k,
                                        phi_min=Quantity(0.0, 'rad'),
                                        phi_max=Quantity(2*np.pi, 'rad'),
                                        coordinate_system = 'scattering plane',
@@ -1261,10 +1259,10 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
 
     Parameters
     ----------
-    I_1, I_2 : array-like with shape (num_values, num_thetas, [num_phis])
-        differential scattered intensities, can be functions of theta or of
-        theta and phi. If a function of theta and phi, the theta dimension MUST
-        come first
+    dscat : array-like with shape (2, num_values, num_thetas, [num_phis])
+        differential scattered intensities for both polarizations. Can be
+        functions of theta or of theta and phi. If a function of theta and phi,
+        the theta dimension MUST come first
     distance : float (Quantity in [length])
         distance away from the scatterer
     thetas : array-like of Quantity in [angle], shape num_thetas
@@ -1316,16 +1314,14 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     if phis is not None:
         num_phis = phis.shape[-1]
         k = k.reshape((num_values, 1, 1))
-        I_1 = I_1.reshape((num_values, num_thetas, num_phis))
-        I_2 = I_2.reshape((num_values, num_thetas, num_phis))
+        dscat = dscat.reshape((2, num_values, num_thetas, num_phis))
         thetas = thetas[np.newaxis, ...]
         # phis has only two dimensions because by the time we use it, we have
         # already integrated over theta
         phis = phis[0, :]
         phis = phis.reshape(1, num_phis)
     else:
-        I_1 = I_1.reshape((num_values, num_thetas))
-        I_2 = I_2.reshape((num_values, num_thetas))
+        dscat = dscat.reshape((2, num_values, num_thetas))
         k = k.reshape((num_values, 1))
         thetas = thetas.reshape((1, num_thetas))
 
@@ -1336,8 +1332,8 @@ def integrate_intensity_complex_medium(I_1, I_2, distance, thetas, k,
     if isinstance(distance.magnitude,(list, np.ndarray)):
         if distance[0]==distance[1]:
             distance = distance[0]
-    dsigma_1 = I_1 * distance**2
-    dsigma_2 = I_2 * distance**2
+    dsigma_1 = dscat[0] * distance**2
+    dsigma_2 = dscat[1] * distance**2
 
     if coordinate_system == "scattering plane":
         if phis is not None:

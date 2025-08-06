@@ -630,17 +630,21 @@ class TestVectorizedInternalFunctions():
                                                      coordinate_system,
                                                      phis = phis)
 
-        integral = mie.integrate_intensity_complex_medium(*i12, d,
+        integral = mie.integrate_intensity_complex_medium(i12, d,
                         thetas, k, phi_min = Quantity(0.0, 'rad'),
                         phi_max = Quantity(2*np.pi, 'rad'),
                         coordinate_system = coordinate_system, phis = phis)
 
         # check that shapes of all the computed quantities are correct
-        for element in vsa + mat + i12:
+        for element in vsa + mat:
             if num_wavelen > 1:
                 assert element.shape == (num_wavelen, ) + thetas.shape
             else:
                 assert element.shape == thetas.shape
+        if num_wavelen > 1:
+            assert i12.shape == (2, num_wavelen) + thetas.shape
+        else:
+            assert i12.shape == (2,) + thetas.shape
 
         # check that vectorized calculations match looped calculations over
         # scalars
@@ -679,7 +683,7 @@ class TestVectorizedInternalFunctions():
                                                             coordinate_system,
                                                             phis = phis)
 
-            integral_loop = mie.integrate_intensity_complex_medium(*i_loop, d,
+            integral_loop = mie.integrate_intensity_complex_medium(i_loop, d,
                         thetas, k[i], phi_min = Quantity(0.0, 'rad'),
                         phi_max = Quantity(2*np.pi, 'rad'),
                         coordinate_system = coordinate_system, phis = phis)
@@ -875,25 +879,20 @@ class TestVectorizedUserFunctions():
         m, x = mx(num_wavelen, num_layer, **self.mxargs)
         form_factor = mie.calc_ang_dist(m, x, self.angles)
         if num_wavelen == 1:
-            expected_shape = (self.num_angle,)
-            for pol in form_factor:
-                assert pol.shape == expected_shape
+            expected_shape = (2, self.num_angle,)
+            assert form_factor.shape == expected_shape
             # no further test required since there is only one wavelength
             return
         else:
-            expected_shape = (num_wavelen, self.num_angle)
-        for pol in form_factor:
-            assert pol.shape == expected_shape
+            expected_shape = (2, num_wavelen, self.num_angle)
+            assert form_factor.shape == expected_shape
 
         # we should get same values from loop
-        ipar_loop = np.zeros(expected_shape, dtype=float)
-        iperp_loop = np.zeros(expected_shape, dtype=float)
+        iparperp_loop = np.zeros(expected_shape, dtype=float)
         for i in range(num_wavelen):
-            ipar, iperp = mie.calc_ang_dist(m[i], x[i], self.angles)
-            ipar_loop[i] = ipar
-            iperp_loop[i] = iperp
-        assert_equal(form_factor[0], ipar_loop)
-        assert_equal(form_factor[1], iperp_loop)
+            iparperp = mie.calc_ang_dist(m[i], x[i], self.angles)
+            iparperp_loop[:, i] = iparperp
+        assert_equal(form_factor, iparperp_loop)
 
         # check vectorization for Rayleigh-Gans approximation
         if num_layer > 1:
@@ -906,9 +905,8 @@ class TestVectorizedUserFunctions():
         form_factor_RG = mie.calc_ang_dist(m, x, self.angles,
                                                mie=False)
 
-        expected_shape = (num_wavelen, self.num_angle)
-        for pol in form_factor_RG:
-            assert pol.shape == expected_shape
+        expected_shape = (2, num_wavelen, self.num_angle)
+        assert form_factor_RG.shape == expected_shape
 
         # also check that we recover approximately the same result for RG as we
         # do for Mie in the limit of low refractive index
