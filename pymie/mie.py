@@ -1070,8 +1070,8 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
 
     return Es_theta, Es_phi, Hs_theta, Hs_phi
 
-def diff_scat_intensity_complex_medium(m, x, thetas, kd,
-        coordinate_system = 'scattering plane', phis = None, near_field=False,
+def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis = None,
+        coordinate_system = 'scattering plane', near_field=False,
         incident_vector=None):
     """
     Calculates the differential scattered intensity in an absorbing medium.
@@ -1118,13 +1118,6 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         distance away from the center of the particle. The standard far-field
         solutions are obtained when distance >> radius in a non-absorbing
         medium.
-    coordinate_system : string
-        default value 'scattering plane' means scattering calculations will be
-        carried out in the basis defined by basis vectors parallel and
-        perpendicular to scattering plane. Variable also accepts value
-        'cartesian' which scattering calculations will be carried out in the
-        basis defined by basis vectors x and y in the lab frame, with z
-        as the direction of propagation.
     phis : None or ndarray
         azimuthal angles for which to calculate the diff scat intensity. In the
         'scattering plane' coordinate system, the scattering matrix does not
@@ -1132,6 +1125,13 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd,
         coordinate system, the scattering matrix does depend on phi, so an
         array of values should be provided.  For 'cartesian' both thetas and
         phis should be 2D, as output from np.meshgrid.
+    coordinate_system : string
+        default value 'scattering plane' means scattering calculations will be
+        carried out in the basis defined by basis vectors parallel and
+        perpendicular to scattering plane. Variable also accepts value
+        'cartesian' which scattering calculations will be carried out in the
+        basis defined by basis vectors x and y in the lab frame, with z
+        as the direction of propagation.
     near_field : boolean
         True to include the near-fields (default is False). Cannot be set to
         True while using coordinate_system='cartesian' because near field
