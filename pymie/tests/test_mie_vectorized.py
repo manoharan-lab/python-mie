@@ -784,35 +784,32 @@ class TestVectorizedUserFunctions():
 
         """
         m, x = mx(num_wavelen, num_layer, **self.mxargs)
-        # wavelength in medium
-        wavelen = Quantity(np.linspace(self.mxargs["start_wavelen"],
-                                       self.mxargs["end_wavelen"],
-                                       num_wavelen),
-                           "nm")
-        wavelen_med = wavelen/self.mxargs["n_matrix"]
-        cscat, cext, cback, cabs, asym = mie.calc_cross_sections(m, x,
-                                                                 wavelen_med)
+        # note that the cross-sections are dimensionless (k^2 * Csca)
+        cscat, cext, cback, cabs, asym = mie.calc_cross_sections(m, x)
 
         # test shape
-        expected_shape = (num_wavelen,)
+        if num_wavelen > 1:
+            expected_shape = (num_wavelen,)
+        else:
+            expected_shape = ()
         for cs in [cscat, cext, cback, cabs, asym]:
             assert cs.shape == expected_shape
 
         # we should get same values from loop
-        cscat_loop = np.zeros(expected_shape, dtype=float)
-        cext_loop = np.zeros(expected_shape, dtype=float)
-        cback_loop = np.zeros(expected_shape, dtype=float)
-        cabs_loop = np.zeros(expected_shape, dtype=float)
-        asym_loop = np.zeros(expected_shape, dtype=float)
+        cscat_loop = np.zeros(num_wavelen, dtype=float)
+        cext_loop = np.zeros_like(cscat_loop)
+        cback_loop = np.zeros_like(cscat_loop)
+        cabs_loop = np.zeros_like(cscat_loop)
+        asym_loop = np.zeros_like(cscat_loop)
         for i in range(num_wavelen):
-            cs = mie.calc_cross_sections(m[i], x[i], wavelen[i])
+            cs = mie.calc_cross_sections(m[i], x[i])
             cscat_loop[i], cext_loop[i], cback_loop[i], \
-                cabs_loop[i], asym_loop[i] = (c.magnitude for c in cs)
-        assert_equal(cscat.magnitude, cscat_loop)
-        assert_equal(cext.magnitude, cext_loop)
-        assert_equal(cback.magnitude, cback_loop)
-        assert_equal(cabs.magnitude, cabs_loop)
-        assert_equal(asym.magnitude, asym_loop)
+                cabs_loop[i], asym_loop[i] = (c for c in cs)
+        assert_equal(cscat, cscat_loop)
+        assert_equal(cext, cext_loop)
+        assert_equal(cback, cback_loop)
+        assert_equal(cabs, cabs_loop)
+        assert_equal(asym, asym_loop)
 
         # check that numerical integration works too, and that it gives a
         # similar value for the total cross section
@@ -820,12 +817,10 @@ class TestVectorizedUserFunctions():
         thetas = np.linspace(0, np.pi, num_angles)
         c_integrated = mie.calc_integrated_cross_section(m, x, thetas)
 
-        k_medium = 2*np.pi/wavelen_med
-        c_integrated = c_integrated * k_medium**(-2)
         # small grid gives large integration error, but should still be within
         # 10%
-        assert_allclose(c_integrated.magnitude, cscat.magnitude, rtol=1e-1)
-        assert c_integrated.shape == (num_wavelen,)
+        assert_allclose(c_integrated, cscat, rtol=1e-1)
+        assert c_integrated.shape == expected_shape
 
     @pytest.mark.parametrize("num_wavelen, num_layer",
                              [(10, 1), (1, 5), (10, 5)])

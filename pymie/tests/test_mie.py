@@ -23,7 +23,6 @@ Tests for the mie module
 from .. import Quantity, index_ratio, size_parameter, np, mie
 from numpy.testing import (assert_almost_equal, assert_array_almost_equal,
                            assert_approx_equal, assert_allclose)
-from pint.errors import DimensionalityError
 import pytest
 
 def test_cross_sections():
@@ -50,18 +49,17 @@ def test_cross_sections():
     cscat = qscat * np.pi * radius**2
     cext = qext * np.pi * radius**2
     cback  = qback * np.pi * radius**2
-    cscat2, cext2, _, cback2, g2 = mie.calc_cross_sections(m, x, wavelen/n_matrix)
+    cscat2, cext2, _, cback2, g2 = mie.calc_cross_sections(m, x)
+    # calculate dimensional cross-sections
+    k = 2*np.pi*n_matrix/wavelen
+    cscat2 = cscat2/k**2
+    cext2 = cext2/k**2
+    cback2 = cback2/k**2
     assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
     assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
     assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
-    assert_almost_equal(g, g2.magnitude)
+    assert_almost_equal(g, g2)
 
-    # test that calc_cross_sections throws an exception when given an argument
-    # with the wrong dimensions
-    pytest.raises(DimensionalityError, mie.calc_cross_sections,
-                  m, x, Quantity('0.25 J'))
-    pytest.raises(DimensionalityError, mie.calc_cross_sections,
-                  m, x, Quantity('0.25'))
 
 def test_form_factor():
     wavelen = Quantity('658.0 nm')
@@ -187,7 +185,7 @@ def test_multilayer_spheres():
     x = size_parameter(wavelen, n_sample, radius)
 
     f_parperp = mie.calc_ang_scat(m, x, angles)
-    cscat, cext, cabs, cback, asym = mie.calc_cross_sections(m, x, wavelen)
+    cscat, cext, cabs, cback, asym = mie.calc_cross_sections(m, x)
 
     # form factor and cross section for a multilayer particle with a core that
     # is the same as the non-multilayer and a shell thickness of zero
@@ -196,14 +194,16 @@ def test_multilayer_spheres():
     xarray = size_parameter(wavelen, n_sample, multi_radius)
 
     f_parperp_multi = mie.calc_ang_scat(marray, xarray, angles)
-    cscat_multi, cext_multi, cabs_multi, cback_multi, asym_multi = mie.calc_cross_sections(marray, xarray, wavelen)
+    cscat_multi, cext_multi, cabs_multi, cback_multi, asym_multi = \
+        mie.calc_cross_sections(marray, xarray)
 
+    # note that these are the nondimensional cross-sections (C * k^2)
     assert_array_almost_equal(f_parperp, f_parperp_multi)
-    assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi.to('um^2').magnitude)
-    assert_array_almost_equal(cext.to('um^2').magnitude, cext_multi.to('um^2').magnitude)
-    assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi.to('um^2').magnitude)
-    assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi.to('um^2').magnitude)
-    assert_array_almost_equal(asym.magnitude, asym_multi.magnitude)
+    assert_array_almost_equal(cscat, cscat_multi)
+    assert_array_almost_equal(cext, cext_multi)
+    assert_array_almost_equal(cabs, cabs_multi)
+    assert_array_almost_equal(cback, cback_multi)
+    assert_array_almost_equal(asym, asym_multi)
 
     # form factor and cross section for a multilayer particle with a core that
     # is the same as the non-multilayer and a shell index matched with the
@@ -213,14 +213,16 @@ def test_multilayer_spheres():
     xarray2 = size_parameter(wavelen, n_sample, multi_radius2)
 
     f_parperp_multi2 = mie.calc_ang_scat(marray2, xarray2, angles)
-    cscat_multi2, cext_multi2, cabs_multi2, cback_multi2, asym_multi2 = mie.calc_cross_sections(marray2, xarray2, wavelen)
+    cscat_multi2, cext_multi2, cabs_multi2, cback_multi2, asym_multi2 = \
+        mie.calc_cross_sections(marray2, xarray2)
 
+    # again, we compare the nondimensional cross sections
     assert_array_almost_equal(f_parperp, f_parperp_multi2)
-    assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi2.to('um^2').magnitude)
-    assert_array_almost_equal(cext.to('um^2').magnitude, cext_multi2.to('um^2').magnitude)
-    assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi2.to('um^2').magnitude)
-    assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi2.to('um^2').magnitude)
-    assert_array_almost_equal(asym.magnitude, asym_multi2.magnitude)
+    assert_array_almost_equal(cscat, cscat_multi2)
+    assert_array_almost_equal(cext, cext_multi2)
+    assert_array_almost_equal(cabs, cabs_multi2)
+    assert_array_almost_equal(cback, cback_multi2)
+    assert_array_almost_equal(asym, asym_multi2)
 
     # form factor and cross section for a 3-layer-particle with a core that
     # is the same as the non-multilayer and shell thicknesses of zero
@@ -229,14 +231,16 @@ def test_multilayer_spheres():
     xarray3 = size_parameter(wavelen, n_sample, multi_radius3)
 
     f_parperp_multi3 = mie.calc_ang_scat(marray3, xarray3, angles)
-    cscat_multi3, cext_multi3, cabs_multi3, cback_multi3, asym_multi3 = mie.calc_cross_sections(marray3, xarray3, wavelen)
+    cscat_multi3, cext_multi3, cabs_multi3, cback_multi3, asym_multi3 = \
+        mie.calc_cross_sections(marray3, xarray3)
 
+    # compare the nondimensional cross-sections
     assert_array_almost_equal(f_parperp, f_parperp_multi3)
-    assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi3.to('um^2').magnitude)
-    assert_array_almost_equal(cext.to('um^2').magnitude, cext_multi3.to('um^2').magnitude)
-    assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi3.to('um^2').magnitude)
-    assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi3.to('um^2').magnitude)
-    assert_array_almost_equal(asym.magnitude, asym_multi3.magnitude)
+    assert_array_almost_equal(cscat, cscat_multi3)
+    assert_array_almost_equal(cext, cext_multi3)
+    assert_array_almost_equal(cabs, cabs_multi3)
+    assert_array_almost_equal(cback, cback_multi3)
+    assert_array_almost_equal(asym, asym_multi3)
 
     # form factor and cross section for a 3-layer-particle with a core that
     # is the same as the non-multilayer and a shell index matched with the
@@ -246,14 +250,16 @@ def test_multilayer_spheres():
     xarray4 = size_parameter(wavelen, n_sample, multi_radius4)
 
     f_parperp_multi4 = mie.calc_ang_scat(marray4, xarray4, angles)
-    cscat_multi4, cext_multi4, cabs_multi4, cback_multi4, asym_multi4 = mie.calc_cross_sections(marray4, xarray4, wavelen)
+    cscat_multi4, cext_multi4, cabs_multi4, cback_multi4, asym_multi4 = \
+        mie.calc_cross_sections(marray4, xarray4)
 
+    # compare the nondimensional cross sections
     assert_array_almost_equal(f_parperp, f_parperp_multi4)
-    assert_array_almost_equal(cscat.to('um^2').magnitude, cscat_multi4.to('um^2').magnitude)
-    assert_array_almost_equal(cext.to('um^2').magnitude, cext_multi4.to('um^2').magnitude)
-    assert_array_almost_equal(cabs.to('um^2').magnitude, cabs_multi4.to('um^2').magnitude)
-    assert_array_almost_equal(cback.to('um^2').magnitude, cback_multi4.to('um^2').magnitude)
-    assert_array_almost_equal(asym.magnitude, asym_multi4.magnitude)
+    assert_array_almost_equal(cscat, cscat_multi4)
+    assert_array_almost_equal(cext, cext_multi4)
+    assert_array_almost_equal(cabs, cabs_multi4)
+    assert_array_almost_equal(cback, cback_multi4)
+    assert_array_almost_equal(asym, asym_multi4)
 
 def test_multilayer_absorbing_spheres():
     # test that the form factor and cross sections are the same for a real
@@ -269,15 +275,21 @@ def test_multilayer_absorbing_spheres():
     f_parperp_multi_real = mie.calc_ang_scat(marray_real, xarray, angles)
     f_parperp_multi_imag = mie.calc_ang_scat(marray_imag, xarray, angles)
 
-    cross_sections_multi_real = mie.calc_cross_sections(marray_real, xarray, wavelen)
-    cross_sections_multi_imag = mie.calc_cross_sections(marray_imag, xarray, wavelen)
+    cross_sections_multi_real = mie.calc_cross_sections(marray_real, xarray)
+    cross_sections_multi_imag = mie.calc_cross_sections(marray_imag, xarray)
 
+    # compare nondimensional cross sections
     assert_array_almost_equal(f_parperp_multi_real, f_parperp_multi_imag)
-    assert_array_almost_equal(cross_sections_multi_real[0].to('um^2').magnitude, cross_sections_multi_imag[0].to('um^2').magnitude)
-    assert_array_almost_equal(cross_sections_multi_real[1].to('um^2').magnitude, cross_sections_multi_imag[1].to('um^2').magnitude)
-    assert_array_almost_equal(cross_sections_multi_real[2].to('um^2').magnitude, cross_sections_multi_imag[2].to('um^2').magnitude)
-    assert_array_almost_equal(cross_sections_multi_real[3].to('um^2').magnitude, cross_sections_multi_imag[3].to('um^2').magnitude)
-    assert_array_almost_equal(cross_sections_multi_real[4].magnitude, cross_sections_multi_imag[4].magnitude)
+    assert_array_almost_equal(cross_sections_multi_real[0],
+                              cross_sections_multi_imag[0])
+    assert_array_almost_equal(cross_sections_multi_real[1],
+                              cross_sections_multi_imag[1])
+    assert_array_almost_equal(cross_sections_multi_real[2],
+                              cross_sections_multi_imag[2])
+    assert_array_almost_equal(cross_sections_multi_real[3],
+                              cross_sections_multi_imag[3])
+    assert_array_almost_equal(cross_sections_multi_real[4],
+                              cross_sections_multi_imag[4])
 
 def test_cross_section_Fu():
     # Test that the cross sections match the Mie cross sections when there is
@@ -290,7 +302,11 @@ def test_cross_section_Fu():
     n_matrix1 = 1.33
     m1 = index_ratio(n_particle, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
-    cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
+    cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1)
+    k1 = 2*np.pi*n_matrix1/wavelen
+    cscat1 = cscat1/k1**2
+    cext1 = cext1/k1**2
+    cabs1 = cabs1/k1**2
 
     # Fu cross sections
     n_matrix2 = 1.33
@@ -320,7 +336,11 @@ def test_cross_section_Fu():
     n_matrix1 = 1.33
     m1 = index_ratio(n_particle2, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
-    cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
+    cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1)
+    k1 = 2*np.pi* n_matrix1/wavelen
+    cscat3 = cscat3/k1**2
+    cext3 = cext3/k1**2
+    cabs3 = cabs3/k1**2
 
     # Fu cross sections
     n_matrix2 = 1.33
@@ -353,7 +373,11 @@ def test_cross_section_Sudiarta():
     n_matrix1 = 1.33
     m1 = index_ratio(n_particle, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
-    cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
+    cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1)
+    k1 = 2*np.pi* n_matrix1/wavelen
+    cscat1 = cscat1/k1**2
+    cext1 = cext1/k1**2
+    cabs1 = cabs1/k1**2
 
     # Sudiarta cross sections
     n_matrix2 = 1.33
@@ -378,9 +402,13 @@ def test_cross_section_Sudiarta():
     n_matrix1 = 1.33
     m1 = index_ratio(n_particle2, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
-    cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
+    cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1)
+    k1 = 2*np.pi* n_matrix1/wavelen
+    cscat3 = cscat3/k1**2
+    cext3 = cext3/k1**2
+    cabs3 = cabs3/k1**2
 
-    # Fu cross sections
+    # Sudiarta cross sections
     n_matrix2 = 1.33
     m2 = index_ratio(n_particle2, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
@@ -504,7 +532,9 @@ def test_cross_section_complex_medium():
     coeffs = mie._scatcoeffs(m, x, nstop)
 
     # With far-field Mie solutions
-    cscat_mie = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
+    cscat_mie = mie.calc_cross_sections(m, x)[0]
+    k = 2*np.pi*n_matrix/wavelen
+    cscat_mie = cscat_mie/k**2
 
     # With Sudiarta
     cscat_sudiarta = mie._cross_sections_complex_medium_sudiarta(coeffs[0],
@@ -586,7 +616,8 @@ def test_cross_section_complex_medium():
                                                           theta, k)[0]
 
     # With far-field Mie solutions
-    cscat_mie3 = mie.calc_cross_sections(m, x, wavelen/n_matrix)[0]
+    cscat_mie3 = mie.calc_cross_sections(m, x)[0]
+    cscat_mie3 = cscat_mie3/k**2
 
     # check that intensity equations without the asymptotic form of the spherical
     # Hankel equations (because they simplify when the fields are multiplied by
@@ -611,7 +642,8 @@ def test_multilayer_complex_medium():
     kd = (k*distance).to("").magnitude
 
     # With far-field Mie solutions
-    cscat_real = mie.calc_cross_sections(marray, xarray, wavelen/n_sample)[0]
+    cscat_real = mie.calc_cross_sections(marray, xarray)[0]
+    cscat_real = cscat_real/k**2
 
     # with imag solutions
     I_parperp = mie.diff_scat_intensity_complex_medium(marray, xarray, angles,
@@ -855,7 +887,9 @@ def test_dwell_time_and_energy():
 
     cscat_reported = 3.9*np.pi*radius**2
     cscat_reported = cscat_reported.to('um^2')
-    cscat_calc = mie.calc_cross_sections(m, x, wavelen_media)[0]
+    cscat_calc = mie.calc_cross_sections(m, x)[0]
+    k = 2*np.pi/wavelen_media
+    cscat_calc = cscat_calc/k**2
     cscat_calc = cscat_calc.to('um^2')
 
     distance_reported = Quantity('190.0 um')

@@ -119,29 +119,31 @@ def calc_ang_scat(m, x, angles, mie = True, check = False):
 
     return np.array([ipar, iperp])
 
-@ureg.check(None, None, '[length]', None, None)
-def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
+def calc_cross_sections(m, x, eps1 = DEFAULT_EPS1,
                         eps2 = DEFAULT_EPS2):
     """
-    Calculate (dimensional) scattering, absorption, and extinction cross
+    Calculate dimensionaless scattering, absorption, and extinction cross
     sections, and asymmetry parameter for spherically symmetric scatterers.
 
     Parameters
     ----------
-    m: complex relative refractive index
-    x: size parameter
-    wavelen_media: structcol.Quantity [length]
-        wavelength of incident light *in media* (usually this would be the
-        wavelength in the effective index of the particle-matrix composite)
+    m : array-like
+        complex relative refractive index
+    x : array-like
+        size parameter
 
     Returns
     -------
     cross_sections : tuple (5)
-        Dimensional scattering, absorption, extinction, and backscattering
+        Dimensionless scattering, absorption, extinction, and backscattering
         cross sections, and <cos theta> (asymmetry parameter g)
 
     Notes
     -----
+    To recover the dimensional cross-sections, multiply the returned
+    cross-sections by 1/k^2, where k is the wavevector in *media*. The
+    asymmetry parameter is dimensionless and needs no scaling.
+
     The backscattering cross-section is 1/(4*pi) times the radar backscattering
     cross-section; that is, it corresponds to the differential scattering
     cross-section in the backscattering direction.  See B&H 4.6.
@@ -155,18 +157,19 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
 
     where I_0 is the incident intensity.  See van de Hulst, p. 14.
     """
-    # This is adapted from mie.py in holopy
-
     lmax = _nstop(np.array(x).max())
     albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
 
-    cscat, cext, cback =  tuple(np.abs(wavelen_media)**2 * c/2/np.pi for c in
+    cscat, cext, cback =  tuple(c*2*np.pi for c in
                                 _cross_sections(albl[0], albl[1]))
 
     cabs = cext - cscat # conservation of energy
 
-    asym = np.abs(wavelen_media)**2 / np.pi / cscat * \
-           _asymmetry_parameter(albl[0], albl[1])
+    # _asymmetry_parameter returns g*Q_sca*x^2/4.  cscat is k^2 times the
+    # dimensional cross-section.  So asymmetry parameter is
+    # 4*pi/(k^2 Csca) * sum from _asymmetry_parameter, where Csca is the
+    # dimensional cross section
+    asym = 4*np.pi / cscat * _asymmetry_parameter(albl[0], albl[1])
 
     return cscat, cext, cabs, cback, asym
 
@@ -317,10 +320,10 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
     c = Quantity(1.0, 'speed_of_light').to('m/s')
 
     # calculate total cross section
+    k = 2*np.pi/wavelen_media
     if np.imag(x)>0:
         angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
         distance = radius.max()
-        k = 2*np.pi/wavelen_media
         kd = (k*distance).to("").magnitude
         (diff_cscat_par,
          diff_cscat_perp) = diff_scat_intensity_complex_medium(m, x, angles,
@@ -331,8 +334,8 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
                                                    distance,
                                                    angles, k)[0]
     else:
-        cscat = calc_cross_sections(m, x, wavelen_media,
-                                    eps1 = eps1, eps2 = eps2)[0]
+        cscat = calc_cross_sections(m, x, eps1 = eps1, eps2 = eps2)[0]
+        cscat = cscat * 1/k**2
 
     # calculate dwell time
     dwell_time = W/(cscat*c)
@@ -697,11 +700,10 @@ def _W0(radius, n_medium):
     return W0
 
 def _nstop(x):
-    # takes size parameter, outputs order to compute to according to
-    # Wiscombe, Applied Optics 19, 1505 (1980).
-    # 7/7/08: generalize to apply same criterion when x is complex
+    # Takes size parameter, outputs order to compute.  Previously used criterion
+    # from Wiscombe, Applied Optics 19, 1505 (1980):
     #return (np.round(np.absolute(x+4.05*x**(1./3.)+2))).astype('int')
-
+    # now modified to use:
     # Criterion for calculating near-field properties with exact Mie solutions
     # (J. R. Allardice and E. C. Le Ru, Applied Optics, Vol. 53, No. 31 (2014).
     return (np.round(np.absolute(x+11*x**(1./3.)+1))).squeeze().astype('int')
