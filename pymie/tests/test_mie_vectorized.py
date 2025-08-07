@@ -406,7 +406,7 @@ class TestVectorizedInternalFunctions():
               "n_matrix": Quantity(1.00, '')}
 
     num_theta = 20
-    thetas = Quantity(np.linspace(0, np.pi, num_theta), 'rad')
+    thetas = np.linspace(0, np.pi, num_theta)
 
     @pytest.mark.parametrize("num_wavelen", [1, 10, 100])
     def test_vectorized_nstop(self, num_wavelen):
@@ -606,7 +606,7 @@ class TestVectorizedInternalFunctions():
             phis = None
             thetas = self.thetas
         else:
-            phis = Quantity(np.linspace(0, 2*np.pi, self.num_theta), '')
+            phis = np.linspace(0, 2*np.pi, self.num_theta)
             thetas, phis = np.meshgrid(self.thetas, phis)
 
         vsa = mie.vector_scattering_amplitude(m, x, thetas,

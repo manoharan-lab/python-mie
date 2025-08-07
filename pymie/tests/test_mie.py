@@ -182,7 +182,7 @@ def test_multilayer_spheres():
     m = 1.15
     n_sample = Quantity(1.5, '')
     wavelen = Quantity('500.0 nm')
-    angles = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
+    angles = np.linspace(np.pi/2, np.pi, 20)
     radius = Quantity('100.0 nm')
     x = size_parameter(wavelen, n_sample, radius)
 
@@ -264,7 +264,7 @@ def test_multilayer_absorbing_spheres():
     wavelen = Quantity('500.0 nm')
     multi_radius = Quantity(np.array([100.0, 110.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
-    angles = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
+    angles = np.linspace(np.pi/2, np.pi, 20)
 
     f_parperp_multi_real = mie.calc_ang_scat(marray_real, xarray, angles)
     f_parperp_multi_imag = mie.calc_ang_scat(marray_imag, xarray, angles)
@@ -447,7 +447,7 @@ def test_differential_cross_section():
     n_particle = Quantity(1.5, "")
     n_matrix = Quantity(1.0, "")
     radius = Quantity(150.0, "nm")
-    theta = Quantity(np.linspace(0, np.pi, 1000), "rad")
+    theta = np.linspace(0, np.pi, 1000)
     distance = Quantity(10000.0, "nm")
 
     m = index_ratio(n_particle, n_matrix)
@@ -493,7 +493,7 @@ def test_cross_section_complex_medium():
     n_particle = Quantity(1.5+0.01j,'')
     n_matrix = Quantity(1.0,'')
     radius = Quantity(150.0,'nm')
-    theta = Quantity(np.linspace(0, np.pi, 1000), 'rad')#1000
+    theta = np.linspace(0, np.pi, 1000)
     distance = Quantity(10000.0,'nm')
 
 
@@ -605,7 +605,7 @@ def test_multilayer_complex_medium():
     wavelen = Quantity('500.0 nm')
     multi_radius = Quantity(np.array([100, 110]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
-    angles = Quantity(np.linspace(0, np.pi, 10000), 'rad')
+    angles = np.linspace(0, np.pi, 10000)
     distance = Quantity(100000000.0,'nm')
     k =  2*np.pi*n_sample/wavelen
     kd = k*distance
@@ -654,8 +654,8 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     n_matrix = Quantity(1.00, '')
     #n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
     n_particle = Quantity(1.59, '')
-    thetas = Quantity(np.linspace(np.pi/2, np.pi, 2), 'rad')
-    phis = Quantity(np.linspace(0, 2*np.pi, 4), 'rad')
+    thetas = np.linspace(np.pi/2, np.pi, 2)
+    phis = np.linspace(0, 2*np.pi, 4)
     thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape.
 
     # parameters for calculating scattering
@@ -672,8 +672,8 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     as_vec_x = S2_sp*np.cos(phis_2d)**2 + S1_sp*np.sin(phis_2d)**2
     as_vec_y = S2_sp*np.cos(phis_2d)*np.sin(phis_2d) - S1_sp*np.cos(phis_2d)*np.sin(phis_2d)
 
-    assert_almost_equal(as_vec_x0, as_vec_x.magnitude)
-    assert_almost_equal(as_vec_y0, as_vec_y.magnitude)
+    assert_almost_equal(as_vec_x0, as_vec_x)
+    assert_almost_equal(as_vec_y0, as_vec_y)
 
 def test_diff_scat_intensity_complex_medium_cartesian():
     '''
@@ -689,12 +689,11 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    thetas = Quantity(np.linspace(np.pi/2, np.pi, 4), 'rad')
-    phis = Quantity(np.linspace(0, 2*np.pi, 3), 'rad')
+    thetas = np.linspace(np.pi/2, np.pi, 4)
+    phis = np.linspace(0, 2*np.pi, 3)
     thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape.
                                                    # for integration, theta dimension must always come first,
                                                    # which is not how it is done here
-    thetas_2d = Quantity(thetas_2d, 'rad')
 
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
@@ -729,8 +728,8 @@ def test_integrate_intensity_complex_medium_cartesian():
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    thetas = Quantity(np.linspace(0, np.pi, 500), 'rad')
-    phis = Quantity(np.linspace(0, 2*np.pi, 550), 'rad')
+    thetas = np.linspace(0, np.pi, 500)
+    phis = np.linspace(0, 2*np.pi, 550)
     phis_2d, thetas_2d = np.meshgrid(phis, thetas) # remember, meshgrid shape is (len(thetas), len(phis))
                                                    # and theta dimension MUST come first in these calculations
     # parameters for calculating scattering
@@ -774,10 +773,9 @@ def test_value_errors():
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    thetas = Quantity(np.linspace(np.pi/2, np.pi, 4), 'rad')
-    phis = Quantity(np.linspace(0, 2*np.pi, 3), 'rad')
+    thetas = np.linspace(np.pi/2, np.pi, 4)
+    phis = np.linspace(0, 2*np.pi, 3)
     thetas_2d, phis_2d = np.meshgrid(thetas, phis)
-    thetas_2d = Quantity(thetas_2d, 'rad')
 
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)

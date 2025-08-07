@@ -381,10 +381,10 @@ def _pis_and_taus(nstop, thetas):
 
     Parameters
     ----------
-    nstop: float
+    nstop : float
         maximum order
-    thetas: ndarray or float
-        scattering angles
+    thetas : ndarray or float
+        scattering angles.  Must be specified in radians.
 
     Returns
     -------
@@ -406,8 +406,6 @@ def _pis_and_taus(nstop, thetas):
     ang_shape = list(thetas.shape)
 
     # flatten to make calculations easier
-    if isinstance(thetas, Quantity):
-        thetas = thetas.to('rad').magnitude
     thetas = np.ndarray.flatten(thetas)
 
     mu = np.cos(thetas)
