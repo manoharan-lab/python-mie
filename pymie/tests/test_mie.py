@@ -33,8 +33,8 @@ def test_cross_sections():
     # test case is PS sphere in water
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
-    n_matrix = Quantity(1.33, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    n_matrix = 1.33
+    n_particle = 1.59 + 1e-4 * 1.0j
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
     qscat, qext, qback = mie.calc_efficiencies(m, x)
@@ -66,8 +66,8 @@ def test_cross_sections():
 def test_form_factor():
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
-    n_matrix = Quantity(1.00, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    n_matrix = 1.00
+    n_particle = 1.59 + 1e-4 * 1.0j
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
 
@@ -124,8 +124,8 @@ def test_efficiencies():
                             0.331000402174976])
 
     # wavelen = Quantity('658.0 nm')
-    n_matrix = Quantity(1.00, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    n_matrix = 1.00
+    n_particle = 1.59 + 1e-4 * 1.0j
     m = index_ratio(n_particle, n_matrix)
 
     effs = [mie.calc_efficiencies(m, x) for x in x]
@@ -151,8 +151,8 @@ def test_efficiencies():
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
     # wavelen = Quantity('658.0 nm')
-    n_matrix = Quantity(1.00, '')
-    n_particle = Quantity(0.1425812 + 3.6813284 * 1.0j, '')
+    n_matrix = 1.00
+    n_particle = 0.1425812 + 3.6813284 * 1.0j
     m = index_ratio(n_particle, n_matrix)
     x = 10.0
 
@@ -180,7 +180,7 @@ def test_multilayer_spheres():
 
     # form factor and cross section for non-multilayer
     m = 1.15
-    n_sample = Quantity(1.5, '')
+    n_sample = 1.5
     wavelen = Quantity('500.0 nm')
     angles = np.linspace(np.pi/2, np.pi, 20)
     radius = Quantity('100.0 nm')
@@ -260,7 +260,7 @@ def test_multilayer_absorbing_spheres():
     # index ratio m and a complex index ratio with a 0 imaginary component
     marray_real = [1.15, 1.2]
     marray_imag = [1.15 + 0j, 1.2 + 0j]
-    n_sample = Quantity(1.5, '')
+    n_sample = 1.5
     wavelen = Quantity('500.0 nm')
     multi_radius = Quantity(np.array([100.0, 110.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
@@ -284,16 +284,16 @@ def test_cross_section_Fu():
     # no absorption in the medium
     wavelen = Quantity('500.0 nm')
     radius = Quantity('200.0 nm')
-    n_particle = Quantity(1.59, '')
+    n_particle = 1.59
 
     # Mie cross sections
-    n_matrix1 = Quantity(1.33, '')
+    n_matrix1 = 1.33
     m1 = index_ratio(n_particle, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
 
     # Fu cross sections
-    n_matrix2 = Quantity(1.33, '')
+    n_matrix2 = 1.33
     m2 = index_ratio(n_particle, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     x_scat = size_parameter(wavelen, n_particle, radius)
@@ -314,16 +314,16 @@ def test_cross_section_Fu():
 
     # Test that the cross sections match the Mie cross sections when there is
     # no absorption in the medium and there is absorption in the particle
-    n_particle2 = Quantity(1.59 + 0.01j, '')
+    n_particle2 = 1.59 + 0.01j
 
     # Mie cross sections
-    n_matrix1 = Quantity(1.33, '')
+    n_matrix1 = 1.33
     m1 = index_ratio(n_particle2, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
 
     # Fu cross sections
-    n_matrix2 = Quantity(1.33, '')
+    n_matrix2 = 1.33
     m2 = index_ratio(n_particle2, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     x_scat = size_parameter(wavelen, n_particle2, radius)
@@ -347,16 +347,16 @@ def test_cross_section_Sudiarta():
     # no absorption in the medium
     wavelen = Quantity('500.0 nm')
     radius = Quantity('200.0 nm')
-    n_particle = Quantity(1.59, '')
+    n_particle = 1.59
 
     # Mie cross sections
-    n_matrix1 = Quantity(1.33, '')
+    n_matrix1 = 1.33
     m1 = index_ratio(n_particle, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat1, cext1, cabs1, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
 
     # Sudiarta cross sections
-    n_matrix2 = Quantity(1.33, '')
+    n_matrix2 = 1.33
     m2 = index_ratio(n_particle, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     nstop = mie._nstop(x2)
@@ -372,16 +372,16 @@ def test_cross_section_Sudiarta():
 
     # Test that the cross sections match the Mie cross sections when there is
     # no absorption in the medium and there is absorption in the particle
-    n_particle2 = Quantity(1.59 + 0.01j, '')
+    n_particle2 = 1.59 + 0.01j
 
     # Mie cross sections
-    n_matrix1 = Quantity(1.33, '')
+    n_matrix1 = 1.33
     m1 = index_ratio(n_particle2, n_matrix1)
     x1 = size_parameter(wavelen, n_matrix1, radius)
     cscat3, cext3, cabs3, _, _ = mie.calc_cross_sections(m1, x1, wavelen/n_matrix1)
 
     # Fu cross sections
-    n_matrix2 = Quantity(1.33, '')
+    n_matrix2 = 1.33
     m2 = index_ratio(n_particle2, n_matrix2)
     x2 = size_parameter(wavelen, n_matrix2, radius)
     nstop = mie._nstop(x2)
@@ -444,8 +444,8 @@ def test_differential_cross_section():
     """
     # set parameters
     wavelen = Quantity("400.0 nm")
-    n_particle = Quantity(1.5, "")
-    n_matrix = Quantity(1.0, "")
+    n_particle = 1.5
+    n_matrix = 1.0
     radius = Quantity(150.0, "nm")
     theta = np.linspace(0, np.pi, 1000)
     distance = Quantity(10000.0, "nm")
@@ -490,8 +490,8 @@ def test_cross_section_complex_medium():
 
     # set parameters
     wavelen = Quantity('400.0 nm')
-    n_particle = Quantity(1.5+0.01j,'')
-    n_matrix = Quantity(1.0,'')
+    n_particle = 1.5+0.01j
+    n_matrix = 1.0
     radius = Quantity(150.0,'nm')
     theta = np.linspace(0, np.pi, 1000)
     distance = Quantity(10000.0,'nm')
@@ -539,7 +539,7 @@ def test_cross_section_complex_medium():
     # test that the cross sections calculated with the full Mie solutions
     # match the near field Sudiarta and Fu's solutions when there is absorption
     # in the medium
-    n_matrix = Quantity(1.0+0.001j,'')
+    n_matrix = 1.0+0.001j
     distance = Quantity(radius.magnitude,'nm')
 
     m = index_ratio(n_particle, n_matrix)
@@ -573,7 +573,7 @@ def test_cross_section_complex_medium():
 
     # test that the cross sections calculated with the full Mie solutions
     # match the far-field Mie solutions when the matrix absorption is close to 0
-    n_matrix = Quantity(1.0+0.0000001j,'')
+    n_matrix = 1.0+0.0000001j
     m = index_ratio(n_particle, n_matrix)
     k = 2*np.pi*n_matrix/wavelen
     x = size_parameter(wavelen, n_matrix, radius)
@@ -601,7 +601,7 @@ def test_multilayer_complex_medium():
     # test that the form factor and cross sections are the same for a real
     # index ratio m and a complex index ratio with a 0 imaginary component
     marray = [1.15, 1.2]
-    n_sample = Quantity(1.5 + 0j, '')
+    n_sample = 1.5 + 0j
     wavelen = Quantity('500.0 nm')
     multi_radius = Quantity(np.array([100, 110]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
@@ -651,9 +651,8 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     # parameters of sample and source
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
-    n_matrix = Quantity(1.00, '')
-    #n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    n_particle = Quantity(1.59, '')
+    n_matrix = 1.00
+    n_particle = 1.59
     thetas = np.linspace(np.pi/2, np.pi, 2)
     phis = np.linspace(0, 2*np.pi, 4)
     thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape.
@@ -687,8 +686,8 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     # parameters of sample and source
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
-    n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    n_matrix = 1.00 + 1e-4* 1.0j
+    n_particle = 1.59 + 1e-4 * 1.0j
     thetas = np.linspace(np.pi/2, np.pi, 4)
     phis = np.linspace(0, 2*np.pi, 3)
     thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape.
@@ -726,8 +725,8 @@ def test_integrate_intensity_complex_medium_cartesian():
     # parameters of sample and source
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
-    n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    n_matrix = 1.00 + 1e-4* 1.0j
+    n_particle = 1.59 + 1e-4 * 1.0j
     thetas = np.linspace(0, np.pi, 500)
     phis = np.linspace(0, 2*np.pi, 550)
     phis_2d, thetas_2d = np.meshgrid(phis, thetas) # remember, meshgrid shape is (len(thetas), len(phis))
@@ -771,8 +770,8 @@ def test_value_errors():
     # parameters of sample and source
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
-    n_matrix = Quantity(1.00 + 1e-4* 1.0j, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    n_matrix = 1.00 + 1e-4* 1.0j
+    n_particle = 1.59 + 1e-4 * 1.0j
     thetas = np.linspace(np.pi/2, np.pi, 4)
     phis = np.linspace(0, 2*np.pi, 3)
     thetas_2d, phis_2d = np.meshgrid(thetas, phis)
@@ -826,8 +825,8 @@ def test_dwell_time_and_energy():
 
     # parameters given in  Lagendijk and van Tiggelen
     radius = Quantity('220.0 nm')
-    n_medium = Quantity(1.0, '')
-    n_particle = Quantity(2.73, '')
+    n_medium = 1.0
+    n_particle = 2.73
     c = Quantity(2.99792e8,'m/s')
     x = 4.59
     m = 2.73

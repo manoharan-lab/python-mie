@@ -41,7 +41,7 @@ from pint import UnitRegistry
 ureg = UnitRegistry()
 Quantity = ureg.Quantity
 
-@ureg.check('[length]', '[]')
+@ureg.check('[length]', None)
 def q(wavelen, theta):
     """
     Calculates the magnitude of the momentum-transfer wavevector
@@ -61,23 +61,17 @@ def q(wavelen, theta):
     """
     return 4*np.pi/wavelen * np.sin(theta/2.0)
 
-@ureg.check('[]', '[]')
 def index_ratio(n_particle, n_matrix):
     """
     Calculates the ratio of refractive indices (m in Mie theory)
 
     Parameters
     ----------
-    n_particle: structcol.Quantity [dimensionless] or ndarray thereof
+    n_particle : array-like
         refractive index of particle at particular wavelength(s)
         can be complex
-    n_matrix: structcol.Quantity [dimensionless]
+    n_matrix : array-like
         refractive index of matrix at a particular wavelength
-
-    Notes
-    -----
-    Nondimensionalizes from input arguments and strips units, returning a pure
-    ndarray (not a Quantity object)
 
     Returns
     -------
@@ -85,9 +79,9 @@ def index_ratio(n_particle, n_matrix):
         Return type depends on type of n_particle and n_matrix, and return
         shape should be the same as n_particle
     """
-    return (n_particle/n_matrix).magnitude
+    return n_particle/n_matrix
 
-@ureg.check('[length]', '[]', '[length]')
+@ureg.check('[length]', None, '[length]')
 def size_parameter(wavelen, n_matrix, radius):
     """
     Calculates the size parameter x=k_matrix*a needed for Mie calculations
@@ -96,8 +90,10 @@ def size_parameter(wavelen, n_matrix, radius):
     ----------
     wavelen: structcol.Quantity [length], array-like
         wavelength in vacuum
-    n_matrix: structcol.Quantity [dimensionless], array-like
-        refractive index of matrix at wavelength=wavelen
+    n_matrix: array-like
+        refractive index of matrix at wavelength=wavelen.  If specified as 1D
+        array, shape is [num_layers].  If 2D, shape is [num_wavelen,
+        num_layers]
     radius: structcol.Quantity [length], array-like
         radius of particle
 
@@ -119,9 +115,6 @@ def size_parameter(wavelen, n_matrix, radius):
     # wavelength and radius are arrays
     radius = np.broadcast_to(radius, (np.size(wavelen), np.size(radius)))
     wavelen = np.reshape(wavelen, (np.size(wavelen), 1))
-    # matrix index may be specifed as an array to account for dispersion
-    if isinstance(n_matrix, np.ndarray):
-        n_matrix = np.reshape(n_matrix, (np.size(wavelen), 1))
     sp = (2 * np.pi * n_matrix / wavelen * radius)
 
     # must use to('dimensionless') in case the wavelength and radius are

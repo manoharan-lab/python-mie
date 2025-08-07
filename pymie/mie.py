@@ -341,7 +341,7 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
 
 # TODO: document and test the correctness of this function, or delete (it is
 # not currently used anywhere)
-@ureg.check('[length]', '[]', '[]', '[length]', None, None)
+@ureg.check('[length]', None, None, '[length]', None, None)
 def calc_reflectance(radius, n_medium, n_particle, wavelen,
                      min_angle=np.pi/2, num_angles=50):
 
@@ -355,7 +355,7 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
         rmax = radius.max()
     geometric_cross_sec = np.pi*rmax**2
 
-    thetas = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
+    thetas = np.linspace(min_angle, np.pi, num_angles)
     # calculate reflectance cross section
     if np.any(np.imag(x) > 0):
         distance = rmax
@@ -365,7 +365,7 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
         refl_cscat = integrate_intensity_complex_medium(diff_cscat,
                                                         distance, thetas, k)[0]
     else:
-        refl_cscat = calc_integrated_cross_section(m, x, thetas.magnitude)
+        refl_cscat = calc_integrated_cross_section(m, x, thetas)
         refl_cscat = wavelen_media**2/4/np.pi/np.pi * refl_cscat
 
     reflectance = ((refl_cscat/geometric_cross_sec).to('')
@@ -779,7 +779,7 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
 
     # if the imaginary part of the medium index is close to 0, then use the
     # limit value of prefactor1 for the calculations
-    if n_medium.imag.magnitude <= 1e-7:
+    if n_medium.imag <= 1e-7:
         prefactor1 = wavelen / (np.pi * radius**2 * n_medium.real)
     else:
         eta = 4*np.pi*radius*n_medium.imag/wavelen
@@ -964,8 +964,6 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     in an absorbing medium". Applied Optics, 40, 9 (2001).
     '''
     # convert units from whatever units the user specifies
-    if isinstance(thetas, Quantity):
-        thetas = thetas.to('rad').magnitude
     if isinstance(kd, Quantity):
         kd = kd.to('').magnitude
 
@@ -1054,8 +1052,8 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     return Es_theta, Es_phi, Hs_theta, Hs_phi
 
 def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
-        cartesian=False, near_field=False,
-        incident_vector=None):
+                                       cartesian=False, near_field=False,
+                                       incident_vector=None):
     """
     Calculates the differential scattered intensity in an absorbing medium.
     User can choose whether to include near fields.
@@ -1276,16 +1274,9 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
         differential cross section for second component of basis
 
     """
-    # convert to radians from whatever units the user specifies
-    if isinstance(thetas, Quantity):
-        thetas = thetas.to('rad').magnitude
-
     # check that if phis is specified, both thetas and phis are given as 2D
     # arrays
     if phis is not None:
-        # convert to radians
-        if isinstance(phis, Quantity):
-            phis = phis.to('rad').magnitude
         if phis.ndim == 1:
             phis, thetas = np.meshgrid(phis, thetas)
 
@@ -1448,8 +1439,6 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
 
     '''
     # convert units from whatever units the user specifies
-    if isinstance(thetas, Quantity):
-        thetas = thetas.to('rad').magnitude
     if isinstance(ktd, Quantity):
         ktd = ktd.to('').magnitude
 
@@ -1572,11 +1561,6 @@ def amplitude_scattering_matrix(m, x, thetas,
     nstop = _nstop(np.array(x).max())
     n = np.arange(nstop)+1.
     prefactor  = (2*n+1)/(n*(n+1))
-
-    if isinstance(thetas, Quantity):
-        thetas = thetas.to('rad').magnitude
-    if isinstance(phis, Quantity):
-        phis = phis.to('rad').magnitude
 
     # calculate mie coefficients
     coeffs = _scatcoeffs(m, x, nstop)

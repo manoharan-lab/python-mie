@@ -45,12 +45,10 @@ def mx(num_wavelen, num_layer, start_wavelen=400, end_wavelen=800,
         wavelen = Quantity(np.linspace(start_wavelen, end_wavelen, num_wavelen),
                            'nm')
         # let index be the same at all wavelengths
-        n_particle = Quantity(np.ones((num_wavelen, num_layer))*n_particle, '')
+        n_particle = np.ones((num_wavelen, num_layer))*n_particle
     else:
         wavelen = Quantity(start_wavelen, 'nm')
-        n_particle = Quantity(n_particle, '')
 
-    n_matrix = Quantity(n_matrix, '')
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
 
@@ -76,11 +74,11 @@ def test_parameter_shapes():
     num_layer = 3
     wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
     radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
-    n_matrix = Quantity(1.00, '')
+    n_matrix = 1.00
     # let index be the same at all wavelengths, but different at each layer
     n_particle = np.linspace(1.33, 1.59, num_layer)
     n_particle = np.repeat(np.array([n_particle]), num_wavelen, axis=0)
-    n_particle = Quantity(n_particle, '')
+    n_particle = n_particle
 
     # multiple wavelengths, multiple layers. m and x should have shape
     # [num_wavelen, num_layer].
@@ -98,7 +96,7 @@ def test_parameter_shapes():
     wavelen = Quantity(400, 'nm')
     num_layer = 6
     radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
-    n_particle = Quantity(np.linspace(1.33, 1.59, num_layer), '')
+    n_particle = np.linspace(1.33, 1.59, num_layer)
     m = index_ratio(n_particle, n_matrix)
     assert m.shape == (num_layer, )
     x = size_parameter(wavelen, n_matrix, radius)
@@ -109,7 +107,7 @@ def test_parameter_shapes():
     wavelen = Quantity(400, 'nm')
     num_layer = 6
     radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
-    n_particle = Quantity(np.linspace(1.33, 1.59, num_layer)[np.newaxis,:], '')
+    n_particle = np.linspace(1.33, 1.59, num_layer)[np.newaxis,:]
     m = index_ratio(n_particle, n_matrix)
     assert m.shape == (1, num_layer)
     x = size_parameter(wavelen, n_matrix, radius)
@@ -120,8 +118,7 @@ def test_parameter_shapes():
     num_wavelen = 8
     wavelen = Quantity(np.linspace(400, 800, num_wavelen), 'nm')
     radius = Quantity(0.85, 'um')
-    n_particle = Quantity(np.linspace(1.33, 1.59, num_wavelen)[:,np.newaxis],
-                          '')
+    n_particle = np.linspace(1.33, 1.59, num_wavelen)[:,np.newaxis]
     m = index_ratio(n_particle, n_matrix)
     assert m.shape == (num_wavelen, 1)
     x = size_parameter(wavelen, n_matrix, radius)
@@ -160,7 +157,7 @@ class TestVectorizedSpecialFuncs():
               "end_radius": 1000,
               "start_n_particle": 1.59 + 0.001j,
               "end_n_particle": 1.33 + 0.005j,
-              "n_matrix": Quantity(1.00, '')}
+              "n_matrix": 1.00}
 
     # vectorizing functions may lead to small differences from loops, due to
     # floating point precision. We set 10^-14 as a relative tolerance for
@@ -403,7 +400,7 @@ class TestVectorizedInternalFunctions():
               "end_radius": 1000,
               "start_n_particle": 1.59 + 0.001j,
               "end_n_particle": 1.33 + 0.005j,
-              "n_matrix": Quantity(1.00, '')}
+              "n_matrix": 1.00}
 
     num_theta = 20
     thetas = np.linspace(0, np.pi, num_theta)
@@ -531,7 +528,6 @@ class TestVectorizedInternalFunctions():
 
         c_sudiarta = mie._cross_sections_complex_medium_sudiarta(al, bl,
                                                                  x, radius)
-
 
         c_sud_sca = np.zeros(num_wavelen)
         c_sud_abs = np.zeros_like(c_sud_sca)
@@ -747,7 +743,7 @@ class TestVectorizedUserFunctions():
               "end_radius": 1000,
               "start_n_particle": 1.59 + 0.001j,
               "end_n_particle": 1.33 + 0.005j,
-              "n_matrix": Quantity(1.00, '')}
+              "n_matrix": 1.00}
 
     num_angle = 19
     angles = Quantity(np.linspace(0, 180., num_angle),
@@ -907,11 +903,11 @@ class TestVectorizedUserFunctions():
         # also check that we recover approximately the same result for RG as we
         # do for Mie in the limit of low refractive index
         radius = Quantity('0.85 um')
-        n_matrix = Quantity(1.00, '')
+        n_matrix = 1.00
         # let index be the same at all wavelengths. We look at small index
         # contrast (1 + 1e-8) to be in the RG regime. If we go smaller we run
         # into numerical issues
-        n_particle = Quantity(np.ones(num_wavelen)*(1 + 1e-8), '')
+        n_particle = np.ones(num_wavelen)*(1 + 1e-8)
         wavelen = Quantity(np.linspace(self.mxargs["start_wavelen"],
                                        self.mxargs["end_wavelen"],
                                        num_wavelen),
@@ -946,7 +942,7 @@ class TestVectorizedUserFunctions():
         m, x, wavelen, radius, n_particle, n_matrix = \
             mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs,
                return_all=True)
-        n_medium = Quantity(n_medium, '')
+        n_medium = n_medium
         refl = mie.calc_reflectance(radius, n_medium, n_particle, wavelen)
 
         refl_loop = np.zeros(num_wavelen, dtype=complex)
