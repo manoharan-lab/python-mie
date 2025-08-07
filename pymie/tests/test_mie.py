@@ -128,9 +128,10 @@ def test_efficiencies():
 
     effs = [mie.calc_efficiencies(m, x) for x in x]
     q_arr = np.asarray(effs)
-    qsca = q_arr[:,0]
-    qext = q_arr[:,1]
-    qback = q_arr[:,2]
+    # squeeze to remove singleton dimension corresponding to wavelength
+    qsca = q_arr[:,0].squeeze()
+    qext = q_arr[:,1].squeeze()
+    qback = q_arr[:,2].squeeze()
     # use two decimal places for the small size parameters because MiePlot
     # doesn't report sufficient precision
     assert_array_almost_equal(qsca[0:9], qsca_bhmie[0:9], decimal=2)

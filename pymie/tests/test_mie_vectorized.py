@@ -839,25 +839,21 @@ class TestVectorizedUserFunctions():
         qscat, qext, qback = mie.calc_efficiencies(m, x)
 
         # test shape
-        if num_wavelen == 1:
-            expected_shape = ()
-            # no further test because no loop is needed in this case
-        else:
-            expected_shape = (num_wavelen,)
+        expected_shape = (num_wavelen,)
         for q in [qscat, qext, qback]:
             assert q.shape == expected_shape
 
-        if num_wavelen > 1:
-            # we should get same values from loop
-            qscat_loop = np.zeros(expected_shape, dtype=float)
-            qext_loop = np.zeros(expected_shape, dtype=float)
-            qback_loop = np.zeros(expected_shape, dtype=float)
-            for i in range(num_wavelen):
-                qs = mie.calc_efficiencies(m[i], x[i])
-                qscat_loop[i], qext_loop[i], qback_loop[i] = (q for q in qs)
-            assert_equal(qscat, qscat_loop)
-            assert_equal(qext, qext_loop)
-            assert_equal(qback, qback_loop)
+        # we should get same values from loop
+        qscat_loop = np.zeros(expected_shape, dtype=float)
+        qext_loop = np.zeros(expected_shape, dtype=float)
+        qback_loop = np.zeros(expected_shape, dtype=float)
+        for i in range(num_wavelen):
+            qs = mie.calc_efficiencies(m[i], x[i])
+            qscat_loop[i], qext_loop[i], qback_loop[i] = (q.squeeze()
+                                                          for q in qs)
+        assert_equal(qscat, qscat_loop)
+        assert_equal(qext, qext_loop)
+        assert_equal(qback, qback_loop)
 
     @pytest.mark.parametrize("num_wavelen, num_layer",
                              [(10, 1), (1, 5), (10, 5)])

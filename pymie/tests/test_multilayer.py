@@ -31,7 +31,7 @@ def test_scatcoeffs_multi():
 
     # calculate coefficients for the non-multilayer
     m = 1.15
-    n_sample = Quantity(1.5, '')
+    n_sample = 1.5
     wavelen = Quantity('500.0 nm')
     radius = Quantity('100.0 nm')
     x = size_parameter(wavelen, n_sample, radius)
@@ -61,7 +61,7 @@ def test_scatcoeffs_multi_absorbing_particle():
     # and a complex index ratio with a 0 imaginary component.
     marray_real = [1.15, 1.2]
     marray_imag = [1.15 + 0j, 1.2 + 0j]
-    n_sample = Quantity(1.5, '')
+    n_sample = 1.5
     wavelen = Quantity('500.0 nm')
     multi_radius = Quantity(np.array([100.0, 110.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
@@ -131,5 +131,5 @@ def test_sooty_particles():
     # Rearrange to match order in gold file.  We multiply qback by 4 pi to get
     # the radar backscattering efficiency (factor of 2 is included in
     # calc_efficiencies())
-    efficiencies = np.array([qext, qscat, qback*4*np.pi])
+    efficiencies = np.concatenate((qext, qscat, qback*4*np.pi))
     assert_allclose(efficiencies, sooty_efficiencies)

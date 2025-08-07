@@ -189,13 +189,13 @@ def calc_efficiencies(m, x):
 
     # for multilayer spheres, scale by the size parameter corresponding to
     # outermost radius
-    x_outer = np.atleast_2d(x).max(axis=-1)[:, np.newaxis]
-    qscat = cscat[..., np.newaxis] * 2./np.abs(x_outer)**2
-    qext = cext[..., np.newaxis] * 2./np.abs(x_outer)**2
-    qback = cback[..., np.newaxis] * 1./np.abs(x_outer)**2
+    x_outer = np.atleast_2d(x).max(axis=-1)
+    qscat = cscat * 2./np.abs(x_outer)**2
+    qext = cext * 2./np.abs(x_outer)**2
+    qback = cback * 1./np.abs(x_outer)**2
 
     # in order: scattering, extinction and backscattering efficiency
-    return qscat.squeeze(), qext.squeeze(), qback.squeeze()
+    return qscat, qext, qback
 
 def calc_g(m, x, nstop=None):
     """
@@ -372,7 +372,7 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
         refl_cscat = wavelen_media**2/4/np.pi/np.pi * refl_cscat
 
     reflectance = ((refl_cscat/geometric_cross_sec).to('')
-                   / wavelen_media**2).squeeze()
+                   / wavelen_media**2)
 
     return reflectance
 
@@ -699,8 +699,8 @@ def _W0(radius, n_medium):
     return W0
 
 def _nstop(x):
-    # Takes size parameter, outputs order to compute.  Previously used criterion
-    # from Wiscombe, Applied Optics 19, 1505 (1980):
+    # Takes size parameter, outputs order to compute.  Previously used
+    # criterion from Wiscombe, Applied Optics 19, 1505 (1980):
     #return (np.round(np.absolute(x+4.05*x**(1./3.)+2))).astype('int')
     # now modified to use:
     # Criterion for calculating near-field properties with exact Mie solutions
