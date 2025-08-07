@@ -821,11 +821,11 @@ class TestVectorizedUserFunctions():
         # check that numerical integration works too, and that it gives a
         # similar value for the total cross section
         num_angles = 100
-        thetas = Quantity(np.linspace(0, np.pi, num_angles), 'rad')
-        c_integrated = mie.calc_integrated_cross_section(m, x, wavelen_med,
-                                                         thetas)
+        thetas = np.linspace(0, np.pi, num_angles)
+        c_integrated = mie.calc_integrated_cross_section(m, x, thetas)
 
-        c_integrated = c_integrated.to(cscat.units)
+        k_medium = 2*np.pi/wavelen_med
+        c_integrated = c_integrated * k_medium**(-2)
         # small grid gives large integration error, but should still be within
         # 10%
         assert_allclose(c_integrated.magnitude, cscat.magnitude, rtol=1e-1)

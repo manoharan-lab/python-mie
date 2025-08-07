@@ -79,11 +79,12 @@ def calc_ang_scat(m, x, angles, mie = True, check = False):
 
     Returns
     -------
-    ipar: |S_2|^2
-    iperp: |S_1|^2
-    (These are the differential scattering X-section*k^2 for polarization
-    parallel and perpendicular to scattering plane, respectively.  See
-    Bohren & Huffman ch. 3 for details.)
+    ndarray : shape (2, ..., num_angles)
+        element 0 is ipar: |S_2|^2
+        element 1 is iperp: |S_1|^2
+        These are the differential scattering cross-sections * k^2 for
+        polarization parallel and perpendicular to scattering plane. See Bohren
+        & Huffman ch. 3 for details.
     """
     if mie:
         # Mie scattering preliminaries
@@ -208,42 +209,36 @@ def calc_g(m, x, nstop=None):
          * _asymmetry_parameter(coeffs[0], coeffs[1]))
     return g
 
-@ureg.check(None, None, '[length]', '[]')
-def calc_integrated_cross_section(m, x, wavelen_media, thetas):
+def calc_integrated_cross_section(m, x, thetas):
     """
-    Calculate (dimensional) integrated cross section using quadrature
+    Calculate (dimensionless) integrated cross section using quadrature
 
     Parameters
     ----------
-    m: complex relative refractive index
-    x: size parameter
-    wavelen_media: structcol.Quantity [length]
-        wavelength of incident light *in media*
-    thetas: array of structcol.Quantity [dimensionless]
-        polar angles over which to integrate the scattering
+    m : array-like
+        complex relative refractive index
+    x : array-like
+        size parameter
+    thetas: array-like
+        polar angles over which to integrate the scattering.  Must be specifed
+        in radians
 
     Returns
     -------
-    cross_section : float
-        Dimensional integrated cross-section
+    cross_section : ndarray
+        Dimensionless integrated cross-section.  Multiply by 1/k^2 (where k is
+        the wavevector *in media*) to get the dimensional cross-section.
+
     """
-    angles = thetas.to('rad')
-    form_factor = calc_ang_scat(m, x, angles)
+    form_factor = calc_ang_scat(m, x, thetas)
 
-    integrand_par = (form_factor[0]*np.sin(angles)).magnitude
-    integrand_perp = (form_factor[1]*np.sin(angles)).magnitude
+    integrand_par = form_factor[0]*np.sin(thetas)
+    integrand_perp = form_factor[1]*np.sin(thetas)
 
-    # scipy.integrate.trapezoid does not yet preserve units, so we will remove
-    # the units before calling and put them back afterward. Can simplify code
-    # when these github issues are fixed:
-    # https://github.com/hgrecco/pint/issues/114
-    # https://github.com/hgrecco/pint/issues/2101
+    integral_par = 2 * np.pi * np.trapezoid(integrand_par, x=thetas)
+    integral_perp = 2 * np.pi * np.trapezoid(integrand_perp, x=thetas)
 
-    integral_par = 2 * np.pi * trapezoid(integrand_par, x=angles.magnitude)
-    integral_perp = 2 * np.pi * trapezoid(integrand_perp, x=angles.magnitude)
-
-    # multiply by 1/k**2 to get the dimensional value
-    return wavelen_media**2/4/np.pi/np.pi * (integral_par + integral_perp)/2.0
+    return (integral_par + integral_perp)/2.0
 
 def calc_energy(radius, n_medium, m, x, nstop,
            eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
@@ -370,8 +365,8 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
         refl_cscat = integrate_intensity_complex_medium(diff_cscat,
                                                         distance, thetas, k)[0]
     else:
-        refl_cscat = calc_integrated_cross_section(m, x, wavelen_media,
-                                                   thetas)
+        refl_cscat = calc_integrated_cross_section(m, x, thetas.magnitude)
+        refl_cscat = wavelen_media**2/4/np.pi/np.pi * refl_cscat
 
     reflectance = ((refl_cscat/geometric_cross_sec).to('')
                    / wavelen_media**2).squeeze()
