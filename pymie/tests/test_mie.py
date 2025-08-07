@@ -520,7 +520,7 @@ def test_cross_section_complex_medium():
                                                      n_matrix, x_scat, x,
                                                      wavelen)[0]
     # With Mie solutions in absorbing medium
-    rho_scat = k*distance
+    rho_scat = (k*distance).to("").magnitude
     I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, rho_scat)
     cscat_exact = mie.integrate_intensity_complex_medium(I_parperp,
                                                          distance, theta, k)[0]
@@ -562,7 +562,7 @@ def test_cross_section_complex_medium():
                                                       n_matrix, x_scat, x,
                                                       wavelen)[0]
     # With full Mie solutions that include the near fields
-    rho_scat = k*distance
+    rho_scat = (k*distance).to("").magnitude
     I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, rho_scat,
                                                        near_field=True)
     cscat_exact2 = mie.integrate_intensity_complex_medium(I_parperp,
@@ -577,7 +577,7 @@ def test_cross_section_complex_medium():
     m = index_ratio(n_particle, n_matrix)
     k = 2*np.pi*n_matrix/wavelen
     x = size_parameter(wavelen, n_matrix, radius)
-    rho_scat = k*distance
+    rho_scat = (k*distance).to("").magnitude
 
     # With full Mie solutions
     I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, rho_scat)
@@ -608,7 +608,7 @@ def test_multilayer_complex_medium():
     angles = np.linspace(0, np.pi, 10000)
     distance = Quantity(100000000.0,'nm')
     k =  2*np.pi*n_sample/wavelen
-    kd = k*distance
+    kd = (k*distance).to("").magnitude
 
     # With far-field Mie solutions
     cscat_real = mie.calc_cross_sections(marray, xarray, wavelen/n_sample)[0]
@@ -697,7 +697,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
-    kd = 2*np.pi*n_matrix/wavelen*Quantity(10000.0,'nm')
+    kd = (2*np.pi*n_matrix/wavelen*Quantity(10000.0,'nm')).to("").magnitude
 
     # calculate differential scattered intensity in par/perp basis
     I_parperp = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
@@ -736,7 +736,7 @@ def test_integrate_intensity_complex_medium_cartesian():
     x = size_parameter(wavelen, n_matrix, radius)
     k = 2*np.pi*n_matrix/wavelen
     distance = Quantity(10000.0,'nm')
-    kd = k*distance
+    kd = (k*distance).to("").magnitude
 
     # calculate the differential scattered intensities
     I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
@@ -781,7 +781,7 @@ def test_value_errors():
     x = size_parameter(wavelen, n_matrix, radius)
     k = 2*np.pi*n_matrix/wavelen
     distance = Quantity(10000.0,'nm')
-    kd = k*distance
+    kd = (k*distance).to("").magnitude
 
     with pytest.raises(ValueError):
         # try to calculate near field in cartesian

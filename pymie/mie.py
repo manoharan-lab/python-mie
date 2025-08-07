@@ -321,10 +321,10 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
         angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
         distance = radius.max()
         k = 2*np.pi/wavelen_media
+        kd = (k*distance).to("").magnitude
         (diff_cscat_par,
-         diff_cscat_perp) = diff_scat_intensity_complex_medium(m,
-                                        x, angles,
-                                        k*distance)
+         diff_cscat_perp) = diff_scat_intensity_complex_medium(m, x, angles,
+                                                               kd)
 
         cscat = integrate_intensity_complex_medium(diff_cscat_par,
                                                    diff_cscat_perp,
@@ -360,8 +360,9 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
     if np.any(np.imag(x) > 0):
         distance = rmax
         k = np.atleast_1d(2*np.pi/wavelen_media)
+        kd = (k*distance).to("").magnitude
         diff_cscat = diff_scat_intensity_complex_medium(m, x, thetas,
-                                                        k*distance)
+                                                        kd)
         refl_cscat = integrate_intensity_complex_medium(diff_cscat,
                                                         distance, thetas, k)[0]
     else:
@@ -963,10 +964,6 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     Q. Fu and W. Sun, "Mie theory for light scattering by a spherical particle
     in an absorbing medium". Applied Optics, 40, 9 (2001).
     '''
-    # convert units from whatever units the user specifies
-    if isinstance(kd, Quantity):
-        kd = kd.to('').magnitude
-
     # calculate mie coefficients
     nstop = _nstop(np.array(x).max())
     n = np.arange(nstop)+1.
@@ -1177,9 +1174,6 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     in an absorbing medium". Applied Optics, 40, 9 (2001).
 
     """
-    if isinstance(kd, Quantity):
-        kd = kd.to('').magnitude
-
     # ensure that broadcasting will work correctly
     kd = np.atleast_1d(kd)[:, np.newaxis]
     if cartesian:
@@ -1438,10 +1432,6 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     in an absorbing medium". Applied Optics, 40, 9 (2001).
 
     '''
-    # convert units from whatever units the user specifies
-    if isinstance(ktd, Quantity):
-        ktd = ktd.to('').magnitude
-
     # calculate mie coefficients
     nstop = _nstop(np.array(x).max())
     n = np.arange(nstop)+1.

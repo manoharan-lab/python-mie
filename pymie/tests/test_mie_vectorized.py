@@ -617,7 +617,7 @@ class TestVectorizedInternalFunctions():
         # scattering calculations
         k = 2*np.pi*n_matrix/wavelen
         d = 10*np.atleast_1d(radius)[-1]
-        kd = np.atleast_1d(k*d)
+        kd = np.atleast_1d(k*d).to("").magnitude
         i12 = mie.diff_scat_intensity_complex_medium(m, x, thetas,
                                                      kd,
                                                      cartesian=cartesian,
