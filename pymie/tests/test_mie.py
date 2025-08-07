@@ -71,7 +71,7 @@ def test_form_factor():
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
 
-    angles = Quantity(np.linspace(0, 180., 19), 'deg')
+    angles = Quantity(np.linspace(0, 180., 19), 'deg').to("rad").magnitude
     # these values are calculated from MiePlot
     # (http://www.philiplaven.com/mieplot.htm), which uses BHMIE
     iperp_bhmie = np.array([2046.60203864487, 1282.28646423634, 299.631502275208,
@@ -89,7 +89,7 @@ def test_form_factor():
                            7.24176462105438, 76.2910238480798, 54.1983836607738,
                            93.5508557840006])
 
-    iparperp = mie.calc_ang_dist(m, x, angles)
+    iparperp = mie.calc_ang_scat(m, x, angles)
     assert_array_almost_equal(iparperp[0], ipar_bhmie)
     assert_array_almost_equal(iparperp[1], iperp_bhmie)
 
@@ -156,7 +156,7 @@ def test_absorbing_materials():
     m = index_ratio(n_particle, n_matrix)
     x = 10.0
 
-    angles = Quantity(np.linspace(0, 90., 10), 'deg')
+    angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
     # these values are calculated from MiePlot
     # (http://www.philiplaven.com/mieplot.htm), which uses BHMIE
     iperp_bhmie = np.array([4830.51401095968, 2002.39671236719,
@@ -170,7 +170,7 @@ def test_absorbing_materials():
                            24.9801217735053, 53.2319915708624,
                            8.26505988320951, 47.4736966179677])
 
-    iparperp = mie.calc_ang_dist(m, x, angles)
+    iparperp = mie.calc_ang_scat(m, x, angles)
     assert_array_almost_equal(iparperp[0], ipar_bhmie)
     assert_array_almost_equal(iparperp[1], iperp_bhmie)
 
@@ -186,7 +186,7 @@ def test_multilayer_spheres():
     radius = Quantity('100.0 nm')
     x = size_parameter(wavelen, n_sample, radius)
 
-    f_parperp = mie.calc_ang_dist(m, x, angles)
+    f_parperp = mie.calc_ang_scat(m, x, angles)
     cscat, cext, cabs, cback, asym = mie.calc_cross_sections(m, x, wavelen)
 
     # form factor and cross section for a multilayer particle with a core that
@@ -195,7 +195,7 @@ def test_multilayer_spheres():
     multi_radius = Quantity(np.array([100.0, 100.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
 
-    f_parperp_multi = mie.calc_ang_dist(marray, xarray, angles)
+    f_parperp_multi = mie.calc_ang_scat(marray, xarray, angles)
     cscat_multi, cext_multi, cabs_multi, cback_multi, asym_multi = mie.calc_cross_sections(marray, xarray, wavelen)
 
     assert_array_almost_equal(f_parperp, f_parperp_multi)
@@ -212,7 +212,7 @@ def test_multilayer_spheres():
     multi_radius2 = Quantity(np.array([100.0, 110.0]),'nm')
     xarray2 = size_parameter(wavelen, n_sample, multi_radius2)
 
-    f_parperp_multi2 = mie.calc_ang_dist(marray2, xarray2, angles)
+    f_parperp_multi2 = mie.calc_ang_scat(marray2, xarray2, angles)
     cscat_multi2, cext_multi2, cabs_multi2, cback_multi2, asym_multi2 = mie.calc_cross_sections(marray2, xarray2, wavelen)
 
     assert_array_almost_equal(f_parperp, f_parperp_multi2)
@@ -228,7 +228,7 @@ def test_multilayer_spheres():
     multi_radius3 = Quantity(np.array([100.0, 100.0, 100.0]),'nm')
     xarray3 = size_parameter(wavelen, n_sample, multi_radius3)
 
-    f_parperp_multi3 = mie.calc_ang_dist(marray3, xarray3, angles)
+    f_parperp_multi3 = mie.calc_ang_scat(marray3, xarray3, angles)
     cscat_multi3, cext_multi3, cabs_multi3, cback_multi3, asym_multi3 = mie.calc_cross_sections(marray3, xarray3, wavelen)
 
     assert_array_almost_equal(f_parperp, f_parperp_multi3)
@@ -245,7 +245,7 @@ def test_multilayer_spheres():
     multi_radius4 = Quantity(np.array([100, 110, 120]),'nm')
     xarray4 = size_parameter(wavelen, n_sample, multi_radius4)
 
-    f_parperp_multi4 = mie.calc_ang_dist(marray4, xarray4, angles)
+    f_parperp_multi4 = mie.calc_ang_scat(marray4, xarray4, angles)
     cscat_multi4, cext_multi4, cabs_multi4, cback_multi4, asym_multi4 = mie.calc_cross_sections(marray4, xarray4, wavelen)
 
     assert_array_almost_equal(f_parperp, f_parperp_multi4)
@@ -266,8 +266,8 @@ def test_multilayer_absorbing_spheres():
     xarray = size_parameter(wavelen, n_sample, multi_radius)
     angles = Quantity(np.linspace(np.pi/2, np.pi, 20), 'rad')
 
-    f_parperp_multi_real = mie.calc_ang_dist(marray_real, xarray, angles)
-    f_parperp_multi_imag = mie.calc_ang_dist(marray_imag, xarray, angles)
+    f_parperp_multi_real = mie.calc_ang_scat(marray_real, xarray, angles)
+    f_parperp_multi_imag = mie.calc_ang_scat(marray_imag, xarray, angles)
 
     cross_sections_multi_real = mie.calc_cross_sections(marray_real, xarray, wavelen)
     cross_sections_multi_imag = mie.calc_cross_sections(marray_imag, xarray, wavelen)
@@ -440,7 +440,7 @@ def test_pis_taus():
 def test_differential_cross_section():
     """
     Tests that the differential cross-sections from diff_scat_complex_medium()
-    and calc_ang_dist() are the same for a non-absorbing medium.
+    and calc_ang_scat() are the same for a non-absorbing medium.
     """
     # set parameters
     wavelen = Quantity("400.0 nm")
@@ -455,7 +455,7 @@ def test_differential_cross_section():
     x = size_parameter(wavelen, n_matrix, radius)
 
     # With far-field Mie solutions
-    I_parperp_cad = mie.calc_ang_dist(m, x, theta)
+    I_parperp_cad = mie.calc_ang_scat(m, x, theta)
 
     # With Mie solutions at surface of particle (but neglecting near-fields)
     kd = (k*distance).to("").magnitude
@@ -465,7 +465,7 @@ def test_differential_cross_section():
                                                        incident_vector,
                                                        cartesian=False)
 
-    # calc_ang_dist returns dimensionless differential cross-sections (times
+    # calc_ang_scat returns dimensionless differential cross-sections (times
     # k^2).  As noted in diff_scat_intensity_complex_medium(), this function
     # returns dimensionless values (scaled by k^2) muliplied by a factor of
     # 1/kd^2 for a non-absorbing medium.  Therefore the
@@ -474,7 +474,7 @@ def test_differential_cross_section():
     # calculation is done.  In short, both functions return dimensionless
     # cross-sections, but the ones returned by
     # diff_scat_intensity_complex_medium() need to be multiplied by a factor of
-    # kd^2 to compare them to those of calc_ang_dist()
+    # kd^2 to compare them to those of calc_ang_scat()
     #
     # since both of these functions rely on the same routine to calculate the
     # amplitude scattering matrix, they should give results to within

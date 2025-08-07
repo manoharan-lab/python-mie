@@ -58,11 +58,9 @@ from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2  # default tolerances
 # User-facing functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
 
-# all arguments should be dimensionless
-@ureg.check('[]', '[]', '[]', None, None)
-def calc_ang_dist(m, x, angles, mie = True, check = False):
+def calc_ang_scat(m, x, angles, mie = True, check = False):
     """
-    Calculates the angular distribution of light intensity for parallel and
+    Calculates the angular scattering of light intensity for parallel and
     perpendicular polarization for a sphere.
 
     Parameters
@@ -71,9 +69,8 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
         complex particle relative refractive index, n_part/n_med
     x : complex or float, array-like
         size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
-    angles : ndarray(structcol.Quantity [dimensionless])
-        array of angles. Must be entered as a Quantity to allow specifying
-        units (degrees or radians) explicitly
+    angles : array-like
+        array of angles. Must be specified in radians
     mie : Boolean (optional)
         if true (default) does full Mie calculation; if false, uses RG
         approximation
@@ -88,13 +85,6 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     parallel and perpendicular to scattering plane, respectively.  See
     Bohren & Huffman ch. 3 for details.)
     """
-    # convert to radians from whatever units the user specifies
-    if isinstance(angles, Quantity):
-        angles = angles.to('rad').magnitude
-
-    if isinstance(x, Quantity):
-        x = x.to('').magnitude
-
     if mie:
         # Mie scattering preliminaries
         nstop = _nstop(np.array(x).max())
@@ -238,7 +228,7 @@ def calc_integrated_cross_section(m, x, wavelen_media, thetas):
         Dimensional integrated cross-section
     """
     angles = thetas.to('rad')
-    form_factor = calc_ang_dist(m, x, angles)
+    form_factor = calc_ang_scat(m, x, angles)
 
     integrand_par = (form_factor[0]*np.sin(angles)).magnitude
     integrand_perp = (form_factor[1]*np.sin(angles)).magnitude
@@ -1185,7 +1175,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     To get dimensional cross-sections, multiply by d^2, where d is the distance
     at which the differential cross-sections are calculated. To compare
     differential cross-sections for non-absorbing media and the far-field to
-    those reported by calc_ang_dist(), which are nondimensionalized by k^2,
+    those reported by calc_ang_scat(), which are nondimensionalized by k^2,
     multiply the results from this function by kd^2.
 
     References

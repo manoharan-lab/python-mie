@@ -349,7 +349,7 @@ class TestVectorizedInternalFunctions():
 
     _pis_and_taus() :
         not tested explicitly here, but tested implicitly in
-        `test_vectorized_calc_ang_dist()`.  Vectorization over angles is tested
+        `test_vectorized_calc_ang_scat()`.  Vectorization over angles is tested
         in `test_mie.py::test_pis_taus()`
     _scatcoeffs() :
         tested by `test_vectorized_scatcoeffs()`
@@ -391,10 +391,10 @@ class TestVectorizedInternalFunctions():
         tested by `test_vectorized_angular_functions()`
     _amplitude_scattering_matrix() :
         not tested explicitly here, but tested implicitly in
-        `test_vectorized_calc_ang_dist()`
+        `test_vectorized_calc_ang_scat()`
     _amplitude_scattering_matrix_RG() :
         not tested explicitly here, but tested implicitly in
-        `test_vectorized_calc_ang_dist()`
+        `test_vectorized_calc_ang_scat()`
 
     """
     mxargs = {"start_wavelen": 400,
@@ -723,8 +723,8 @@ class TestVectorizedUserFunctions():
 
     User functions and corresponding tests of vectorization are as follows:
 
-    calc_ang_dist() :
-        tested by test_vectorized_calc_ang_dist()
+    calc_ang_scat() :
+        tested by test_vectorized_calc_ang_scat()
     calc_cross_sections() :
         tested by test_vectorized_cross_sections()
     calc_efficiencies() :
@@ -750,7 +750,8 @@ class TestVectorizedUserFunctions():
               "n_matrix": Quantity(1.00, '')}
 
     num_angle = 19
-    angles = Quantity(np.linspace(0, 180., num_angle), 'deg')
+    angles = Quantity(np.linspace(0, 180., num_angle),
+                      'deg').to("rad").magnitude
 
     @pytest.mark.parametrize("num_wavelen, num_layer",
                              [(10, 1), (1, 5), (10, 5)])
@@ -863,8 +864,8 @@ class TestVectorizedUserFunctions():
 
     @pytest.mark.parametrize("num_wavelen, num_layer",
                              [(10, 1), (1, 5), (10, 5)])
-    def test_vectorized_calc_ang_dist(self, num_wavelen, num_layer):
-        """Tests that mie.calc_ang_dist() vectorizes properly. Also implicitly
+    def test_vectorized_calc_ang_scat(self, num_wavelen, num_layer):
+        """Tests that mie.calc_ang_scat() vectorizes properly. Also implicitly
         checks that _amplitude_scattering_matrix() and
         _amplitude_scattering_matrix_RG() vectorize properly.  Also checks for
         correctness of RG calculations by comparing against Mie calculations
@@ -872,7 +873,7 @@ class TestVectorizedUserFunctions():
 
         """
         m, x = mx(num_wavelen, num_layer, **self.mxargs)
-        form_factor = mie.calc_ang_dist(m, x, self.angles)
+        form_factor = mie.calc_ang_scat(m, x, self.angles)
         if num_wavelen == 1:
             expected_shape = (2, self.num_angle,)
             assert form_factor.shape == expected_shape
@@ -885,7 +886,7 @@ class TestVectorizedUserFunctions():
         # we should get same values from loop
         iparperp_loop = np.zeros(expected_shape, dtype=float)
         for i in range(num_wavelen):
-            iparperp = mie.calc_ang_dist(m[i], x[i], self.angles)
+            iparperp = mie.calc_ang_scat(m[i], x[i], self.angles)
             iparperp_loop[:, i] = iparperp
         assert_equal(form_factor, iparperp_loop)
 
@@ -893,11 +894,11 @@ class TestVectorizedUserFunctions():
         if num_layer > 1:
             with pytest.raises(ValueError,
                                match="Rayleigh-Gans approximation cannot"):
-                form_factor_RG = mie.calc_ang_dist(m, x, self.angles,
+                form_factor_RG = mie.calc_ang_scat(m, x, self.angles,
                                                    mie=False)
             return
 
-        form_factor_RG = mie.calc_ang_dist(m, x, self.angles,
+        form_factor_RG = mie.calc_ang_scat(m, x, self.angles,
                                                mie=False)
 
         expected_shape = (2, num_wavelen, self.num_angle)
@@ -921,9 +922,10 @@ class TestVectorizedUserFunctions():
         # 0 degree scattering may give differences between RG and Mie, so we
         # compare at a few degrees and higher; also we do a lot of angles to
         # capture the sharp dips in the form factor
-        angles = Quantity(np.linspace(10, 180., num_angle), 'deg')
-        form_factor_RG = mie.calc_ang_dist(m, x, angles, mie=False)
-        form_factor_mie = mie.calc_ang_dist(m, x, angles)
+        angles = Quantity(np.linspace(10, 180., num_angle),
+                          'deg').to("rad").magnitude
+        form_factor_RG = mie.calc_ang_scat(m, x, angles, mie=False)
+        form_factor_mie = mie.calc_ang_scat(m, x, angles)
 
         # Since we are comparing small numbers at the dips of the form factor,
         # the Mie and RG solutions may have a relative difference of up to a
