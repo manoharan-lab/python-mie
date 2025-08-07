@@ -623,10 +623,11 @@ class TestVectorizedInternalFunctions():
                                                      cartesian=cartesian,
                                                      phis = phis)
 
-        integral = mie.integrate_intensity_complex_medium(i12, d,
-                        thetas, k, phi_min = Quantity(0.0, 'rad'),
-                        phi_max = Quantity(2*np.pi, 'rad'),
-                        cartesian=cartesian, phis = phis)
+        integral = mie.integrate_intensity_complex_medium(i12, d, thetas, k,
+                                                          phi_min=0.0,
+                                                          phi_max=2*np.pi,
+                                                          cartesian=cartesian,
+                                                          phis=phis)
 
         # check that shapes of all the computed quantities are correct
         for element in vsa + mat:
@@ -675,9 +676,14 @@ class TestVectorizedInternalFunctions():
                                                             phis = phis)
 
             integral_loop = mie.integrate_intensity_complex_medium(i_loop, d,
-                        thetas, k[i], phi_min = Quantity(0.0, 'rad'),
-                        phi_max = Quantity(2*np.pi, 'rad'),
-                        cartesian=cartesian, phis = phis)
+                                                                   thetas,
+                                                                   k[i],
+                                                                   phi_min=0.0,
+                                                                   phi_max =
+                                                                   2*np.pi,
+                                                                   cartesian =
+                                                                   cartesian,
+                                                                   phis=phis)
 
             S1[i], S2[i], S3[i], S4[i] = mat_loop
             amp0[i], amp1[i] = vsa_loop

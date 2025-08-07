@@ -256,7 +256,6 @@ def calc_energy(radius, n_medium, m, x, nstop,
         radius of the scatterer (Quantity in [length])
     n_medium: float
         refractive index of the medium in which scatterer is embedded
-              (Quantity, dimensionless)
     m: float
         complex relative refractive index
     x: float
@@ -290,9 +289,9 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
     ----------
     radius: float
         radius of the scatterer (Quantity in [length])
-    n_medium: float (Quantity, dimensionless)
+    n_medium: float
         refractive index of the medium in which scatterer is embedded
-    n_particle: float (Quantity, dimensionless)
+    n_particle: float
         refractive index of the scatterer
     wavelen: structcol.Quantity [length]
         wavelength of incident light in vacuum
@@ -322,7 +321,7 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
     # calculate total cross section
     k = 2*np.pi/wavelen_media
     if np.imag(x)>0:
-        angles = Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
+        angles = np.linspace(min_angle, np.pi, num_angles)
         distance = radius.max()
         kd = (k*distance).to("").magnitude
         (diff_cscat_par,
@@ -763,9 +762,8 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     al, bl: Mie scattering coefficients
     cl, dl: Mie internal coefficients
     radius: radius of the scatterer (Quantity in [length])
-    n_particle: refractive index of the scatterer (Quantity, dimensionless)
+    n_particle: refractive index of the scatterer
     n_medium: refractive index of the medium in which scatterer is embedded
-              (Quantity, dimensionless)
     x_scatterer: size parameter using the particle's refractive index
     x_medium: size parameter using the medium's refractive index
     wavelen: wavelength of light in vacuum (Quantity in [length])
@@ -938,11 +936,10 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
     ----------
     m: complex relative refractive index
     x: size parameter using the medium's refractive index
-    thetas: array of scattering angles (Quantity in rad)
+    thetas: array of scattering angles
     kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
         distance away from the center of the particle. The standard far-field
         solution is obtained when distance >> radius in a non absorbing medium.
-        (Quantity, dimensionless)
     near_field: boolean
         Set to True to include the near-fields. Sometimes the full solutions
         that include the near fields aren't wanted, for ex when the total cross
@@ -1090,10 +1087,10 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
         complex particle relative refractive index, n_part/n_med
     x : complex, array-like
         size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
-    thetas : array-like (Quantity [angle])
+    thetas : array-like
         scattering angles.  Should be 2D, as output from np.meshgrid, if
         cartesian=True
-    kd : float (Quantity, dimensionless)
+    kd : float
         k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
         distance away from the center of the particle. The standard far-field
         solutions are obtained when distance >> radius in a non-absorbing
@@ -1221,8 +1218,8 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     return np.array([I_1.real.squeeze(), I_2.real.squeeze()])
 
 def integrate_intensity_complex_medium(dscat, distance, thetas, k,
-                                       phi_min=Quantity(0.0, 'rad'),
-                                       phi_max=Quantity(2*np.pi, 'rad'),
+                                       phi_min=0.0,
+                                       phi_max=2*np.pi,
                                        cartesian=False,
                                        phis = None):
     """
@@ -1241,19 +1238,19 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
         the theta dimension MUST come first
     distance : float (Quantity in [length])
         distance away from the scatterer
-    thetas : array-like of Quantity in [angle], shape num_thetas
+    thetas : array-like, shape num_thetas
         scattering angles
     k : array-like of Quantity in [1/length], shape num_values
         wavevector given by 2 * pi * n_medium / wavelength
-    phi_min : float (Quantity in [angle]).
+    phi_min : float
         minimum azimuthal angle, default set to 0
         optional, only necessary if cartesian=False (coordinate system is
         'scattering plane')
-    phi_max : float (Quantity in [angle]).
+    phi_max : float
         maximum azimuthal angle, default set to 2pi
         optional, only necessary if cartesian=False (coordinate system is
         'scattering plane')
-    phis : None or ndarray (Quantity in [angle], shape num_phis)
+    phis : None or ndarray (shape num_phis)
         azimuthal angles
 
     Returns
@@ -1312,10 +1309,6 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
                           "calculations. Scattering plane calculations do not "
                           "depend on azimuthal angle, so specified values "
                           "will be ignored")
-
-        # convert to radians
-        phi_min = phi_min.to('rad').magnitude
-        phi_max = phi_max.to('rad').magnitude
 
         # strip units from integrand
         if isinstance(dsigma_1, Quantity):
@@ -1416,16 +1409,16 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
         complex relative refractive index
     x : array-like
         size parameter using the medium's refractive index
-    thetas: Quantity[angle], array-like
-        array of scattering angles (Quantity in rad or degrees)
-    ktd: Quantity[dimensionless], array-like
+    thetas: array-like
+        array of scattering angles.  Must be specified in radians.
+    ktd: array-like
         kt * distance, where kt = 2*np.pi*n_particle/wavelen, and distance is
         the distance away from the center of the particle. The far-field
         solution is obtained when distance >> radius.
 
     Returns
     -------
-    I_par, I_perp : Quantity[dimensionless], array-like
+    I_par, I_perp : array-like
         differential absorption intensities for an array of theta
 
     Reference
