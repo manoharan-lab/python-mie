@@ -206,7 +206,7 @@ def calc_g(m, x, nstop=None):
     coeffs = _scatcoeffs(m, x, nstop)
 
     # for multilayer particle, need to scale by the x of the outermost layer
-    outer_x = np.array(x).max(axis=-1).squeeze()
+    outer_x = np.array(x).max(axis=-1)
     cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./outer_x**2
     g = ((4./(outer_x**2 * cscat))
          * _asymmetry_parameter(coeffs[0], coeffs[1]))

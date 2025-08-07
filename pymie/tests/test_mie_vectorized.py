@@ -765,21 +765,16 @@ class TestVectorizedUserFunctions():
         m, x = mx(num_wavelen, num_layer, **self.mxargs)
         # make sure shape is [num_wavelen]
         g = mie.calc_g(m,x)
-        if num_wavelen == 1:
-            expected_shape = ()
-            assert g.shape == expected_shape
-            # no further test needed since no loop is required in this case
-        else:
-            expected_shape = (num_wavelen,)
-            assert g.shape == expected_shape
+        expected_shape = (num_wavelen,)
+        assert g.shape == expected_shape
 
-            # we should get same values from loop. Need to set nstop to the
-            # same value as used in the vectorized calculation.
-            g_loop = np.zeros(expected_shape, dtype=float)
-            nstop = mie._nstop(x.max())
-            for i in range(num_wavelen):
-                g_loop[i] = mie.calc_g(m[i], x[i], nstop=nstop)
-            assert_equal(g, g_loop)
+        # we should get same values from loop. Need to set nstop to the
+        # same value as used in the vectorized calculation.
+        g_loop = np.zeros(expected_shape, dtype=float)
+        nstop = mie._nstop(x.max())
+        for i in range(num_wavelen):
+            g_loop[i] = mie.calc_g(m[i], x[i], nstop=nstop)
+        assert_equal(g, g_loop)
 
     @pytest.mark.parametrize("num_wavelen, num_layer",
                              [(10, 1), (1, 5), (10, 5)])
