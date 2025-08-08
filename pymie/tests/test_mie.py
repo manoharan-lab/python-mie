@@ -485,6 +485,8 @@ def test_differential_cross_section():
 
     # With far-field Mie solutions
     I_parperp_cad = mie.calc_ang_scat(m, x, theta)
+    # temp fix to re-insert wavelength dimension (which gets squeezed out)
+    I_parperp_cad = I_parperp_cad[:, np.newaxis, :]
 
     # With Mie solutions at surface of particle (but neglecting near-fields)
     kd = (k*distance).to("").magnitude
@@ -733,6 +735,8 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     kd = (2*np.pi*n_matrix/wavelen*Quantity(10000.0,'nm')).to("").magnitude
 
     # calculate differential scattered intensity in par/perp basis
+    # use of theta_2d here (instead of theta) broadcasts over the phi
+    # dimension, allowing us to compare to cartesian calculation
     I_parperp = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                                                        near_field=False)
 
@@ -743,12 +747,16 @@ def test_diff_scat_intensity_complex_medium_cartesian():
                             cartesian=True, phis = phis_2d,
                             near_field=False, incident_vector = (1, 1))
 
-    # assert equality of their magnitudes
+    # calculate magnitudes
     I_xy_mag = np.sqrt((I_xy**2).sum(axis=0))
     I_par_perp_mag = np.sqrt((I_parperp**2).sum(axis=0))
 
     # check that the magnitudes are equal
-    assert_array_almost_equal(I_xy_mag, I_par_perp_mag, decimal=16)
+    #
+    # Because of the way this test is done (using a 2D array of angles
+    # for theta), we don't end up with a wavelength axis for I_parperp.  Have
+    # to squeeze to compare.
+    assert_array_almost_equal(I_xy_mag.squeeze(), I_par_perp_mag, decimal=16)
 
 def test_integrate_intensity_complex_medium_cartesian():
     '''

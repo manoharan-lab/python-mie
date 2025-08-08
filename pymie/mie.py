@@ -1175,11 +1175,12 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     in an absorbing medium". Applied Optics, 40, 9 (2001).
 
     """
-    # ensure that broadcasting will work correctly
-    kd = np.atleast_1d(kd)[:, np.newaxis]
+    # ensure that broadcasting will work correctly by adding an axis
+    # corresponding to theta
+    kd = np.atleast_1d(kd)[..., np.newaxis]
     if cartesian:
         # add another axis to correspond to phi
-        kd = kd[:, np.newaxis]
+        kd = kd[..., np.newaxis]
 
     if near_field:
         if not cartesian:
@@ -1217,7 +1218,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
         I_2 = (np.abs(vec_scat_amp_2)**2)*factor # perp or y
 
     # the intensities should be real
-    return np.array([I_1.real.squeeze(), I_2.real.squeeze()])
+    return np.array([I_1.real, I_2.real])
 
 def integrate_intensity_complex_medium(dscat, distance, thetas, k,
                                        phi_min=0.0,

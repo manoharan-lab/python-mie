@@ -635,10 +635,7 @@ class TestVectorizedInternalFunctions():
                 assert element.shape == (num_wavelen, ) + thetas.shape
             else:
                 assert element.shape == thetas.shape
-        if num_wavelen > 1:
-            assert i12.shape == (2, num_wavelen) + thetas.shape
-        else:
-            assert i12.shape == (2,) + thetas.shape
+        assert i12.shape == (2, num_wavelen) + thetas.shape
 
         # check that vectorized calculations match looped calculations over
         # scalars
@@ -706,8 +703,8 @@ class TestVectorizedInternalFunctions():
         assert_equal(vsa[0], amp0.squeeze())
         assert_equal(vsa[1], amp1.squeeze())
 
-        assert_equal(i12[0], i1.squeeze())
-        assert_equal(i12[1], i2.squeeze())
+        assert_equal(i12[0], i1)
+        assert_equal(i12[1], i2)
 
         assert_equal(integral[0].magnitude, sigma.squeeze())
         assert_equal(integral[1].magnitude, sigma_1.squeeze())
