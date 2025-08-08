@@ -774,7 +774,8 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     in an absorbing medium". Applied Optics, 40, 9 (2001).
 
     '''
-    # ensure broadcasting will work correctly
+    # ensure broadcasting will work correctly by adding axis corresponding to
+    # order (l)
     num_wavelen = np.atleast_1d(wavelen).shape[0]
     wavelen = np.reshape(wavelen, (num_wavelen, 1))
 
@@ -798,10 +799,10 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     xi = xi[..., 1:]
     xishift = xishift[..., 1:]
 
-    Bn = (np.abs(al)**2 * (xishift - l*xi/x_medium) * np.conj(xi) -
+    bn = (np.abs(al)**2 * (xishift - l*xi/x_medium) * np.conj(xi) -
           np.abs(bl)**2 * xi *
           np.conj(xishift -  l*xi/x_medium)) / (2*np.pi*n_medium/wavelen)
-    Qscat = prefactor1 * np.sum(prefactor2 * Bn.imag, axis=-1)[..., np.newaxis]
+    qscat = np.sum(prefactor1 * prefactor2 * bn.imag, axis=-1)
 
     # calculate the absorption and extinction efficiencies
     psi, _ = mie_specfuncs.riccati_psi_xi(x_scatterer, lmax)
@@ -810,19 +811,18 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
     psi = psi[..., 1:]
     psishift = psishift[..., 1:]
 
-    An = (np.abs(cl)**2 * psi * np.conj(psishift - l*psi/x_scatterer) -
+    an = (np.abs(cl)**2 * psi * np.conj(psishift - l*psi/x_scatterer) -
           np.abs(dl)**2 * (psishift - l*psi/x_scatterer)*
           np.conj(psi)) / (2*np.pi*n_particle/wavelen)
-    Qabs = prefactor1 * np.sum(prefactor2 * An.imag, axis=-1)[..., np.newaxis]
-    Qext = (prefactor1 *
-            np.sum(prefactor2 * (An+Bn).imag, axis=-1)[..., np.newaxis])
+    qabs = np.sum(prefactor1 * prefactor2 * an.imag, axis=-1)
+    qext = np.sum(prefactor1 * prefactor2 * (an+bn).imag, axis=-1)
 
     # calculate the cross sections
-    Cscat = Qscat *np.pi * radius**2
-    Cabs = Qabs *np.pi * radius**2
-    Cext = Qext *np.pi * radius**2
+    cscat = qscat * np.pi * radius**2
+    cabs = qabs * np.pi * radius**2
+    cext = qext * np.pi * radius**2
 
-    return(Cscat.squeeze(), Cabs.squeeze(), Cext.squeeze())
+    return(cscat, cabs, cext)
 
 def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     '''
@@ -843,9 +843,12 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     # if multilayer, use outermost radius and size parameter corresponding to
     # outermost radius
     radius = np.array(radius.magnitude).max() * radius.units
-    x = np.array(x).max(axis=-1)[..., np.newaxis]
-
+    x = np.array(x).max(axis=-1)
     k = x/radius
+
+    # add newaxis corresponding to order (l)
+    x = x[..., np.newaxis]
+
     lmax = np.atleast_1d(al).shape[-1]
     l = np.arange(lmax) + 1
     prefactor = (2. * l + 1.)[np.newaxis, ...]
@@ -879,10 +882,9 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
     # calculate the scattering cross section from eq 5 of Sudiarta and Chylek
     term1 = (-1j * np.abs(al)**2 *xideriv * np.conj(xi) +
               1j* np.abs(bl)**2 * xi * np.conj(xideriv))
-
-    numer1 = (np.sum(prefactor * term1, axis=-1)[..., np.newaxis]
+    numer1 = (np.sum(prefactor * term1, axis=-1)
               * np.conj(k)).real
-    Cscat = np.pi / np.abs(k)**2 * numer1 / I_denom
+    cscat = np.pi / np.abs(k)**2 * numer1 / I_denom
 
     # calculate the absorption cross section from eq 7 of Sudiarta and Chylek
     term2 = (1j*np.conj(psi)*psideriv - 1j*psi*np.conj(psideriv) +
@@ -890,19 +892,19 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
              1j*np.abs(al)**2*xideriv*np.conj(xi) -
              1j*np.abs(bl)**2*xi*np.conj(xideriv) -
              1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
-    numer2 = (np.sum(prefactor * term2, axis=-1)[..., np.newaxis]
+    numer2 = (np.sum(prefactor * term2, axis=-1)
               * np.conj(k)).real
-    Cabs = np.pi / np.abs(k)**2 * numer2 / I_denom
+    cabs = np.pi / np.abs(k)**2 * numer2 / I_denom
 
     # calculate the extinction cross section from eq 8 of Sudiarta and Chylek
     term3 = (1j*np.conj(psi)*psideriv - 1j*psi*np.conj(psideriv) +
              1j*bl*np.conj(psideriv)*xi + 1j*np.conj(bl)*psi*np.conj(xideriv) -
              1j*al*np.conj(psi)*xideriv - 1j*np.conj(al)*psideriv*np.conj(xi))
-    numer3 = (np.sum(prefactor * term3, axis=-1)[..., np.newaxis]
+    numer3 = (np.sum(prefactor * term3, axis=-1)
               * np.conj(k)).real
-    Cext = np.pi / np.abs(k)**2 * numer3 / I_denom
+    cext = np.pi / np.abs(k)**2 * numer3 / I_denom
 
-    return(Cscat.squeeze(), Cabs.squeeze(), Cext.squeeze())
+    return(cscat, cabs, cext)
 
 
 def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):

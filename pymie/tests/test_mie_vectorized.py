@@ -545,9 +545,10 @@ class TestVectorizedInternalFunctions():
             c_sud_loop = \
                 mie._cross_sections_complex_medium_sudiarta(al[i], bl[i], x[i],
                                                             radius)
-            c_sud_sca[i] = c_sud_loop[0].magnitude
-            c_sud_abs[i] = c_sud_loop[1].magnitude
-            c_sud_ext[i] = c_sud_loop[2].magnitude
+            # squeeze the singleton wavelen dimension
+            c_sud_sca[i] = c_sud_loop[0].magnitude.squeeze()
+            c_sud_abs[i] = c_sud_loop[1].magnitude.squeeze()
+            c_sud_ext[i] = c_sud_loop[2].magnitude.squeeze()
 
             x_scat = size_parameter(wavelen[i], n_particle[i], radius)
             if num_layer == 1:
@@ -558,10 +559,9 @@ class TestVectorizedInternalFunctions():
                                                           n_matrix,
                                                           x_scat, x[i],
                                                           wavelen[i])
-                c_fu_sca[i] = c_fu_loop[0].magnitude
-                c_fu_abs[i] = c_fu_loop[1].magnitude
-                c_fu_ext[i] = c_fu_loop[2].magnitude
-
+                c_fu_sca[i] = c_fu_loop[0].magnitude.squeeze()
+                c_fu_abs[i] = c_fu_loop[1].magnitude.squeeze()
+                c_fu_ext[i] = c_fu_loop[2].magnitude.squeeze()
 
         # the loop calculations might differ at the 1e-15 level for Sudiarta
         rtol = 1e-15
