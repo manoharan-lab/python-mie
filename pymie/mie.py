@@ -1276,25 +1276,18 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
         if phis.ndim == 1:
             phis, thetas = np.meshgrid(phis, thetas)
 
-    # reshape arrays for broadcasting. We use length of k (which should be
-    # num_values) to determine whether I_1 and I_2 are specified as
-    # (num_values, num_angles) or just (num_angles)
+    # reshape arrays for broadcasting.  k should have axis corresponding to
+    # theta (and possibly phi, which will be accounted for in thetas.shape
+    # since meshgrid was used)
     k = np.atleast_1d(k)
-    num_values = k.shape[0]
-    num_thetas = thetas.shape[0]
+    num_leading_axes = np.ndim(k)
+    k = k.reshape(k.shape + thetas.ndim*(1,))
+    # add axis for leading k dimensions (values, etc.)
+    thetas = thetas.reshape(num_leading_axes*(1,) + thetas.shape)
     if phis is not None:
-        num_phis = phis.shape[-1]
-        k = k.reshape((num_values, 1, 1))
-        dscat = dscat.reshape((2, num_values, num_thetas, num_phis))
-        thetas = thetas[np.newaxis, ...]
-        # phis has only two dimensions because by the time we use it, we have
-        # already integrated over theta
-        phis = phis[0, :]
-        phis = phis.reshape(1, num_phis)
-    else:
-        dscat = dscat.reshape((2, num_values, num_thetas))
-        k = k.reshape((num_values, 1))
-        thetas = thetas.reshape((1, num_thetas))
+        # phis does not have a trailing dimension corresponding to theta
+        # because by the time we use it, we have already integrated over theta
+        phis = phis[..., 0, :]
 
     # this line converts the unitless intensities to cross section
     # Multiply by distance (= to radius of particle in montecarlo.py) because
@@ -1371,7 +1364,7 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
     # k has trailing axes for theta (and possibly phi) that are no longer
     # needed after the integration.  We remove them here
     k_shape = k.shape
-    k = k.reshape(num_values)
+    k = np.atleast_1d(k.squeeze())
 
     # multiply by factor that accounts for attenuation in the incident light
     # (see Sudiarta and Chylek (2001), eq 10).
