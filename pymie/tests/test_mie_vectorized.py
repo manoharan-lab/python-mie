@@ -623,7 +623,7 @@ class TestVectorizedInternalFunctions():
                                                      cartesian=cartesian,
                                                      phis = phis)
 
-        integral = mie.integrate_intensity_complex_medium(i12, d, thetas, k,
+        integral = mie.integrate_intensity_complex_medium(i12, thetas, kd,
                                                           phi_min=0.0,
                                                           phi_max=2*np.pi,
                                                           cartesian=cartesian,
@@ -656,7 +656,7 @@ class TestVectorizedInternalFunctions():
 
         m = np.atleast_1d(m)
         x = np.atleast_1d(x)
-        k = np.atleast_1d(k)
+        kd = np.atleast_1d(kd)
         for i in range(num_wavelen):
             mat_loop = mie.amplitude_scattering_matrix(m[i], x[i], thetas,
                                                        cartesian=cartesian,
@@ -672,9 +672,9 @@ class TestVectorizedInternalFunctions():
                                                             cartesian,
                                                             phis = phis)
 
-            integral_loop = mie.integrate_intensity_complex_medium(i_loop, d,
+            integral_loop = mie.integrate_intensity_complex_medium(i_loop,
                                                                    thetas,
-                                                                   k[i],
+                                                                   kd[i],
                                                                    phi_min=0.0,
                                                                    phi_max =
                                                                    2*np.pi,
@@ -685,15 +685,11 @@ class TestVectorizedInternalFunctions():
             S1[i], S2[i], S3[i], S4[i] = mat_loop
             amp0[i], amp1[i] = vsa_loop
             i1[i], i2[i] = i_loop
-            # can't assign using tuple notation because pint will confuse numpy
-            # by trying to assign units to each element, so we have to take
-            # the magnitudes here
-            units = integral_loop[0].units
-            sigma[i] = integral_loop[0].magnitude.squeeze()
-            sigma_1[i] = integral_loop[1].magnitude.squeeze()
-            sigma_2[i] = integral_loop[2].magnitude.squeeze()
-            dsigma_1[i] = integral_loop[3].magnitude
-            dsigma_2[i] = integral_loop[4].magnitude
+            sigma[i] = integral_loop[0].squeeze()
+            sigma_1[i] = integral_loop[1].squeeze()
+            sigma_2[i] = integral_loop[2].squeeze()
+            dsigma_1[i] = integral_loop[3].squeeze()
+            dsigma_2[i] = integral_loop[4].squeeze()
 
         assert_equal(mat[0], S1.squeeze())
         assert_equal(mat[1], S2.squeeze())
@@ -706,11 +702,11 @@ class TestVectorizedInternalFunctions():
         assert_equal(i12[0], i1)
         assert_equal(i12[1], i2)
 
-        assert_equal(integral[0].magnitude, sigma)
-        assert_equal(integral[1].magnitude, sigma_1)
-        assert_equal(integral[2].magnitude, sigma_2)
-        assert_equal(integral[3].magnitude, dsigma_1)
-        assert_equal(integral[4].magnitude, dsigma_2)
+        assert_equal(integral[0], sigma)
+        assert_equal(integral[1], sigma_1)
+        assert_equal(integral[2], sigma_2)
+        assert_equal(integral[3], dsigma_1)
+        assert_equal(integral[4], dsigma_2)
 
 
 class TestVectorizedUserFunctions():

@@ -330,8 +330,7 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
 
         cscat = integrate_intensity_complex_medium(diff_cscat_par,
                                                    diff_cscat_perp,
-                                                   distance,
-                                                   angles, k)[0]
+                                                   angles, kd)[0]
     else:
         cscat = calc_cross_sections(m, x, eps1 = eps1, eps2 = eps2)[0]
         cscat = cscat * 1/k**2
@@ -365,8 +364,9 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
         kd = (k*distance).to("").magnitude
         diff_cscat = diff_scat_intensity_complex_medium(m, x, thetas,
                                                         kd)
-        refl_cscat = integrate_intensity_complex_medium(diff_cscat,
-                                                        distance, thetas, k)[0]
+        refl_cscat = integrate_intensity_complex_medium(diff_cscat, thetas,
+                                                        kd)[0]
+        refl_cscat = refl_cscat/k**2
     else:
         refl_cscat = calc_integrated_cross_section(m, x, thetas)
         refl_cscat = wavelen_media**2/4/np.pi/np.pi * refl_cscat
@@ -1220,11 +1220,11 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     # the intensities should be real
     return np.array([I_1.real, I_2.real])
 
-def integrate_intensity_complex_medium(dscat, distance, thetas, k,
+def integrate_intensity_complex_medium(dscat, thetas, kd,
                                        phi_min=0.0,
                                        phi_max=2*np.pi,
                                        cartesian=False,
-                                       phis = None):
+                                       phis=None):
     """
     Calculates the scattering cross section by integrating the differential
     scattered intensity at a distance of our choice in an absorbing medium.
@@ -1239,12 +1239,11 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
         differential scattered intensities for both polarizations. Can be
         functions of theta or of theta and phi. If a function of theta and phi,
         the theta dimension MUST come first
-    distance : float (Quantity in [length])
-        distance away from the scatterer
     thetas : array-like, shape num_thetas
         scattering angles
-    k : array-like of Quantity in [1/length], shape num_values
-        wavevector given by 2 * pi * n_medium / wavelength
+    kd : array-like, shape num_values
+        wavevector in medium times distance (from the center of the particle)
+        at which to integrate intensity
     phi_min : float
         minimum azimuthal angle, default set to 0
         optional, only necessary if cartesian=False (coordinate system is
@@ -1258,16 +1257,21 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
 
     Returns
     -------
-    sigma: array-like of Quantity in length**2 with shape num_values
+    sigma: array-like with shape num_values
         integrated cross section
-    sigma_1: array-like of Quantity in length**2 with shape num_values
+    sigma_1: array-like with shape num_values
         integrated cross section for first component of basis
-    sigma_2: array-like of Quantity in length**2 with shape num_values
+    sigma_2: array-like with shape num_values
         integrated cross section for second component of basis
-    dsigma_1: array-like (Quantity in length**2), shape num_values, num_angles
+    dsigma_1: array-like, shape num_values, num_angles
         differential cross section for first component of basis
-    dsigma_2: array-like (Quantity in length**2), shape num_values, num_angles
+    dsigma_2: array-like, shape num_values, num_angles
         differential cross section for second component of basis
+
+    Notes
+    -----
+    Returns dimensionless cross-sections.  Multiply these by 1/k^2
+    and take the real part to recover the dimensional cross-sections.
 
     """
     # check that if phis is specified, both thetas and phis are given as 2D
@@ -1279,9 +1283,9 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
     # reshape arrays for broadcasting.  k should have axis corresponding to
     # theta (and possibly phi, which will be accounted for in thetas.shape
     # since meshgrid was used)
-    k = np.atleast_1d(k)
-    num_leading_axes = np.ndim(k)
-    k = k.reshape(k.shape + thetas.ndim*(1,))
+    kd = np.atleast_1d(kd)
+    num_leading_axes = np.ndim(kd)
+    kd = kd.reshape(kd.shape + thetas.ndim*(1,))
     # add axis for leading k dimensions (values, etc.)
     thetas = thetas.reshape(num_leading_axes*(1,) + thetas.shape)
     if phis is not None:
@@ -1289,17 +1293,13 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
         # because by the time we use it, we have already integrated over theta
         phis = phis[..., 0, :]
 
-    # this line converts the unitless intensities to cross section
-    # Multiply by distance (= to radius of particle in montecarlo.py) because
-    # this is the integration factor over solid angles (see eq. 4.58 in
-    # Bohren and Huffman).
-    if isinstance(distance.magnitude,(list, np.ndarray)):
-        if distance[0]==distance[1]:
-            distance = distance[0]
-    dsigma_1 = dscat[0] * distance**2
-    dsigma_2 = dscat[1] * distance**2
+    # Multiply differential cross-sections by (k*distance)^2 (generally
+    # distance is radius of particle) because this is k^2*(integration
+    # factor over solid angles) (see eq. 4.58 in Bohren and Huffman).
+    dsigma_1 = dscat[0] * kd**2
+    dsigma_2 = dscat[1] * kd**2
 
-    if cartesian is False:
+    if not cartesian:
         if phis is not None:
             warnings.warn("azimuthal angles specified for scattering plane "
                           "calculations. Scattering plane calculations do not "
@@ -1307,24 +1307,12 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
                           "will be ignored")
 
         # strip units from integrand
-        if isinstance(dsigma_1, Quantity):
-            integrand_par = dsigma_1.magnitude * np.abs(np.sin(thetas))
-        else:
-            integrand_par = dsigma_1 * np.abs(np.sin(thetas))
-        if isinstance(dsigma_2, Quantity):
-            integrand_perp = dsigma_2.magnitude * np.abs(np.sin(thetas))
-        else:
-            integrand_perp = dsigma_2 * np.abs(np.sin(thetas))
+        integrand_par = dsigma_1 * np.abs(np.sin(thetas))
+        integrand_perp = dsigma_2 * np.abs(np.sin(thetas))
 
         # Integrate over theta
         integral_par = trapezoid(integrand_par, x=thetas)
         integral_perp = trapezoid(integrand_perp, x=thetas)
-
-        # restore units to integral
-        if isinstance(dsigma_1, Quantity):
-            integral_par = Quantity(integral_par, dsigma_1.units)
-        if isinstance(dsigma_2, Quantity):
-            integral_perp = Quantity(integral_perp, dsigma_2.units)
 
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in
@@ -1341,50 +1329,37 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
                              "specified for scattering calculations in "
                              "cartesian coordinate system")
 
-        # strip units from integrand
-        if isinstance(dsigma_1, Quantity):
-            integrand_1 = dsigma_1.magnitude * np.abs(np.sin(thetas))
-        else:
-            integrand_1 = dsigma_1 * np.abs(np.sin(thetas))
-        if isinstance(dsigma_2, Quantity):
-            integrand_2 = dsigma_2.magnitude * np.abs(np.sin(thetas))
-        else:
-            integrand_2 = dsigma_2 * np.abs(np.sin(thetas))
+        integrand_1 = dsigma_1 * np.abs(np.sin(thetas))
+        integrand_2 = dsigma_2 * np.abs(np.sin(thetas))
 
         # Integrate over theta and phi
         sigma_1 = trapezoid(trapezoid(integrand_1, x=thetas, axis=1), x=phis)
         sigma_2 = trapezoid(trapezoid(integrand_2, x=thetas, axis=1), x=phis)
 
-        # restore units to integral
-        if isinstance(dsigma_1, Quantity):
-            sigma_1 = Quantity(sigma_1, dsigma_1.units)
-        if isinstance(dsigma_2, Quantity):
-            sigma_2 = Quantity(sigma_2, dsigma_2.units)
-
-    # k has trailing axes for theta (and possibly phi) that are no longer
+    # kd has trailing axes for theta (and possibly phi) that are no longer
     # needed after the integration.  We remove them here
-    k_shape = k.shape
-    k = np.atleast_1d(k.squeeze())
+    kd_shape = kd.shape
+    kd = np.atleast_1d(kd.squeeze())
 
     # multiply by factor that accounts for attenuation in the incident light
     # (see Sudiarta and Chylek (2001), eq 10).
     # if the imaginary part of k is close to 0 (because the medium index is
     # close to 0), then use the limit value of factor for the calculations
-    exponent = np.exp(2*distance*k.imag)
+    exponent = np.exp(2*kd.imag)
     factor_limit = 2
     # ignore division by zero in case k.imag=0; we'll replace the nans with the
     # limit value of factor anyway
     with np.errstate(divide='ignore', invalid='ignore'):
-        factor = np.where(k.imag <= Quantity(1e-8, '1/nm'), factor_limit,
-                          1 / (exponent / (2*distance*k.imag)
-                               + (1 - exponent) / (2*distance*k.imag)**2))
+        factor = np.where(kd.imag <= 1e-6, factor_limit,
+                          1 / (exponent / (2*kd.imag)
+                               + (1 - exponent) / (2*kd.imag)**2))
 
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
 
     return(sigma, (sigma_1*factor),
-           (sigma_2*factor), (dsigma_1*factor.reshape(k_shape)/2),
-           (dsigma_2*factor.reshape(k_shape)/2))
+           (sigma_2*factor), (dsigma_1*factor.reshape(kd_shape)/2),
+           (dsigma_2*factor.reshape(kd_shape)/2))
 
 def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     '''
