@@ -689,9 +689,9 @@ class TestVectorizedInternalFunctions():
             # by trying to assign units to each element, so we have to take
             # the magnitudes here
             units = integral_loop[0].units
-            sigma[i] = integral_loop[0].magnitude
-            sigma_1[i] = integral_loop[1].magnitude
-            sigma_2[i] = integral_loop[2].magnitude
+            sigma[i] = integral_loop[0].magnitude.squeeze()
+            sigma_1[i] = integral_loop[1].magnitude.squeeze()
+            sigma_2[i] = integral_loop[2].magnitude.squeeze()
             dsigma_1[i] = integral_loop[3].magnitude
             dsigma_2[i] = integral_loop[4].magnitude
 
@@ -706,11 +706,11 @@ class TestVectorizedInternalFunctions():
         assert_equal(i12[0], i1)
         assert_equal(i12[1], i2)
 
-        assert_equal(integral[0].magnitude, sigma.squeeze())
-        assert_equal(integral[1].magnitude, sigma_1.squeeze())
-        assert_equal(integral[2].magnitude, sigma_2.squeeze())
-        assert_equal(integral[3].magnitude, dsigma_1.squeeze())
-        assert_equal(integral[4].magnitude, dsigma_2.squeeze())
+        assert_equal(integral[0].magnitude, sigma)
+        assert_equal(integral[1].magnitude, sigma_1)
+        assert_equal(integral[2].magnitude, sigma_2)
+        assert_equal(integral[3].magnitude, dsigma_1)
+        assert_equal(integral[4].magnitude, dsigma_2)
 
 
 class TestVectorizedUserFunctions():
@@ -940,7 +940,8 @@ class TestVectorizedUserFunctions():
         for i in range(num_wavelen):
             reflectance = mie.calc_reflectance(radius, n_medium, n_particle[i],
                                                wavelen[i]).magnitude
-            refl_loop[i] = reflectance
+            # squeeze to remove singleton wavelength dimension
+            refl_loop[i] = reflectance.squeeze()
 
         assert_allclose(refl.magnitude, refl_loop, rtol=1e-14)
         assert refl.units == 1/wavelen.units**2

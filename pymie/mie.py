@@ -1368,6 +1368,11 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
         if isinstance(dsigma_2, Quantity):
             sigma_2 = Quantity(sigma_2, dsigma_2.units)
 
+    # k has trailing axes for theta (and possibly phi) that are no longer
+    # needed after the integration.  We remove them here
+    k_shape = k.shape
+    k = k.reshape(num_values)
+
     # multiply by factor that accounts for attenuation in the incident light
     # (see Sudiarta and Chylek (2001), eq 10).
     # if the imaginary part of k is close to 0 (because the medium index is
@@ -1381,16 +1386,12 @@ def integrate_intensity_complex_medium(dscat, distance, thetas, k,
                           1 / (exponent / (2*distance*k.imag)
                                + (1 - exponent) / (2*distance*k.imag)**2))
 
-    # prepare for broadcasting (this will add trailing axes of size 1)
-    sigma_1 = sigma_1.reshape(factor.shape)
-    sigma_2 = sigma_2.reshape(factor.shape)
-
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
 
-    return(sigma.squeeze(), (sigma_1*factor).squeeze(),
-           (sigma_2*factor).squeeze(), (dsigma_1*factor/2).squeeze(),
-           (dsigma_2*factor/2).squeeze())
+    return(sigma, (sigma_1*factor),
+           (sigma_2*factor), (dsigma_1*factor.reshape(k_shape)/2),
+           (dsigma_2*factor.reshape(k_shape)/2))
 
 def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     '''
