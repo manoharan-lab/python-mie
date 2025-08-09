@@ -49,7 +49,6 @@ import warnings
 import numpy as np
 from scipy.special import spherical_jn, spherical_yn
 from scipy.special import legendre_p_all
-from scipy.integrate import trapezoid
 
 from . import Quantity, index_ratio, mie_specfuncs
 from . import size_parameter, ureg
@@ -1308,8 +1307,8 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
         integrand_perp = dsigma_2 * np.abs(np.sin(thetas))
 
         # Integrate over theta
-        integral_par = trapezoid(integrand_par, x=thetas)
-        integral_perp = trapezoid(integrand_perp, x=thetas)
+        integral_par = np.trapezoid(integrand_par, x=thetas)
+        integral_perp = np.trapezoid(integrand_perp, x=thetas)
 
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in
@@ -1330,8 +1329,10 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
         integrand_2 = dsigma_2 * np.abs(np.sin(thetas))
 
         # Integrate over theta and phi
-        sigma_1 = trapezoid(trapezoid(integrand_1, x=thetas, axis=1), x=phis)
-        sigma_2 = trapezoid(trapezoid(integrand_2, x=thetas, axis=1), x=phis)
+        sigma_1 = np.trapezoid(np.trapezoid(integrand_1, x=thetas, axis=1),
+                               x=phis)
+        sigma_2 = np.trapezoid(np.trapezoid(integrand_2, x=thetas, axis=1),
+                               x=phis)
 
     # kd has trailing axes for theta (and possibly phi) that are no longer
     # needed after the integration.  We remove them here
