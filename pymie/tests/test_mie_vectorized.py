@@ -468,21 +468,16 @@ class TestVectorizedInternalFunctions():
             coeffs = mie._internal_coeffs(m, x, nstop)
 
             # make sure shape is correct
-            if num_wavelen == 1:
-                expected_shape = (2, nstop)
-                assert coeffs.shape == expected_shape
-                # no further test since no loop required in this case
-            else:
-                expected_shape = (2, num_wavelen, nstop)
-                assert coeffs.shape == expected_shape
+            expected_shape = (2, num_wavelen, nstop)
+            assert coeffs.shape == expected_shape
 
-                # we should get same values from loop
-                coeffs_loop = np.zeros(expected_shape, dtype=complex)
-                for i in range(m.shape[0]):
-                    c = mie._internal_coeffs(m[i], x[i], nstop)
-                    coeffs_loop[:, i] = c
+            # we should get same values from loop
+            coeffs_loop = []
+            for i in range(m.shape[0]):
+                coeffs_loop.append(mie._internal_coeffs(m[i], x[i], nstop))
+            coeffs_loop = np.concatenate(coeffs_loop, axis=1)
 
-                assert_equal(coeffs, coeffs_loop)
+            assert_equal(coeffs, coeffs_loop)
 
     @pytest.mark.parametrize("n_matrix",
                              [1.33, pytest.param(1.33+0.001j),

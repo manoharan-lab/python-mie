@@ -612,7 +612,9 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     dl = (m[..., np.newaxis] * ratio * (D3x - D1x)
           / (m[..., np.newaxis] * D3x - D1mx))
     # start from l = 1
-    return np.array([cl[..., 1:], dl[..., 1:]]).squeeze()
+    cldl = np.array([cl[..., 1:], dl[..., 1:]])
+    # remove unneeded layer axis
+    return cldl[..., 0, :]
 
 def _trans_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
