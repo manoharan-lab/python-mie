@@ -444,13 +444,15 @@ class TestVectorizedInternalFunctions():
         coeffs_loop = []
         for i in range(m.shape[0]):
             if num_layer == 1:
-                coeffs_loop.append(mie._scatcoeffs(m[i], x[i], nstop))
+                # m[[i]] preserves 2D array
+                coeffs_loop.append(mie._scatcoeffs(m[[i]], x[[i]], nstop))
             else:
                 # need to specify nstop here; otherwise we will get a
                 # different number of scattering coefficients for each
                 # wavelength, since _scatcoeffs_multi() picks the largest x
                 # for each wavelength.
-                coeffs_loop.append(mie._scatcoeffs_multi(m[i], x[i], nstop))
+                coeffs_loop.append(mie._scatcoeffs_multi(m[[i]], x[[i]],
+                                                         nstop))
         # concatenate along wavelength axis
         coeffs_loop = np.concatenate(coeffs_loop, axis=1)
         assert_equal(coeffs, coeffs_loop)
@@ -481,7 +483,8 @@ class TestVectorizedInternalFunctions():
             # we should get same values from loop
             coeffs_loop = []
             for i in range(m.shape[0]):
-                coeffs_loop.append(mie._internal_coeffs(m[i], x[i], nstop))
+                # m[[i]] preserves 2D array
+                coeffs_loop.append(mie._internal_coeffs(m[[i]], x[[i]], nstop))
             coeffs_loop = np.concatenate(coeffs_loop, axis=1)
 
             assert_equal(coeffs, coeffs_loop)
@@ -653,14 +656,15 @@ class TestVectorizedInternalFunctions():
         x = np.atleast_1d(x)
         kd = np.atleast_1d(kd)
         for i in range(num_wavelen):
-            mat_loop = mie.amplitude_scattering_matrix(m[i], x[i], thetas,
+            # m[[i]] preserves 2D array
+            mat_loop = mie.amplitude_scattering_matrix(m[[i]], x[[i]], thetas,
                                                        cartesian=cartesian,
                                                        phis = phis)
 
-            vsa_loop = mie.vector_scattering_amplitude(m[i], x[i], thetas,
+            vsa_loop = mie.vector_scattering_amplitude(m[[i]], x[[i]], thetas,
                                                        cartesian=cartesian,
                                                        phis = phis)
-            i_loop = mie.diff_scat_intensity_complex_medium(m[i], x[i],
+            i_loop = mie.diff_scat_intensity_complex_medium(m[[i]], x[[i]],
                                                             thetas,
                                                             kd[i],
                                                             cartesian =
@@ -761,7 +765,8 @@ class TestVectorizedUserFunctions():
         g_loop = []
         nstop = mie._nstop(x.max())
         for i in range(num_wavelen):
-            g_loop.append(mie.calc_g(m[i], x[i], nstop=nstop))
+            # m[[i]] preserves 2D array
+            g_loop.append(mie.calc_g(m[[i]], x[[i]], nstop=nstop))
         g_loop = np.concatenate(g_loop, axis=0)
         assert_equal(g, g_loop)
 
@@ -789,7 +794,8 @@ class TestVectorizedUserFunctions():
         cabs_loop = np.zeros_like(cscat_loop)
         asym_loop = np.zeros_like(cscat_loop)
         for i in range(num_wavelen):
-            cs = mie.calc_cross_sections(m[i], x[i])
+            # m[[i]] preserves 2D array
+            cs = mie.calc_cross_sections(m[[i]], x[[i]])
             cscat_loop[i], cext_loop[i], cback_loop[i], \
                 cabs_loop[i], asym_loop[i] = (c.squeeze() for c in cs)
         assert_equal(cscat, cscat_loop)
@@ -829,7 +835,8 @@ class TestVectorizedUserFunctions():
         qext_loop = np.zeros(expected_shape, dtype=float)
         qback_loop = np.zeros(expected_shape, dtype=float)
         for i in range(num_wavelen):
-            qs = mie.calc_efficiencies(m[i], x[i])
+            # m[[i]] preserves 2D array
+            qs = mie.calc_efficiencies(m[[i]], x[[i]])
             qscat_loop[i], qext_loop[i], qback_loop[i] = (q.squeeze()
                                                           for q in qs)
         assert_equal(qscat, qscat_loop)
@@ -854,7 +861,8 @@ class TestVectorizedUserFunctions():
         # we should get same values from loop
         iparperp_loop = []
         for i in range(num_wavelen):
-            iparperp = mie.calc_ang_scat(m[i], x[i], self.angles)
+            # m[[i]] notation preserves 2D array
+            iparperp = mie.calc_ang_scat(m[[i]], x[[i]], self.angles)
             iparperp_loop.append(iparperp)
         # concatenate along wavelength axis
         iparperp_loop = np.concatenate(iparperp_loop, axis=1)

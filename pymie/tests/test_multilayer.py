@@ -30,7 +30,7 @@ def test_scatcoeffs_multi():
     # particle and for an equivalent multilayer particle
 
     # calculate coefficients for the non-multilayer
-    m = 1.15
+    m = np.array([1.15])[:, np.newaxis]
     n_sample = 1.5
     wavelen = Quantity('500.0 nm')
     radius = Quantity('100.0 nm')
@@ -40,7 +40,7 @@ def test_scatcoeffs_multi():
 
     # calculate coefficients for a multilayer particle with a core that
     # is the same as the non-multilayer and a shell thickness of zero
-    marray = [1.15, 1.15]  # layer index ratios, innermost first
+    marray = np.array([[1.15, 1.15]])  # layer index ratios, innermost first
     multi_radius = Quantity(np.array([100.0, 100.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
     coeffs_multi = mie._scatcoeffs_multi(marray, xarray)
@@ -49,7 +49,7 @@ def test_scatcoeffs_multi():
 
     # calculate coefficients for a 3-layer particle with a core that
     # is the same as the non-multilayer and shell thicknesses of zero
-    marray2 = [1.15, 1.15, 1.15]  # layer index ratios, innermost first
+    marray2 = np.array([[1.15, 1.15, 1.15]])
     multi_radius2 = Quantity(np.array([100.0, 100.0, 100.0]),'nm')
     xarray2 = size_parameter(wavelen, n_sample, multi_radius2)
     coeffs_multi2 = mie._scatcoeffs_multi(marray2, xarray2)
@@ -59,8 +59,8 @@ def test_scatcoeffs_multi():
 def test_scatcoeffs_multi_absorbing_particle():
     # test that the scattering coefficients are the same for a real index ratio
     # and a complex index ratio with a 0 imaginary component.
-    marray_real = [1.15, 1.2]
-    marray_imag = [1.15 + 0j, 1.2 + 0j]
+    marray_real = np.array([[1.15, 1.2]])
+    marray_imag = np.array([[1.15 + 0j, 1.2 + 0j]])
     n_sample = 1.5
     wavelen = Quantity('500.0 nm')
     multi_radius = Quantity(np.array([100.0, 110.0]),'nm')
@@ -99,16 +99,16 @@ def test_sooty_particles():
         return np.array([qs[1], qs[0], qs[2]*4*np.pi/2.])
 
     # first case: absorbing core
-    x_ac = np.array([f_v**(1./3.) * x_L, x_L])
-    m_ac = np.array([m_abs, m_med])
+    x_ac = np.array([[f_v**(1./3.) * x_L, x_L]])
+    m_ac = np.array([[m_abs, m_med]])
 
     # second case: absorbing shell
-    x_as = np.array([(1. - f_v)**(1./3.), 1.]) * x_L
-    m_as = np.array([m_med, m_abs])
+    x_as = np.array([[(1. - f_v)**(1./3.), 1.]]) * x_L
+    m_as = np.array([[m_med, m_abs]])
 
     # third case: smooth distribution (900 layers)
     n_layers = 900
-    x_sm = np.arange(1, n_layers + 1) * x_L / n_layers
+    x_sm = (np.arange(1, n_layers + 1) * x_L / n_layers)[np.newaxis, :]
     beta = (m_abs**2 - m_med**2) / (m_abs**2 + 2. * m_med**2)
     f = 4./3. * (x_sm / x_L) * f_v
     m_sm = m_med * np.sqrt(1. + 3. * f * beta / (1. - f * beta))

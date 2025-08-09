@@ -127,7 +127,9 @@ def test_efficiencies():
     n_particle = 1.59 + 1e-4 * 1.0j
     m = index_ratio(n_particle, n_matrix)
 
-    effs = [mie.calc_efficiencies(m, x) for x in x]
+    # TODO vectorize this loop (might need to change how nstop is handled for
+    # an array, since the vectorized version will use the largest x
+    effs = [mie.calc_efficiencies(m, np.array([[x]])) for x in x]
     q_arr = np.asarray(effs)
     # squeeze to remove singleton dimension corresponding to wavelength
     qsca = q_arr[:,0].squeeze()
@@ -154,7 +156,7 @@ def test_absorbing_materials():
     n_matrix = 1.00
     n_particle = 0.1425812 + 3.6813284 * 1.0j
     m = index_ratio(n_particle, n_matrix)
-    x = 10.0
+    x = np.array([[10.0]])
 
     angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
     # these values are calculated from MiePlot
@@ -180,7 +182,7 @@ def test_multilayer_spheres():
     # non-multilayer particle and for an equivalent multilayer particle.
 
     # form factor and cross section for non-multilayer
-    m = 1.15
+    m = np.array([[1.15]])
     n_sample = 1.5
     wavelen = Quantity('500.0 nm')
     angles = np.linspace(np.pi/2, np.pi, 20)
@@ -192,7 +194,8 @@ def test_multilayer_spheres():
 
     # form factor and cross section for a multilayer particle with a core that
     # is the same as the non-multilayer and a shell thickness of zero
-    marray = [1.15, 1.15]  # layer index ratios, innermost first
+    ## layer index ratios, innermost first
+    marray = np.array([1.15, 1.15])[np.newaxis, :]
     multi_radius = Quantity(np.array([100.0, 100.0]),'nm')
     xarray = size_parameter(wavelen, n_sample, multi_radius)
 
@@ -211,7 +214,7 @@ def test_multilayer_spheres():
     # form factor and cross section for a multilayer particle with a core that
     # is the same as the non-multilayer and a shell index matched with the
     # medium (vacuum)
-    marray2 = [1.15, 1.]  # layer index ratios, innermost first
+    marray2 = np.array([1.15, 1.])[np.newaxis, :]
     multi_radius2 = Quantity(np.array([100.0, 110.0]),'nm')
     xarray2 = size_parameter(wavelen, n_sample, multi_radius2)
 
@@ -229,7 +232,7 @@ def test_multilayer_spheres():
 
     # form factor and cross section for a 3-layer-particle with a core that
     # is the same as the non-multilayer and shell thicknesses of zero
-    marray3 = [1.15, 1.15, 1.15]  # layer index ratios, innermost first
+    marray3 = np.array([1.15, 1.15, 1.15])[np.newaxis, :]
     multi_radius3 = Quantity(np.array([100.0, 100.0, 100.0]),'nm')
     xarray3 = size_parameter(wavelen, n_sample, multi_radius3)
 
@@ -248,7 +251,7 @@ def test_multilayer_spheres():
     # form factor and cross section for a 3-layer-particle with a core that
     # is the same as the non-multilayer and a shell index matched with the
     # medium (vacuum)
-    marray4= [1.15, 1., 1.]  # layer index ratios, innermost first
+    marray4= np.array([1.15, 1., 1.])[np.newaxis, :]
     multi_radius4 = Quantity(np.array([100, 110, 120]),'nm')
     xarray4 = size_parameter(wavelen, n_sample, multi_radius4)
 
@@ -267,8 +270,8 @@ def test_multilayer_spheres():
 def test_multilayer_absorbing_spheres():
     # test that the form factor and cross sections are the same for a real
     # index ratio m and a complex index ratio with a 0 imaginary component
-    marray_real = [1.15, 1.2]
-    marray_imag = [1.15 + 0j, 1.2 + 0j]
+    marray_real = np.array([1.15, 1.2])[np.newaxis, :]
+    marray_imag = np.array([1.15 + 0j, 1.2 + 0j])[np.newaxis, :]
     n_sample = 1.5
     wavelen = Quantity('500.0 nm')
     multi_radius = Quantity(np.array([100.0, 110.0]),'nm')
@@ -630,7 +633,7 @@ def test_cross_section_complex_medium():
 def test_multilayer_complex_medium():
     # test that the form factor and cross sections are the same for a real
     # index ratio m and a complex index ratio with a 0 imaginary component
-    marray = [1.15, 1.2]
+    marray = np.array([1.15, 1.2])[np.newaxis, :]
     n_sample = 1.5 + 0j
     wavelen = Quantity('500.0 nm')
     multi_radius = Quantity(np.array([100, 110]),'nm')
@@ -861,8 +864,8 @@ def test_dwell_time_and_energy():
     n_medium = 1.0
     n_particle = 2.73
     c = Quantity(2.99792e8,'m/s')
-    x = 4.59
-    m = 2.73
+    x = np.array([[4.59]])
+    m = np.array([[2.73]])
     wavelen = 2*np.pi*radius*n_medium/x
     wavelen_media = 2*np.pi*radius/x
 
