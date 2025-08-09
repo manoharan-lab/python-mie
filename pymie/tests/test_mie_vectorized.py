@@ -80,6 +80,13 @@ def test_parameter_shapes():
     n_particle = np.repeat(np.array([n_particle]), num_wavelen, axis=0)
     n_particle = n_particle
 
+    # scalar index, scalar wavelen, scalar radius.  m and x should have shape
+    # [1,1]
+    m = index_ratio(1, 1)
+    assert m.shape == (1,1)
+    x = size_parameter(wavelen[0], n_matrix, radius[0])
+    assert x.shape == (1,1)
+
     # multiple wavelengths, multiple layers. m and x should have shape
     # [num_wavelen, num_layer].
     expected_shape = (num_wavelen, num_layer)
@@ -91,19 +98,19 @@ def test_parameter_shapes():
     x = size_parameter(wavelen, n_matrix, radius)
     assert x.shape == expected_shape
 
-    # one wavelength, multiple layers; index specified as 1D array.  Should
-    # return a 1D index ratio and a 2D size parameter
+    # one wavelength, multiple layers; particle index specified as 1D array and
+    # matrix index as scalar. m and x should have shape [1, num_layer]
     wavelen = Quantity(400, 'nm')
     num_layer = 6
     radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
     n_particle = np.linspace(1.33, 1.59, num_layer)
     m = index_ratio(n_particle, n_matrix)
-    assert m.shape == (num_layer, )
+    assert m.shape == (1, num_layer)
     x = size_parameter(wavelen, n_matrix, radius)
     assert x.shape == (1, num_layer)
 
-    # one wavelength, multiple layers; index specified as 2D array with shape
-    # [1, num_layers]. Should return a 2D index ratio and a 2D size parameter
+    # one wavelength, multiple layers; particle index specified as 2D array
+    # with shape [1, num_layers], matrix is scalar. m and x: [1, num_layer]
     wavelen = Quantity(400, 'nm')
     num_layer = 6
     radius = Quantity(np.linspace(0.85, 1.0, num_layer), 'um')
@@ -879,7 +886,9 @@ class TestVectorizedUserFunctions():
                                        self.mxargs["end_wavelen"],
                                        num_wavelen),
                            'nm')
-        m = index_ratio(n_particle, n_matrix)[:, np.newaxis]
+        # have to transpose m because array of n_particle would otherwise be
+        # interpreted as a layered particle
+        m = index_ratio(n_particle, n_matrix).transpose()
         x = size_parameter(wavelen, n_matrix, radius)
         num_angle = 1000
         # 0 degree scattering may give differences between RG and Mie, so we

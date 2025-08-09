@@ -79,7 +79,16 @@ def index_ratio(n_particle, n_matrix):
         Return type depends on type of n_particle and n_matrix, and return
         shape should be the same as n_particle
     """
-    return n_particle/n_matrix
+    # The following handles these cases:
+    # 1. if n_particle and n_matrix are scalars, return shape (1,1).
+    # 2. If n_particle is an array and n_matrix is not, it's probably a layered
+    # particle, so we return (1, n_particle.shape)
+    m = np.atleast_2d(n_particle/n_matrix)
+
+    # function will not change shape for n_particle or n_matrix with two or
+    # more dimensions (they will broadcast normally)
+
+    return m
 
 @ureg.check('[length]', None, '[length]')
 def size_parameter(wavelen, n_matrix, radius):
@@ -122,7 +131,5 @@ def size_parameter(wavelen, n_matrix, radius):
     # ratios such as 'nm'/'um' dimensionless
     if isinstance(sp, Quantity):
         sp = sp.to('dimensionless').magnitude
-    if np.size(sp) == 1:
-        sp = sp.item()
 
     return sp
