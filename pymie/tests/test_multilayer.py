@@ -92,6 +92,8 @@ def test_sooty_particles():
     def efficiencies_from_scat_units(m, x):
         asbs = mie._scatcoeffs_multi(m, x)
         qs = np.array(mie._cross_sections(*asbs)) * 2 / x_L**2
+        # squeeze out singleton wavelen dimension
+        qs = qs.squeeze()
         # there is a factor of 2 conventional difference between
         # "backscattering" and "radar backscattering" efficiencies.
         return np.array([qs[1], qs[0], qs[2]*4*np.pi/2.])

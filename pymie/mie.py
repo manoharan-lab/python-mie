@@ -437,7 +437,8 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     # index ratio should be specified as a 2D array with shape
     # [num_values, num_layers] to calculate over a set of different values,
     # such as wavelengths. If specified as a 1D array, shape is [num_layers].
-    if np.atleast_2d(m).shape[-1] > 1:
+    num_layers = np.atleast_2d(m).shape[-1]
+    if num_layers > 1:
         return _scatcoeffs_multi(m, x)
 
     # Scattering coefficients for single-layer particles.
@@ -446,12 +447,17 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     # nmx = np.array([nstop, np.round(np.absolute(m*x))]).max() + 20
     # Dnmx = mie_specfuncs.log_der_1(m*x, nmx, nstop)
     # above replaced with Lentz algorithm
-    z = np.atleast_1d(m * x).squeeze()
+    z = np.atleast_1d(m * x)
+    # remove unneded layer axis
+    z = z[..., 0]
     Dnmx = mie_specfuncs.dn_1_down(z, nstop + 1, nstop,
                                    mie_specfuncs.lentz_dn1(z, nstop + 1,
                                                            eps1, eps2))
+
     n = np.arange(nstop+1)
-    x = np.atleast_2d(x)
+    if np.ndim(x) <= 1:
+        x = np.atleast_1d(x)[..., np.newaxis]
+
     psi, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
 
     # insert zeroes at the beginning of second axis (order axis)
@@ -460,9 +466,8 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
 
-    # coefficient array has shape [2, num_values, nstop] or [2, nstop] if
-    # only one value (only one wavelength, for example)
-    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]]).squeeze()
+    # coefficient array has shape [2, num_values, nstop]
+    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]])
 
 def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     '''Calculate scattered field expansion coefficients (in the Mie formalism)
@@ -578,7 +583,7 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
           / ((hbns*mlast + n/xlast)*xi - xishift))
 
     # output begins at n=1
-    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]]).squeeze()
+    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]])
 
 def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''

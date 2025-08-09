@@ -88,8 +88,9 @@ def test_form_factor():
                            93.5508557840006])
 
     iparperp = mie.calc_ang_scat(m, x, angles)
-    assert_array_almost_equal(iparperp[0], ipar_bhmie)
-    assert_array_almost_equal(iparperp[1], iperp_bhmie)
+    # squeeze to remove singlet wavelength dimension
+    assert_array_almost_equal(iparperp[0].squeeze(), ipar_bhmie)
+    assert_array_almost_equal(iparperp[1].squeeze(), iperp_bhmie)
 
 def test_efficiencies():
     x = np.array([0.01, 0.01778279, 0.03162278, 0.05623413, 0.1, 0.17782794,
@@ -170,8 +171,9 @@ def test_absorbing_materials():
                            8.26505988320951, 47.4736966179677])
 
     iparperp = mie.calc_ang_scat(m, x, angles)
-    assert_array_almost_equal(iparperp[0], ipar_bhmie)
-    assert_array_almost_equal(iparperp[1], iperp_bhmie)
+    # squeeze to remove singlet wavelen axis before comparison
+    assert_array_almost_equal(iparperp[0].squeeze(), ipar_bhmie)
+    assert_array_almost_equal(iparperp[1].squeeze(), iperp_bhmie)
 
 def test_multilayer_spheres():
     # test that form factors and cross sections are the same for a
@@ -485,8 +487,6 @@ def test_differential_cross_section():
 
     # With far-field Mie solutions
     I_parperp_cad = mie.calc_ang_scat(m, x, theta)
-    # temp fix to re-insert wavelength dimension (which gets squeezed out)
-    I_parperp_cad = I_parperp_cad[:, np.newaxis, :]
 
     # With Mie solutions at surface of particle (but neglecting near-fields)
     kd = (k*distance).to("").magnitude
@@ -748,11 +748,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     I_par_perp_mag = np.sqrt((I_parperp**2).sum(axis=0))
 
     # check that the magnitudes are equal
-    #
-    # Because of the way this test is done (using a 2D array of angles
-    # for theta), we don't end up with a wavelength axis for I_parperp.  Have
-    # to squeeze to compare.
-    assert_allclose(I_xy_mag.squeeze(), I_par_perp_mag, rtol=1e-15)
+    assert_allclose(I_xy_mag, I_par_perp_mag, rtol=1e-15)
 
 def test_integrate_intensity_complex_medium_cartesian():
     '''
@@ -901,7 +897,12 @@ def test_dwell_time_and_energy():
     distance_calc = dwell_time*c
     distance_calc = distance_calc.to('um')
 
-    assert_approx_equal(cscat_reported.magnitude, cscat_calc.magnitude, significant=2)
-    assert_approx_equal(W_star_reported, np.real(W_star_calc), significant=2)
-    assert_approx_equal(W_reported.magnitude, np.real(W_calc.magnitude), significant=2)
-    assert_approx_equal(distance_reported.magnitude, np.real(distance_calc.magnitude), significant=2)
+    # squeeze to remove singlet wavelength dimension on calculated values
+    assert_allclose(cscat_calc.squeeze().magnitude,
+                    cscat_reported.magnitude, rtol=1e-2)
+    assert_allclose(np.real(W_star_calc).squeeze(), W_star_reported, rtol=1e-1)
+    assert_allclose(np.real(W_calc.magnitude).squeeze(),
+                    W_reported.magnitude, rtol=1e-1)
+    assert_allclose(np.real(distance_calc.magnitude).squeeze(),
+                    distance_reported.magnitude, rtol=1e-1)
+

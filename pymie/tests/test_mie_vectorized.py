@@ -430,27 +430,23 @@ class TestVectorizedInternalFunctions():
             assert_equal(coeffs, coeffs_direct)
 
         # make sure shape is correct
-        if num_wavelen == 1:
-            expected_shape = (2, nstop)
-            assert coeffs.shape == expected_shape
-            # no further test since no loop required in this case
-        else:
-            expected_shape = (2, num_wavelen, nstop)
-            assert coeffs.shape == expected_shape
+        expected_shape = (2, num_wavelen, nstop)
+        assert coeffs.shape == expected_shape
 
-            # we should get same value from loop
-            coeffs_loop = np.zeros(expected_shape, dtype=complex)
-            for i in range(m.shape[0]):
-                if num_layer == 1:
-                    c = mie._scatcoeffs(m[i], x[i], nstop)
-                else:
-                    # need to specify nstop here; otherwise we will get a
-                    # different number of scattering coefficients for each
-                    # wavelength, since _scatcoeffs_multi() picks the largest x
-                    # for each wavelength.
-                    c = mie._scatcoeffs_multi(m[i], x[i], nstop)
-                coeffs_loop[:, i] = c
-            assert_equal(coeffs, coeffs_loop)
+        # we should get same value from loop
+        coeffs_loop = []
+        for i in range(m.shape[0]):
+            if num_layer == 1:
+                coeffs_loop.append(mie._scatcoeffs(m[i], x[i], nstop))
+            else:
+                # need to specify nstop here; otherwise we will get a
+                # different number of scattering coefficients for each
+                # wavelength, since _scatcoeffs_multi() picks the largest x
+                # for each wavelength.
+                coeffs_loop.append(mie._scatcoeffs_multi(m[i], x[i], nstop))
+        # concatenate along wavelength axis
+        coeffs_loop = np.concatenate(coeffs_loop, axis=1)
+        assert_equal(coeffs, coeffs_loop)
 
     @pytest.mark.parametrize("num_wavelen,num_layer",
                              [(1, 1), (10, 1), (1, 5), (10, 5)])
@@ -631,10 +627,7 @@ class TestVectorizedInternalFunctions():
 
         # check that shapes of all the computed quantities are correct
         for element in vsa + mat:
-            if num_wavelen > 1:
-                assert element.shape == (num_wavelen, ) + thetas.shape
-            else:
-                assert element.shape == thetas.shape
+            assert element.shape == (num_wavelen, ) + thetas.shape
         assert i12.shape == (2, num_wavelen) + thetas.shape
 
         # check that vectorized calculations match looped calculations over
@@ -691,13 +684,13 @@ class TestVectorizedInternalFunctions():
             dsigma_1[i] = integral_loop[3].squeeze()
             dsigma_2[i] = integral_loop[4].squeeze()
 
-        assert_equal(mat[0], S1.squeeze())
-        assert_equal(mat[1], S2.squeeze())
-        assert_equal(mat[2], S3.squeeze())
-        assert_equal(mat[3], S4.squeeze())
+        assert_equal(mat[0], S1)
+        assert_equal(mat[1], S2)
+        assert_equal(mat[2], S3)
+        assert_equal(mat[3], S4)
 
-        assert_equal(vsa[0], amp0.squeeze())
-        assert_equal(vsa[1], amp1.squeeze())
+        assert_equal(vsa[0], amp0)
+        assert_equal(vsa[1], amp1)
 
         assert_equal(i12[0], i1)
         assert_equal(i12[1], i2)
@@ -763,10 +756,11 @@ class TestVectorizedUserFunctions():
 
         # we should get same values from loop. Need to set nstop to the
         # same value as used in the vectorized calculation.
-        g_loop = np.zeros(expected_shape, dtype=float)
+        g_loop = []
         nstop = mie._nstop(x.max())
         for i in range(num_wavelen):
-            g_loop[i] = mie.calc_g(m[i], x[i], nstop=nstop)
+            g_loop.append(mie.calc_g(m[i], x[i], nstop=nstop))
+        g_loop = np.concatenate(g_loop, axis=0)
         assert_equal(g, g_loop)
 
     @pytest.mark.parametrize("num_wavelen, num_layer",
@@ -782,10 +776,7 @@ class TestVectorizedUserFunctions():
         cscat, cext, cback, cabs, asym = mie.calc_cross_sections(m, x)
 
         # test shape
-        if num_wavelen > 1:
-            expected_shape = (num_wavelen,)
-        else:
-            expected_shape = ()
+        expected_shape = (num_wavelen,)
         for cs in [cscat, cext, cback, cabs, asym]:
             assert cs.shape == expected_shape
 
@@ -798,7 +789,7 @@ class TestVectorizedUserFunctions():
         for i in range(num_wavelen):
             cs = mie.calc_cross_sections(m[i], x[i])
             cscat_loop[i], cext_loop[i], cback_loop[i], \
-                cabs_loop[i], asym_loop[i] = (c for c in cs)
+                cabs_loop[i], asym_loop[i] = (c.squeeze() for c in cs)
         assert_equal(cscat, cscat_loop)
         assert_equal(cext, cext_loop)
         assert_equal(cback, cback_loop)
@@ -855,20 +846,16 @@ class TestVectorizedUserFunctions():
         """
         m, x = mx(num_wavelen, num_layer, **self.mxargs)
         form_factor = mie.calc_ang_scat(m, x, self.angles)
-        if num_wavelen == 1:
-            expected_shape = (2, self.num_angle,)
-            assert form_factor.shape == expected_shape
-            # no further test required since there is only one wavelength
-            return
-        else:
-            expected_shape = (2, num_wavelen, self.num_angle)
-            assert form_factor.shape == expected_shape
+        expected_shape = (2, num_wavelen, self.num_angle)
+        assert form_factor.shape == expected_shape
 
         # we should get same values from loop
-        iparperp_loop = np.zeros(expected_shape, dtype=float)
+        iparperp_loop = []
         for i in range(num_wavelen):
             iparperp = mie.calc_ang_scat(m[i], x[i], self.angles)
-            iparperp_loop[:, i] = iparperp
+            iparperp_loop.append(iparperp)
+        # concatenate along wavelength axis
+        iparperp_loop = np.concatenate(iparperp_loop, axis=1)
         assert_equal(form_factor, iparperp_loop)
 
         # check vectorization for Rayleigh-Gans approximation
