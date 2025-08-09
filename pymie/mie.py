@@ -57,7 +57,7 @@ from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2  # default tolerances
 # User-facing functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
 
-def calc_ang_scat(m, x, angles, mie = True, check = False):
+def calc_ang_scat(m, x, angles, check=False):
     """
     Calculates the angular scattering of light intensity for parallel and
     perpendicular polarization for a sphere.
@@ -70,9 +70,6 @@ def calc_ang_scat(m, x, angles, mie = True, check = False):
         size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
     angles : array-like
         array of angles. Must be specified in radians
-    mie : Boolean (optional)
-        if true (default) does full Mie calculation; if false, uses RG
-        approximation
     check : Boolean (optional)
         if true, outputs scattering efficiencies
 
@@ -85,36 +82,58 @@ def calc_ang_scat(m, x, angles, mie = True, check = False):
         polarization parallel and perpendicular to scattering plane. See Bohren
         & Huffman ch. 3 for details.
     """
-    if mie:
-        # Mie scattering preliminaries
-        nstop = _nstop(x.max())
+    # Mie scattering preliminaries
+    nstop = _nstop(x.max())
 
-        coeffs = _scatcoeffs(m, x, nstop)
-        n = np.arange(nstop)+1.
-        prefactor = (2*n+1.)/(n*(n+1.))
+    coeffs = _scatcoeffs(m, x, nstop)
+    n = np.arange(nstop)+1.
+    prefactor = (2*n+1.)/(n*(n+1.))
 
-        S2, S1 = _amplitude_scattering_matrix(nstop, prefactor, coeffs, angles)
-        ipar = np.absolute(S2)**2
-        iperp = np.absolute(S1)**2
+    S2, S1 = _amplitude_scattering_matrix(nstop, prefactor, coeffs, angles)
+    ipar = np.absolute(S2)**2
+    iperp = np.absolute(S1)**2
 
-        if check:
-            opt = _amplitude_scattering_matrix(nstop, prefactor,
-                                               coeffs, 0).real
-            qscat, qext, qback = calc_efficiencies(m, x)
-            print('Number of terms:')
-            print(nstop)
-            print('Scattering, extinction, and backscattering efficiencies:')
-            print(qscat, qext, qback)
-            print('Extinction efficiency from optical theorem:')
-            print((4./x**2)*opt)
-            print('Asymmetry parameter')
-            print(calc_g(m, x))
+    if check:
+        opt = _amplitude_scattering_matrix(nstop, prefactor,
+                                           coeffs, 0).real
+        qscat, qext, qback = calc_efficiencies(m, x)
+        print('Number of terms:')
+        print(nstop)
+        print('Scattering, extinction, and backscattering efficiencies:')
+        print(qscat, qext, qback)
+        print('Extinction efficiency from optical theorem:')
+        print((4./x**2)*opt)
+        print('Asymmetry parameter')
+        print(calc_g(m, x))
 
-    else:
-        prefactor = -1j * (2./3.) * x**3 * np.absolute(m - 1)
-        S2, S1 = _amplitude_scattering_matrix_RG(prefactor, x, angles)
-        ipar = np.absolute(S2)**2
-        iperp = np.absolute(S1)**2
+    return np.array([ipar, iperp])
+
+def calc_ang_scat_RG(m, x, angles):
+    """
+    Uses the Rayleigh-Gans approximation to calculates the angular scattering
+    of light intensity for parallel and perpendicular polarization for a
+    sphere.
+
+    Parameters
+    ----------
+    m : complex or float, array-like
+        complex particle relative refractive index, n_part/n_med
+    x : complex or float, array-like
+        size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
+    angles : array-like
+        array of angles. Must be specified in radians
+
+    Returns
+    -------
+    ndarray : shape (2, ..., num_angles)
+        Differential scattering cross-sections * k^2 for
+        polarization parallel and perpendicular to scattering plane, under the
+        Rayleigh-Gans approximation.
+    """
+    prefactor = -1j * (2./3.) * x**3 * np.absolute(m - 1)
+    S2, S1 = _amplitude_scattering_matrix_RG(prefactor, x, angles)
+    ipar = np.absolute(S2)**2
+    iperp = np.absolute(S1)**2
 
     return np.array([ipar, iperp])
 

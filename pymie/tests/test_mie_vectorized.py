@@ -872,12 +872,11 @@ class TestVectorizedUserFunctions():
         if num_layer > 1:
             with pytest.raises(ValueError,
                                match="Rayleigh-Gans approximation cannot"):
-                form_factor_RG = mie.calc_ang_scat(m, x, self.angles,
-                                                   mie=False)
+                form_factor_RG = mie.calc_ang_scat_RG(m, x, self.angles)
+            # no further test for this case
             return
 
-        form_factor_RG = mie.calc_ang_scat(m, x, self.angles,
-                                               mie=False)
+        form_factor_RG = mie.calc_ang_scat_RG(m, x, self.angles)
 
         expected_shape = (2, num_wavelen, self.num_angle)
         assert form_factor_RG.shape == expected_shape
@@ -904,7 +903,7 @@ class TestVectorizedUserFunctions():
         # capture the sharp dips in the form factor
         angles = Quantity(np.linspace(10, 180., num_angle),
                           'deg').to("rad").magnitude
-        form_factor_RG = mie.calc_ang_scat(m, x, angles, mie=False)
+        form_factor_RG = mie.calc_ang_scat_RG(m, x, angles)
         form_factor_mie = mie.calc_ang_scat(m, x, angles)
 
         # Since we are comparing small numbers at the dips of the form factor,
