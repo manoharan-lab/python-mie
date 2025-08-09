@@ -22,7 +22,7 @@ Tests for the mie module
 
 from .. import Quantity, index_ratio, size_parameter, np, mie
 from numpy.testing import (assert_almost_equal, assert_array_almost_equal,
-                           assert_approx_equal, assert_allclose)
+                           assert_allclose)
 import pytest
 
 def test_cross_sections():
