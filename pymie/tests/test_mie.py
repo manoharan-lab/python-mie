@@ -496,21 +496,10 @@ def test_differential_cross_section():
                                                        incident_vector,
                                                        cartesian=False)
 
-    # calc_ang_scat returns dimensionless differential cross-sections (times
-    # k^2).  As noted in diff_scat_intensity_complex_medium(), this function
-    # returns dimensionless values (scaled by k^2) muliplied by a factor of
-    # 1/kd^2 for a non-absorbing medium.  Therefore the
-    # diff_scat_intensity_complex_medium() results are the dimensional
-    # cross-sections scaled by 1/d^2, where d is the distance at which the
-    # calculation is done.  In short, both functions return dimensionless
-    # cross-sections, but the ones returned by
-    # diff_scat_intensity_complex_medium() need to be multiplied by a factor of
-    # kd^2 to compare them to those of calc_ang_scat()
-    #
     # since both of these functions rely on the same routine to calculate the
     # amplitude scattering matrix, they should give results to within
     # floating-point precision
-    assert_allclose(I_parperp*kd**2, I_parperp_cad, rtol=1e-14)
+    assert_allclose(I_parperp, I_parperp_cad, rtol=1e-14)
 
 
 def test_cross_section_complex_medium():
@@ -556,7 +545,7 @@ def test_cross_section_complex_medium():
     I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, rho_scat)
     cscat_exact = mie.integrate_intensity_complex_medium(I_parperp, theta,
                                                          rho_scat)[0]
-    cscat_exact_dimensional = (cscat_exact/k**2).to("um^2")
+    cscat_exact_dimensional = (cscat_exact/np.abs(k)**2).to("um^2")
 
     # check that intensity equations without the asymptotic form of the spherical
     # Hankel equations (because they simplify when the fields are multiplied by
@@ -603,12 +592,12 @@ def test_cross_section_complex_medium():
                                                        near_field=True)
     cscat_exact2 = mie.integrate_intensity_complex_medium(I_parperp, theta,
                                                           rho_scat)[0]
+    cscat_exact2_dimensional = (cscat_exact2/np.abs(k)**2).to("um^2")
 
-    assert_allclose((cscat_exact2/k**2).to("um^2").magnitude,
-                    cscat_sudiarta2.to('um^2').magnitude, rtol=1e-4)
-    assert_allclose((cscat_exact2/k**2).to('um^2').magnitude,
-                    cscat_fu2.to('um^2').magnitude, rtol=1e-4)
-
+    assert_allclose(cscat_exact2_dimensional.magnitude,
+                    cscat_sudiarta2.to("um^2").magnitude, rtol=1e-4)
+    assert_allclose(cscat_exact2_dimensional.magnitude,
+                    cscat_fu2.to("um^2").magnitude, rtol=1e-4)
 
     # test that the cross sections calculated with the full Mie solutions
     # match the far-field Mie solutions when the matrix absorption is close to 0
@@ -623,7 +612,7 @@ def test_cross_section_complex_medium():
 
     cscat_exact3 = mie.integrate_intensity_complex_medium(I_parperp, theta,
                                                           rho_scat)[0]
-    cscat_exact3_dimensional = (cscat_exact3/k**2).to("um^2")
+    cscat_exact3_dimensional = (cscat_exact3/np.abs(k)**2).to("um^2")
 
     # With far-field Mie solutions
     cscat_mie3 = mie.calc_cross_sections(m, x)[0]
@@ -660,7 +649,7 @@ def test_multilayer_complex_medium():
     cscat_imag = mie.integrate_intensity_complex_medium(I_parperp, angles,
                                                         kd)[0]
 
-    cscat_imag_dimensional = (cscat_imag/k**2).to("nm^2")
+    cscat_imag_dimensional = (cscat_imag/np.abs(k)**2).to("nm^2")
 
     # check that intensity equations without the asymptotic form of the spherical
     # Hankel equations (because they simplify when the fields are multiplied by
@@ -763,7 +752,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     # Because of the way this test is done (using a 2D array of angles
     # for theta), we don't end up with a wavelength axis for I_parperp.  Have
     # to squeeze to compare.
-    assert_array_almost_equal(I_xy_mag.squeeze(), I_par_perp_mag, decimal=16)
+    assert_allclose(I_xy_mag.squeeze(), I_par_perp_mag, rtol=1e-15)
 
 def test_integrate_intensity_complex_medium_cartesian():
     '''
@@ -797,7 +786,7 @@ def test_integrate_intensity_complex_medium_cartesian():
     cscat_xy = mie.integrate_intensity_complex_medium(I_xy, thetas, kd,
                                                       cartesian=True,
                                                       phis=phis)[0]
-    cscat_xy_dimensional = (cscat_xy/k**2).to("nm^2")
+    cscat_xy_dimensional = (cscat_xy/np.abs(k)**2).to("nm^2")
 
     # check that intensity equations without the asymptotic form of the spherical
     # Hankel equations (because they simplify when the fields are multiplied by

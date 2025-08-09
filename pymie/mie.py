@@ -1161,11 +1161,8 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
 
     Notes
     -----
-    To get dimensional cross-sections, multiply by d^2, where d is the distance
-    at which the differential cross-sections are calculated. To compare
-    differential cross-sections for non-absorbing media and the far-field to
-    those reported by calc_ang_scat(), which are nondimensionalized by k^2,
-    multiply the results from this function by kd^2.
+    To get dimensional cross-sections, multiply by 1/|k|^2 (1/np.abs(k)**2),
+    where k is the wavevector in media.
 
     References
     ----------
@@ -1217,8 +1214,11 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
         I_1 = (np.abs(vec_scat_amp_1)**2)*factor # par or x
         I_2 = (np.abs(vec_scat_amp_2)**2)*factor # perp or y
 
-    # the intensities should be real
-    return np.array([I_1.real, I_2.real])
+    # the intensities should be real. We multiply by |kd|^2 so that the
+    # resulting nondimensional cross-sections can be dimensionalized by
+    # multiplying by 1/|k|^2 (just as with cross-sections returned by other
+    # functions)
+    return np.array([I_1.real, I_2.real])*np.abs(kd)**2
 
 def integrate_intensity_complex_medium(dscat, thetas, kd,
                                        phi_min=0.0,
@@ -1270,8 +1270,8 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
 
     Notes
     -----
-    Returns dimensionless cross-sections.  Multiply these by 1/k^2
-    and take the real part to recover the dimensional cross-sections.
+    Returns dimensionless cross-sections.  Multiply these by 1/|k|^2
+    (1/np.abs(k)**2) to recover the dimensional cross-sections.
 
     """
     # check that if phis is specified, both thetas and phis are given as 2D
@@ -1293,11 +1293,8 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
         # because by the time we use it, we have already integrated over theta
         phis = phis[..., 0, :]
 
-    # Multiply differential cross-sections by (k*distance)^2 (generally
-    # distance is radius of particle) because this is k^2*(integration
-    # factor over solid angles) (see eq. 4.58 in Bohren and Huffman).
-    dsigma_1 = dscat[0] * kd**2
-    dsigma_2 = dscat[1] * kd**2
+    dsigma_1 = dscat[0]
+    dsigma_2 = dscat[1]
 
     if not cartesian:
         if phis is not None:
