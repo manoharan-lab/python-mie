@@ -44,8 +44,6 @@ sphere," Applied Optics 42, 1710-1720 (2003).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 .. moduleauthor:: Sofia Magkiriadou <sofia@physics.harvard.edu>
 """
-import warnings
-
 import numpy as np
 from scipy.special import spherical_jn, spherical_yn
 from scipy.special import legendre_p_all
@@ -95,10 +93,8 @@ def calc_ang_scat(m, x, thetas, kd=None, phis=None, incident_vector=None,
         & Huffman ch. 3 for details.
     """
     if (kd is not None) or (phis is not None):
-        cartesian = (phis is not None)
         return diff_scat_intensity_complex_medium(m, x, thetas, kd=kd,
                                                   phis=phis,
-                                                  cartesian=cartesian,
                                                   incident_vector =
                                                   incident_vector)
 
@@ -125,6 +121,10 @@ def calc_ang_scat(m, x, thetas, kd=None, phis=None, incident_vector=None,
         print((4./x**2)*opt)
         print('Asymmetry parameter')
         print(calc_g(m, x))
+
+    if incident_vector is not None:
+        ipar = ipar * incident_vector[0]
+        iperp = iperp * incident_vector[1]
 
     return np.array([ipar, iperp])
 
@@ -1107,13 +1107,13 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
 
 
 def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
-                                       cartesian=False, near_field=False,
+                                       near_field=False,
                                        incident_vector=None):
     """
     Calculates the differential scattered intensity in an absorbing medium.
     User can choose whether to include near fields.
 
-    When cartesian=False:
+    When phis is None:
        The solutions are given as a function of scattering angle theta.
 
        The differential scattered intensity is computed by substituting the
@@ -1126,7 +1126,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
         where conj() indicates the complex conjugate. The radial component of
         the Poynting vector is then 1/2 * Re(I_par - I_perp).
 
-    When cartesian=True:
+    When phis are provided:
         The solutions are given as a function of scattering angle theta and
         azimuthal angle phi.
 
@@ -1154,26 +1154,21 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
         solutions are obtained when distance >> radius in a non-absorbing
         medium.
     phis : None or ndarray
-        Azimuthal angles for which to calculate the diff scat intensity. In the
-        'scattering plane' coordinate system, the scattering matrix does not
-        depend on phi, so phi should be set to None. In the 'cartesian'
-        coordinate system, the scattering matrix does depend on phi, so an
-        array of values should be provided.
-    cartesian : boolean (default False)
-        If False (default), scattering calculations will be carried out in the
-        'scattering plane' coordinate system, defined by basis vectors parallel
-        and perpendicular to scattering plane. If True, scattering calculations
-        will be carried out in the basis defined by basis vectors x and y in
-        the lab frame, with z as the direction of propagation.
+        Azimuthal angles for which to calculate the diff scat intensity. If not
+        provided, scattering calculations will be carried out in the
+        scattering plane coordinate system, defined by basis vectors parallel
+        and perpendicular to scattering plane. If provided, scattering
+        calculations will be carried out in the basis defined by basis vectors
+        x and y in the lab frame, with z as the direction of propagation.
     near_field : boolean
         True to include the near-fields (default is False). Cannot be set to
-        True while using cartesian=True because near field
+        True while using cartesian basis (phis provided) because near field
         solutions are not implemented for cartesian coordinate system. Also
         cannot be set to True if using an incident_vector that is not None
-        (unpolarized for 'scattering plane' coordinate system). Often, the full
-        solutions that include the near fields aren't wanted, for ex when the
-        total cross section calculation includes the structure factor, and the
-        combination of the angle-dependent differential cross section
+        (unpolarized for scattering plane coordinate system). Often, the full
+        solutions that include the near fields aren't wanted, for example when
+        the total cross section calculation includes the structure factor, and
+        the combination of the angle-dependent differential cross section
         multiplied by the structure factor gives very high cross sections at
         the surface of the particle. When we want to neglect the effect of the
         near fields and still integrate at the surface of the particle, we use
@@ -1182,37 +1177,35 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     incident_vector : None or tuple
         vector describing the incident electric field. It is multiplied by the
         amplitude scattering matrix to find the vector scattering amplitude. If
-        cartesian=False, then this vector should be in
-        the 'scattering plane' basis, where the first element is the parallel
-        component and the second element is the perpendicular component. If
-        cartesian=True, then this vector should be in the
-        'cartesian' basis, where the first element is the x-component and the
-        second element is the y-component. Note that the vector for unpolarized
-        light is the same in either basis, since either way it should be an
-        equal mix between the two othogonal polarizations: (1,1). Note that if
-        incident_vector is None, the function assigns a value based on the
-        coordinate system. For 'scattering plane', the assigned value is (1,1)
-        because most scattering plane calculations we're interested in involve
-        unpolarized light. For 'cartesian', the assigned value is (1,0) because
-        if we are going to the trouble to use the cartesian coordinate system,
-        it is usually because we want to do calculations using polarization,
-        and these calculations are much easier to convert to measured
-        quantities when in the cartesian coordinate system.
+        phis are not provided, then this vector should be in the scattering
+        plane basis, where the first element is the parallel component and the
+        second element is the perpendicular component. If phis are provided,
+        then this vector should be in the cartesian basis, where the first
+        element is the x-component and the second element is the y-component.
+        Note that the vector for unpolarized light is the same in either basis,
+        since either way it should be an equal mix between the two othogonal
+        polarizations: (1,1). If incident_vector is None, the function assigns
+        a value based on the coordinate system. For the scattering plane basis,
+        the assigned value is (1,1) because most scattering plane calculations
+        we're interested in involve unpolarized light. For the cartesian basis,
+        the assigned value is (1,0) because if we are going to the trouble to
+        use the cartesian coordinate system, it is usually because we want to
+        do calculations using polarization, and these calculations are much
+        easier to convert to measured quantities when in the cartesian
+        coordinate system.
 
     Returns
     -------
-    I components : tuple of arrays
-        tuple of the two orthogonal components of scattered intensity. If in
-        cartesian coordinate system, each component is a function of theta and
-        phi values. If in scattering plane coordinate system, each component
-        is an array of theta values (dimensionless). These intensities are
-        technically 'unitless.' The intensities would get their units from
-        the E_n term in the fields, which gets its units from an E_0 term,
-        which is taken to be 1 here. To get an intensity with real units
+    I components : array with shape (2, ..., num_thetas, [num_phis])
+        The two orthogonal components of scattered intensity as a function of
+        angle. If in cartesian coordinate system, each component is a function
+        of theta and phi values. If in scattering plane coordinate system, each
+        component is an array of theta values (dimensionless). These
+        intensities are technically "unitless." The intensities would get their
+        units from the E_n term in the fields, which gets its units from an E_0
+        term, which is taken to be 1 here. To get an intensity with real units
         you would need to multiply these by |E_0|**2 where E_0 is the amplitude
-        of the incident wave at the origin.  If multiple wavelengths are
-        specified, the shape of each array is (num_values, num_theta,
-        [num_phi]).  Otherwise just (num_theta, [num_phi]).
+        of the incident wave at the origin, as well as by 1/|k|^2 (see Notes).
 
     Notes
     -----
@@ -1234,7 +1227,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
         kd = kd[..., np.newaxis]
 
     if near_field:
-        if not cartesian:
+        if phis is None:
             # calculate scattered fields in scattering plane coordinate system
             Es_theta, Es_phi, Hs_theta, Hs_phi = _scat_fields_complex_medium(m,
                                         x,thetas, kd, near_field=near_field)
@@ -1250,9 +1243,8 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
         # calculate vector scattering amplitude
         vec_scat_amp_1, vec_scat_amp_2 = vector_scattering_amplitude(m, x,
                                            thetas,
-                                           cartesian=cartesian,
                                            phis=phis,
-                                           incident_vector = incident_vector)
+                                           incident_vector=incident_vector)
 
         # calculate the intensities. We multiply by a factor that accounts for
         # the dependence of the intensity on the distance away d from the
@@ -1278,7 +1270,6 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
 def integrate_intensity_complex_medium(dscat, thetas, kd,
                                        phi_min=0.0,
                                        phi_max=2*np.pi,
-                                       cartesian=False,
                                        phis=None):
     """
     Calculates the scattering cross section by integrating the differential
@@ -1300,13 +1291,11 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
         wavevector in medium times distance (from the center of the particle)
         at which to integrate intensity
     phi_min : float
-        minimum azimuthal angle, default set to 0
-        optional, only necessary if cartesian=False (coordinate system is
-        'scattering plane')
+        minimum azimuthal angle, default set to 0. Used only if phis is None
+        (coordinate system is scattering plane)
     phi_max : float
-        maximum azimuthal angle, default set to 2pi
-        optional, only necessary if cartesian=False (coordinate system is
-        'scattering plane')
+        maximum azimuthal angle, default set to 2*pi. Used only if phis is None
+        (coordinate system is scattering plane)
     phis : None or ndarray (shape num_phis)
         azimuthal angles
 
@@ -1350,13 +1339,7 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
     dsigma_1 = dscat[0]
     dsigma_2 = dscat[1]
 
-    if not cartesian:
-        if phis is not None:
-            warnings.warn("azimuthal angles specified for scattering plane "
-                          "calculations. Scattering plane calculations do not "
-                          "depend on azimuthal angle, so specified values "
-                          "will be ignored")
-
+    if phis is None:
         # include Jacobian
         integrand_par = dsigma_1 * np.abs(np.sin(thetas))
         integrand_perp = dsigma_2 * np.abs(np.sin(thetas))
@@ -1375,11 +1358,6 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
         sigma_2 = (integral_perp * (phi_max/2 - np.sin(2*phi_max)/4 -
                           phi_min/2 + np.sin(2*phi_min)/4))
     else:
-        if phis is None:
-            raise ValueError("phis set to None, but azimuthal angle must be "
-                             "specified for scattering calculations in "
-                             "cartesian coordinate system")
-
         integrand_1 = dsigma_1 * np.abs(np.sin(thetas))
         integrand_2 = dsigma_2 * np.abs(np.sin(thetas))
 
@@ -1503,7 +1481,6 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
 
 
 def amplitude_scattering_matrix(m, x, thetas,
-                                cartesian=False,
                                 phis = None):
     """
     Calculates the amplitude scattering matrix for an n-dim array of thetas
@@ -1522,7 +1499,7 @@ def amplitude_scattering_matrix(m, x, thetas,
 
     (from Bohren and Huffman, 3.2, page 61)
 
-    This matrix is equal to it's inverse, so we can get the scattering matrix
+    This matrix is equal to its inverse, so we can get the scattering matrix
     in the cartesian coordinate system by multiplying:
 
     [cosphi  sinphi] * [S2  S3] * [cosphi  sinphi]
@@ -1543,25 +1520,16 @@ def amplitude_scattering_matrix(m, x, thetas,
 
     Parameters:
     ----------
-    m: float, or array
-        index ratio between the particle and sample, array if multilayer
-        particle
-    x: float, or array
-        size parameter, array if multilayer particle
-    thetas: array
+    m : array-like, shape (..., num_layers)
+        index ratio between the particle and sample
+    x : array-like, shape (..., num_layers)
+        size parameter
+    thetas : array
         theta angles
-    cartesian : boolean (default False)
-        If False (default), scattering calculations will be carried out in the
-        'scattering plane' coordinate system, defined by basis vectors parallel
-        and perpendicular to scattering plane. If True, scattering calculations
-        will be carried out in the basis defined by basis vectors x and y in
-        the lab frame, with z as the direction of propagation.
-    phis: None or array
-        azimuthal angles for which to calculate the scattering matrix. In the
-        'scattering plane' coordinate system, the scattering matrix does not
-        depend on phi, so phi should be set to None. In the 'cartesian'
-        coordinate system, the scattering matrix does depend on phi, so an
-        array of values should be provided.
+    phis : None or array
+        azimuthal angles for which to calculate the scattering matrix. If not
+        provided (default), the calculation is done in the scattering plane
+        basis. If provided, the calculation is done in the cartesian basis.
 
     Returns:
     --------
@@ -1590,13 +1558,7 @@ def amplitude_scattering_matrix(m, x, thetas,
     S3_sp = np.zeros_like(S1_sp)
     S4_sp = np.zeros_like(S1_sp)
 
-    if cartesian:
-        # raise error if no phis are specified
-        if phis is None:
-            raise ValueError('phis set to None, but azimuthal angle must be \
-                             specified for scattering calculations in \
-                             cartesian coordinate system')
-
+    if phis is not None:
         # calculate sines and cosines
         cosphi = np.cos(phis)
         sinphi = np.sin(phis)
@@ -1608,27 +1570,22 @@ def amplitude_scattering_matrix(m, x, thetas,
         S4_xy = S2_sp*cosphi*sinphi - S1_sp*cosphi*sinphi
         return S1_xy, S2_xy, S3_xy, S4_xy
     else:
-        if phis is not None:
-            warnings.warn('azimuthal angles specified for scattering plane \
-                          calculations. Scattering plane calculations do not \
-                          depend on azimuthal angle, so specified values will \
-                          be ignored')
         return S1_sp, S2_sp, S3_sp, S4_sp
 
 
-def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
-                                cartesian=False,
-                                phis = None):
+def vector_scattering_amplitude(m, x, thetas,
+                                phis = None,
+                                incident_vector = None):
     '''
-    Calculates the vector scattering amplitude  for an nd array of thetas and
+    Calculates the vector scattering amplitude for an nd array of thetas and
     phis. For more info on the vector scattering amplitude and how to
     calculate it, see Bohren and Huffman, pg 70-73 of section 3.4 Extinction,
     Scattering, and Absorption.
 
-    When cartesian=False ('scattering plane' coordinates), the default incident
-    electric field vector assumes that the incident light is unpolarized,
-    so it is equally split between the parallel and perpendicular components
-    of the electric field, so the vector scattering amplitude can be
+    When phis are not provided, we are in the scattering-plane basis, and the
+    default incident electric field vector assumes that the incident light is
+    unpolarized (equally split between the parallel and perpendicular
+    components of the electric field). The vector scattering amplitude can be
     calculated by:
 
             [S2   0] * [1]  = [S2]
@@ -1636,18 +1593,18 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
 
     where the vector is normalized after the multiplication
 
-    When cartesian=True, if the incident electric field
-    vector indicates the incident light is unpolarized, it is equally
-    split between the x and y components of the electric field, so the vector
-    scattering amplitude can be calculated by:
+    When phis are provided, we are in the cartesian basis. If the incident
+    electric field vector indicates the incident light is unpolarized, it is
+    equally split between the x and y components of the electric field, so the
+    vector scattering amplitude can be calculated by:
 
         [S2 S3] * [1] = [S2 + S3]
         [S4 S1]   [1]   [S4 + S1]
 
-    however, in most cases, if we are in the 'cartesian' coordinate system, we
+    however, in most cases, if we are in the cartesian coordinate system, we
     are more interested in calculating the the scattered light given and
     initial polarization of the initial light, since this calculation cannot be
-    done in the 'scattering plane' coordinate system. If we assume the initial
+    done in the scattering plane coordinate system. If we assume the initial
     polarization is in the +x direction, the vector scattering amplitude will
     be:
 
@@ -1665,28 +1622,25 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
         size parameter
     thetas: array-like
         scattering angles
-    incident_vector: None or tuple
+    incident_vector : None or tuple
         vector describing the incident electric field. It is multiplied by the
         amplitude scattering matrix to find the vector scattering amplitude. If
-        cartesian=False, then this vector should be in
-        the 'scattering plane' basis, where the first element is the parallel
-        component and the second element is the perpendicular component. If
-        cartesian=True, then this vector should be in the
-        'cartesian' basis, where the first element is the x-component and the
-        second element is the y-component. Note that the vector for unpolarized
-        light is the same in either basis, since either way it should be an
-        equal mix between the two othogonal polarizations: (1,1). Note that if
-        incident_vector is None, the function assigns a value based on the
-        coordinate system. For 'scattering plane', the assigned value is (1,1)
-        because most scattering plane calculations we're interested in involve
-        unpolarized light. For 'cartesian', the assigned value is (1,0) because
-        if we are going to the trouble to use the cartesian coordinate system,
-        it is usually because we want to do calculations using polarization,
-        and these calculations are much easier to convert to measured
-        quantities when in the cartesian coordinate system.
-    cartesian : boolean (default False)
-        determines whether coordinates are 'scattering plane' (cartesian=False)
-        or 'cartesian' (cartesian=True)
+        phis are not provided, then this vector should be in the scattering
+        plane basis, where the first element is the parallel component and the
+        second element is the perpendicular component. If phis are provided,
+        then this vector should be in the cartesian basis, where the first
+        element is the x-component and the second element is the y-component.
+        Note that the vector for unpolarized light is the same in either basis,
+        since either way it should be an equal mix between the two othogonal
+        polarizations: (1,1). If incident_vector is None, the function assigns
+        a value based on the coordinate system. For the scattering plane basis,
+        the assigned value is (1,1) because most scattering plane calculations
+        we're interested in involve unpolarized light. For the cartesian basis,
+        the assigned value is (1,0) because if we are going to the trouble to
+        use the cartesian coordinate system, it is usually because we want to
+        do calculations using polarization, and these calculations are much
+        easier to convert to measured quantities when in the cartesian
+        coordinate system.
     phis: ndarray or None
         azimuthal angles
 
@@ -1699,10 +1653,9 @@ def vector_scattering_amplitude(m, x, thetas, incident_vector = None,
     '''
     # calculate the amplitude scattering matrix
     S1, S2, S3, S4 = amplitude_scattering_matrix(m, x, thetas,
-                                                 cartesian=cartesian,
                                                  phis = phis)
 
-    if cartesian is False:
+    if phis is None:
         if incident_vector is None:
             incident_vector = (1,1) # assume unpolarized
         vec_scat_amp_par = S2*incident_vector[0]

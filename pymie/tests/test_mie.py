@@ -496,8 +496,7 @@ def test_differential_cross_section():
     incident_vector = [1, 1]
     I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, kd,
                                                        incident_vector =
-                                                       incident_vector,
-                                                       cartesian=False)
+                                                       incident_vector)
 
     # since both of these functions rely on the same routine to calculate the
     # amplitude scattering matrix, they should give results to within
@@ -702,7 +701,7 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
 
     # calculate the amplitude scattering matrix in xy basis
     as_vec_x0, as_vec_y0 = mie.vector_scattering_amplitude(m, x, thetas,
-                            cartesian=True, phis=phis)
+                                                           phis=phis)
 
     # calculate the amplitude scattering matrix in par/perp basis.  Need to
     # setup for broadcasting first:
@@ -754,8 +753,8 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     # if incident vector is unpolarized (1,1), then the resulting differential
     # scattered intensity should be the same as I_par, I_perp
     I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                            cartesian=True, phis = phis,
-                            near_field=False, incident_vector = (1, 1))
+                            phis = phis, near_field=False,
+                            incident_vector = (1, 1))
 
     # calculate magnitudes
     I_xy_mag = np.sqrt((I_xy**2).sum(axis=0))
@@ -790,7 +789,6 @@ def test_integrate_intensity_complex_medium_cartesian():
 
     # integrate the differential scattered intensities
     cscat_xy = mie.integrate_intensity_complex_medium(I_xy, thetas, kd,
-                                                      cartesian=True,
                                                       phis=phis)[0]
     cscat_xy_dimensional = (cscat_xy/np.abs(k)**2).to("nm^2")
 
@@ -829,24 +827,16 @@ def test_value_errors():
     with pytest.raises(ValueError):
         # try to calculate near field in cartesian
         _ = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                                                   cartesian=True,
                                                    phis=phis,
                                                    near_field=True)
     # calculate the differential scattered intensities
     I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                                                  cartesian=True, phis=phis,
+                                                  phis=phis,
                                                   near_field=False)
 
     _ = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
                                                near_field=True)
 
-    with pytest.raises(ValueError):
-        # integrate the differential scattered intensities
-        _ = mie.integrate_intensity_complex_medium(I_xy, thetas, kd,
-                                                   cartesian=True)[0]
-    with pytest.raises(ValueError):
-        _ = mie.vector_scattering_amplitude(m, x, thetas,
-                                            cartesian=True)
 
 def test_dwell_time_and_energy():
     #Test that the dwell time function matches example given in

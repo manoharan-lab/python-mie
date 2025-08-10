@@ -608,28 +608,21 @@ class TestVectorizedInternalFunctions():
         else:
             phis = np.linspace(0, 2*np.pi, num_phi)
 
-        vsa = mie.vector_scattering_amplitude(m, x, thetas,
-                                              cartesian=cartesian,
-                                              phis = phis)
+        vsa = mie.vector_scattering_amplitude(m, x, thetas, phis=phis)
 
-        mat = mie.amplitude_scattering_matrix(m, x, thetas,
-                                              cartesian=cartesian,
-                                              phis = phis)
+        mat = mie.amplitude_scattering_matrix(m, x, thetas, phis=phis)
 
         # choose distance reasonably close to the particle for differential
         # scattering calculations
         k = 2*np.pi*n_matrix/wavelen
         d = 10*np.atleast_1d(radius)[-1]
         kd = np.atleast_1d(k*d).to("").magnitude
-        i12 = mie.diff_scat_intensity_complex_medium(m, x, thetas,
-                                                     kd,
-                                                     cartesian=cartesian,
-                                                     phis = phis)
+        i12 = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
+                                                     phis=phis)
 
         integral = mie.integrate_intensity_complex_medium(i12, thetas, kd,
                                                           phi_min=0.0,
                                                           phi_max=2*np.pi,
-                                                          cartesian=cartesian,
                                                           phis=phis)
 
         # check that shapes of all the computed quantities are correct
@@ -664,18 +657,14 @@ class TestVectorizedInternalFunctions():
             # m[[i]] preserves 2D array
             mat_loop = mie.amplitude_scattering_matrix(m[[i]], x[[i]],
                                                        thetas,
-                                                       cartesian=cartesian,
                                                        phis = phis)
 
             vsa_loop = mie.vector_scattering_amplitude(m[[i]], x[[i]],
                                                        thetas,
-                                                       cartesian=cartesian,
                                                        phis = phis)
             i_loop = mie.diff_scat_intensity_complex_medium(m[[i]], x[[i]],
                                                             thetas,
                                                             kd[i],
-                                                            cartesian =
-                                                            cartesian,
                                                             phis = phis)
 
             integral_loop = mie.integrate_intensity_complex_medium(i_loop,
@@ -684,8 +673,6 @@ class TestVectorizedInternalFunctions():
                                                                    phi_min=0.0,
                                                                    phi_max =
                                                                    2*np.pi,
-                                                                   cartesian =
-                                                                   cartesian,
                                                                    phis=phis)
 
             S1[i], S2[i], S3[i], S4[i] = mat_loop
