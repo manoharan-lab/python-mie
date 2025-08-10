@@ -1314,58 +1314,25 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
     (1/np.abs(k)**2) to recover the dimensional cross-sections.
 
     """
-    # expand dims if phis is specified
+    # do phi integral first because it's the last dimension in dscat when
+    # specified (thus phis will broadcast with dscat)
     if phis is not None:
-        if phis.ndim == 1:
-            thetas = thetas[:, np.newaxis]
-            phis = phis[np.newaxis, :]
-
-    # reshape arrays for broadcasting.  k should have axis corresponding to
-    # theta (and possibly phi, which will be accounted for in thetas.shape)
-    kd = np.atleast_1d(kd)
-    num_leading_axes = np.ndim(kd)
-    kd = kd.reshape(kd.shape + thetas.ndim*(1,))
-    # add axis for leading k dimensions (values, etc.)
-    thetas = thetas.reshape(num_leading_axes*(1,) + thetas.shape)
-    if phis is not None:
-        # phis does not have a trailing dimension corresponding to theta
-        # because by the time we use it, we have already integrated over theta
-        phis = phis[..., 0, :]
-
-    dsigma_1 = dscat[0]
-    dsigma_2 = dscat[1]
-
-    if phis is None:
-        # include Jacobian
-        integrand_par = dsigma_1 * np.abs(np.sin(thetas))
-        integrand_perp = dsigma_2 * np.abs(np.sin(thetas))
-
-        # Integrate over theta
-        integral_par = np.trapezoid(integrand_par, x=thetas)
-        integral_perp = np.trapezoid(integrand_perp, x=thetas)
-
+        integrand = np.trapezoid(dscat, x=phis)
+    else:
+        integrand = dscat
         # integrate over phi: multiply by factor to integrate over phi
         # (this factor is the integral of cos(phi)**2 and sin(phi)**2 in
         # parallel and perpendicular polarizations, respectively)
         # This factor is needed to account for polarization, which introduces
         # factors of cos(phi) and sin(phi) for the electric fields.
-        sigma_1 = (integral_par * (phi_max/2 + np.sin(2*phi_max)/4 -
-                         phi_min/2 - np.sin(2*phi_min)/4))
-        sigma_2 = (integral_perp * (phi_max/2 - np.sin(2*phi_max)/4 -
-                          phi_min/2 + np.sin(2*phi_min)/4))
-    else:
-        integrand_1 = dsigma_1 * np.abs(np.sin(thetas))
-        integrand_2 = dsigma_2 * np.abs(np.sin(thetas))
+        integrand[0] = (integrand[0] * (phi_max/2 + np.sin(2*phi_max)/4
+                                        - phi_min/2 - np.sin(2*phi_min)/4))
+        integrand[1] = (integrand[1] * (phi_max/2 - np.sin(2*phi_max)/4
+                                        - phi_min/2 + np.sin(2*phi_min)/4))
 
-        # Integrate over theta and phi
-        sigma_1 = np.trapezoid(np.trapezoid(integrand_1, x=thetas, axis=1),
-                               x=phis)
-        sigma_2 = np.trapezoid(np.trapezoid(integrand_2, x=thetas, axis=1),
-                               x=phis)
-
-    # kd has trailing axes for theta (and possibly phi) that are no longer
-    # needed after the integration.  We remove them here
-    kd = np.atleast_1d(kd.squeeze())
+    # integrate diff. cross-sections over theta using Jacobian
+    integrand = integrand * np.abs(np.sin(thetas))
+    sigma = np.trapezoid(integrand, x=thetas)
 
     # multiply by factor that accounts for attenuation in the incident light
     # (see Sudiarta and Chylek (2001), eq 10).
@@ -1381,9 +1348,10 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
                                + (1 - exponent) / (2*kd.imag)**2))
 
     # calculate the averaged sigma
-    sigma = (sigma_1 + sigma_2)/2 * factor
+    sigma = sigma * factor
+    sigma_avg = sigma.sum(axis=0)/2
 
-    return(sigma, (sigma_1*factor), (sigma_2*factor))
+    return(sigma_avg, sigma[0], sigma[1])
 
 
 def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
