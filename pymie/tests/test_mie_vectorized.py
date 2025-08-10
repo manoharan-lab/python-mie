@@ -647,8 +647,6 @@ class TestVectorizedInternalFunctions():
         sigma = np.zeros(num_wavelen)
         sigma_1 = np.zeros_like(sigma)
         sigma_2 = np.zeros_like(sigma)
-        dsigma_1 = np.zeros(expected_shape)
-        dsigma_2 = np.zeros_like(dsigma_1)
 
         m = np.atleast_1d(m)
         x = np.atleast_1d(x)
@@ -681,8 +679,6 @@ class TestVectorizedInternalFunctions():
             sigma[i] = integral_loop[0].squeeze()
             sigma_1[i] = integral_loop[1].squeeze()
             sigma_2[i] = integral_loop[2].squeeze()
-            dsigma_1[i] = integral_loop[3].squeeze()
-            dsigma_2[i] = integral_loop[4].squeeze()
 
         assert_equal(mat[0], S1)
         assert_equal(mat[1], S2)
@@ -698,8 +694,6 @@ class TestVectorizedInternalFunctions():
         assert_equal(integral[0], sigma)
         assert_equal(integral[1], sigma_1)
         assert_equal(integral[2], sigma_2)
-        assert_equal(integral[3], dsigma_1)
-        assert_equal(integral[4], dsigma_2)
 
 
 class TestVectorizedUserFunctions():

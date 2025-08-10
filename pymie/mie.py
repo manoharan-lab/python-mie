@@ -1281,13 +1281,13 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
 
     Parameters
     ----------
-    dscat : array-like with shape (2, num_values, num_thetas, [num_phis])
+    dscat : array-like with shape (2, ..., num_thetas, [num_phis])
         differential scattered intensities for both polarizations. Can be
         functions of theta or of theta and phi. If a function of theta and phi,
         the theta dimension MUST come first
-    thetas : array-like, shape num_thetas
+    thetas : array-like, shape ([angle_leading_dims], num_thetas)
         scattering angles
-    kd : array-like, shape num_values
+    kd : array-like, shape (...)
         wavevector in medium times distance (from the center of the particle)
         at which to integrate intensity
     phi_min : float
@@ -1296,21 +1296,17 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
     phi_max : float
         maximum azimuthal angle, default set to 2*pi. Used only if phis is None
         (coordinate system is scattering plane)
-    phis : None or ndarray (shape num_phis)
+    phis : None or ndarray, shape ([angle_leading_dims], num_phis)
         azimuthal angles
 
     Returns
     -------
-    sigma: array-like with shape num_values
+    sigma: array-like with shape (...)
         integrated cross section
-    sigma_1: array-like with shape num_values
+    sigma_1: array-like with shape (...)
         integrated cross section for first component of basis
-    sigma_2: array-like with shape num_values
+    sigma_2: array-like with shape (...)
         integrated cross section for second component of basis
-    dsigma_1: array-like, shape num_values, num_angles
-        differential cross section for first component of basis
-    dsigma_2: array-like, shape num_values, num_angles
-        differential cross section for second component of basis
 
     Notes
     -----
@@ -1369,7 +1365,6 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
 
     # kd has trailing axes for theta (and possibly phi) that are no longer
     # needed after the integration.  We remove them here
-    kd_shape = kd.shape
     kd = np.atleast_1d(kd.squeeze())
 
     # multiply by factor that accounts for attenuation in the incident light
@@ -1388,9 +1383,7 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
     # calculate the averaged sigma
     sigma = (sigma_1 + sigma_2)/2 * factor
 
-    return(sigma, (sigma_1*factor),
-           (sigma_2*factor), (dsigma_1*factor.reshape(kd_shape)/2),
-           (dsigma_2*factor.reshape(kd_shape)/2))
+    return(sigma, (sigma_1*factor), (sigma_2*factor))
 
 
 def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
