@@ -1148,20 +1148,18 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     x : complex, array-like
         size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
     thetas : array-like
-        scattering angles.  Should be 2D, as output from np.meshgrid, if
-        cartesian=True
+        Scattering angles.  Must be in radians.
     kd : float
         k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
         distance away from the center of the particle. The standard far-field
         solutions are obtained when distance >> radius in a non-absorbing
         medium.
     phis : None or ndarray
-        azimuthal angles for which to calculate the diff scat intensity. In the
+        Azimuthal angles for which to calculate the diff scat intensity. In the
         'scattering plane' coordinate system, the scattering matrix does not
         depend on phi, so phi should be set to None. In the 'cartesian'
         coordinate system, the scattering matrix does depend on phi, so an
-        array of values should be provided.  For 'cartesian' both thetas and
-        phis should be 2D, as output from np.meshgrid.
+        array of values should be provided.
     cartesian : boolean (default False)
         If False (default), scattering calculations will be carried out in the
         'scattering plane' coordinate system, defined by basis vectors parallel
@@ -1233,9 +1231,10 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     # ensure that broadcasting will work correctly by adding an axis
     # corresponding to theta
     kd = np.atleast_1d(kd)[..., np.newaxis]
-    if cartesian:
+    if phis is not None:
         # add another axis to correspond to phi
         kd = kd[..., np.newaxis]
+        thetas, phis = np.meshgrid(thetas, phis, indexing="ij")
 
     if near_field:
         if not cartesian:
@@ -1362,7 +1361,7 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
                           "depend on azimuthal angle, so specified values "
                           "will be ignored")
 
-        # strip units from integrand
+        # include Jacobian
         integrand_par = dsigma_1 * np.abs(np.sin(thetas))
         integrand_perp = dsigma_2 * np.abs(np.sin(thetas))
 

@@ -730,9 +730,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     n_particle = 1.59 + 1e-4 * 1.0j
     thetas = np.linspace(np.pi/2, np.pi, 4)
     phis = np.linspace(0, 2*np.pi, 3)
-    thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape.
-                                                   # for integration, theta dimension must always come first,
-                                                   # which is not how it is done here
+    thetas_2d, _ = np.meshgrid(thetas, phis, indexing="ij")
 
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
@@ -748,8 +746,8 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     # calculate differential scattered intensity in xy basis
     # if incident vector is unpolarized (1,1), then the resulting differential
     # scattered intensity should be the same as I_par, I_perp
-    I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                            cartesian=True, phis = phis_2d,
+    I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
+                            cartesian=True, phis = phis,
                             near_field=False, incident_vector = (1, 1))
 
     # calculate magnitudes
@@ -771,8 +769,7 @@ def test_integrate_intensity_complex_medium_cartesian():
     n_particle = 1.59 + 1e-4 * 1.0j
     thetas = np.linspace(0, np.pi, 500)
     phis = np.linspace(0, 2*np.pi, 550)
-    phis_2d, thetas_2d = np.meshgrid(phis, thetas) # remember, meshgrid shape is (len(thetas), len(phis))
-                                                   # and theta dimension MUST come first in these calculations
+
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
@@ -781,7 +778,7 @@ def test_integrate_intensity_complex_medium_cartesian():
     kd = (k*distance).to("").magnitude
 
     # calculate the differential scattered intensities
-    I_xy = mie.calc_ang_scat(m, x, thetas_2d, kd=kd, phis=phis_2d)
+    I_xy = mie.calc_ang_scat(m, x, thetas, kd=kd, phis=phis)
     I_parperp = mie.calc_ang_scat(m, x, thetas, kd=kd)
 
     # integrate the differential scattered intensities
@@ -814,7 +811,6 @@ def test_value_errors():
     n_particle = 1.59 + 1e-4 * 1.0j
     thetas = np.linspace(np.pi/2, np.pi, 4)
     phis = np.linspace(0, 2*np.pi, 3)
-    thetas_2d, phis_2d = np.meshgrid(thetas, phis)
 
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
@@ -825,13 +821,13 @@ def test_value_errors():
 
     with pytest.raises(ValueError):
         # try to calculate near field in cartesian
-        _ = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
+        _ = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
                                                    cartesian=True,
-                                                   phis=phis_2d,
+                                                   phis=phis,
                                                    near_field=True)
     # calculate the differential scattered intensities
-    I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                                                  cartesian=True, phis=phis_2d,
+    I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
+                                                  cartesian=True, phis=phis,
                                                   near_field=False)
 
     _ = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
@@ -842,7 +838,7 @@ def test_value_errors():
         _ = mie.integrate_intensity_complex_medium(I_xy, thetas, kd,
                                                    cartesian=True)[0]
     with pytest.raises(ValueError):
-        _ = mie.vector_scattering_amplitude(m, x, thetas_2d,
+        _ = mie.vector_scattering_amplitude(m, x, thetas,
                                             cartesian=True)
 
 def test_dwell_time_and_energy():
