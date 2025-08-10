@@ -128,6 +128,7 @@ def calc_ang_scat(m, x, thetas, kd=None, phis=None, incident_vector=None,
 
     return np.array([ipar, iperp])
 
+
 def calc_ang_scat_RG(m, x, angles):
     """
     Uses the Rayleigh-Gans approximation to calculates the angular scattering
@@ -448,8 +449,6 @@ def _pis_and_taus(nstop, thetas):
     ang_shape = list(thetas.shape)
 
     # flatten to make calculations easier
-    # TODO if thetas specified as meshgrid, this will square the number of
-    # calculations done
     thetas = np.ndarray.flatten(thetas)
 
     mu = np.cos(thetas)
@@ -1232,9 +1231,7 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     # corresponding to theta
     kd = np.atleast_1d(kd)[..., np.newaxis]
     if phis is not None:
-        # add another axis to correspond to phi
         kd = kd[..., np.newaxis]
-        thetas, phis = np.meshgrid(thetas, phis, indexing="ij")
 
     if near_field:
         if not cartesian:
@@ -1332,15 +1329,14 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
     (1/np.abs(k)**2) to recover the dimensional cross-sections.
 
     """
-    # check that if phis is specified, both thetas and phis are given as 2D
-    # arrays
+    # expand dims if phis is specified
     if phis is not None:
         if phis.ndim == 1:
-            phis, thetas = np.meshgrid(phis, thetas)
+            thetas = thetas[:, np.newaxis]
+            phis = phis[np.newaxis, :]
 
     # reshape arrays for broadcasting.  k should have axis corresponding to
-    # theta (and possibly phi, which will be accounted for in thetas.shape
-    # since meshgrid was used)
+    # theta (and possibly phi, which will be accounted for in thetas.shape)
     kd = np.atleast_1d(kd)
     num_leading_axes = np.ndim(kd)
     kd = kd.reshape(kd.shape + thetas.ndim*(1,))
@@ -1580,6 +1576,12 @@ def amplitude_scattering_matrix(m, x, thetas,
 
     # calculate mie coefficients
     coeffs = _scatcoeffs(m, x, nstop)
+
+    # expand dims to allow broadcasting over phi
+    if phis is not None:
+        if np.ndim(phis) < 2:
+            thetas = thetas[..., np.newaxis]
+            phis = phis[..., np.newaxis, :]
 
     # calculate amplitude scattering matrix in 'scattering plane' coordinate
     # system

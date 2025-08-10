@@ -695,24 +695,29 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     n_particle = 1.59
     thetas = np.linspace(np.pi/2, np.pi, 2)
     phis = np.linspace(0, 2*np.pi, 4)
-    thetas_2d, phis_2d = np.meshgrid(thetas, phis) # be careful with meshgrid shape.
 
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
 
     # calculate the amplitude scattering matrix in xy basis
-    as_vec_x0, as_vec_y0 = mie.vector_scattering_amplitude(m, x, thetas_2d,
-                            cartesian=True, phis = phis_2d)
+    as_vec_x0, as_vec_y0 = mie.vector_scattering_amplitude(m, x, thetas,
+                            cartesian=True, phis=phis)
 
-    # calcualte the amplitude scattering matrix in par/perp basis
-    S1_sp, S2_sp, S3_sp, S4_sp = mie.amplitude_scattering_matrix(m, x, thetas_2d)
+    # calculate the amplitude scattering matrix in par/perp basis.  Need to
+    # setup for broadcasting first:
+    thetas = thetas[:, np.newaxis]
+    phis = phis[np.newaxis, :]
+    S1_sp, S2_sp, _, _ = mie.amplitude_scattering_matrix(m, x, thetas)
 
-    as_vec_x = S2_sp*np.cos(phis_2d)**2 + S1_sp*np.sin(phis_2d)**2
-    as_vec_y = S2_sp*np.cos(phis_2d)*np.sin(phis_2d) - S1_sp*np.cos(phis_2d)*np.sin(phis_2d)
+    cosphi = np.cos(phis)
+    sinphi = np.sin(phis)
+    as_vec_x = S2_sp * cosphi**2 + S1_sp * sinphi**2
+    as_vec_y = S2_sp * cosphi * sinphi - S1_sp * cosphi * sinphi
 
-    assert_almost_equal(as_vec_x0, as_vec_x)
-    assert_almost_equal(as_vec_y0, as_vec_y)
+    assert_allclose(as_vec_x0, as_vec_x)
+    assert_allclose(as_vec_y0, as_vec_y)
+
 
 def test_diff_scat_intensity_complex_medium_cartesian():
     '''
@@ -730,12 +735,14 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     n_particle = 1.59 + 1e-4 * 1.0j
     thetas = np.linspace(np.pi/2, np.pi, 4)
     phis = np.linspace(0, 2*np.pi, 3)
-    thetas_2d, _ = np.meshgrid(thetas, phis, indexing="ij")
+
+    # allow broadcasting over phi
+    thetas_2d = np.repeat(thetas[:, np.newaxis], phis.shape, axis=1)
 
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
-    kd = (2*np.pi*n_matrix/wavelen*Quantity(10000.0,'nm')).to("").magnitude
+    kd = (2*np.pi*n_matrix/wavelen*Quantity(10000.0, "nm")).to("").magnitude
 
     # calculate differential scattered intensity in par/perp basis
     # use of theta_2d here (instead of theta) broadcasts over the phi

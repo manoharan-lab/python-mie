@@ -600,29 +600,21 @@ class TestVectorizedInternalFunctions():
                return_all=True)
 
         num_phi = 13
+        num_theta = self.thetas.size
 
-        # while diff_scat_intensity_complex_medium() and
-        # integrate_intensity_complex_medium() take 1D arrays of phis and
-        # thetas, vector_scattering_amplitude() and
-        # amplitude_scattering_matrix() do not.  So we have to set up
-        # meshgrid arrays and non-meshgrid and send them to the appropriate
-        # functions
         thetas = self.thetas
         if not cartesian:
             phis = None
-            phis_2d = None
-            thetas_2d = thetas
         else:
             phis = np.linspace(0, 2*np.pi, num_phi)
-            thetas_2d, phis_2d = np.meshgrid(self.thetas, phis, indexing="ij")
 
-        vsa = mie.vector_scattering_amplitude(m, x, thetas_2d,
+        vsa = mie.vector_scattering_amplitude(m, x, thetas,
                                               cartesian=cartesian,
-                                              phis = phis_2d)
+                                              phis = phis)
 
-        mat = mie.amplitude_scattering_matrix(m, x, thetas_2d,
+        mat = mie.amplitude_scattering_matrix(m, x, thetas,
                                               cartesian=cartesian,
-                                              phis = phis_2d)
+                                              phis = phis)
 
         # choose distance reasonably close to the particle for differential
         # scattering calculations
@@ -641,15 +633,18 @@ class TestVectorizedInternalFunctions():
                                                           phis=phis)
 
         # check that shapes of all the computed quantities are correct
+        expected_shape = (num_wavelen, ) + (num_theta,)
+        if phis is not None:
+            expected_shape = (num_wavelen, ) + (num_theta,) + (num_phi,)
         for element in vsa + mat:
-            assert element.shape == (num_wavelen, ) + thetas_2d.shape
-        assert i12.shape == (2, num_wavelen) + thetas_2d.shape
+            assert element.shape == expected_shape
+        assert i12.shape == (2,) + expected_shape
 
         # check that vectorized calculations match looped calculations over
         # scalars
-        amp0 = np.zeros((num_wavelen, ) + thetas_2d.shape, dtype=complex)
+        amp0 = np.zeros(expected_shape, dtype=complex)
         amp1 = np.zeros_like(amp0)
-        S1 = np.zeros((num_wavelen, ) + thetas_2d.shape, dtype=complex)
+        S1 = np.zeros(expected_shape, dtype=complex)
         S2 = np.zeros_like(S1)
         S3 = np.zeros_like(S1)
         S4 = np.zeros_like(S1)
@@ -659,7 +654,7 @@ class TestVectorizedInternalFunctions():
         sigma = np.zeros(num_wavelen)
         sigma_1 = np.zeros_like(sigma)
         sigma_2 = np.zeros_like(sigma)
-        dsigma_1 = np.zeros((num_wavelen, ) + thetas_2d.shape)
+        dsigma_1 = np.zeros(expected_shape)
         dsigma_2 = np.zeros_like(dsigma_1)
 
         m = np.atleast_1d(m)
@@ -668,14 +663,14 @@ class TestVectorizedInternalFunctions():
         for i in range(num_wavelen):
             # m[[i]] preserves 2D array
             mat_loop = mie.amplitude_scattering_matrix(m[[i]], x[[i]],
-                                                       thetas_2d,
+                                                       thetas,
                                                        cartesian=cartesian,
-                                                       phis = phis_2d)
+                                                       phis = phis)
 
             vsa_loop = mie.vector_scattering_amplitude(m[[i]], x[[i]],
-                                                       thetas_2d,
+                                                       thetas,
                                                        cartesian=cartesian,
-                                                       phis = phis_2d)
+                                                       phis = phis)
             i_loop = mie.diff_scat_intensity_complex_medium(m[[i]], x[[i]],
                                                             thetas,
                                                             kd[i],
