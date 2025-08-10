@@ -22,7 +22,7 @@ Tests for the mie module
 
 from .. import Quantity, index_ratio, size_parameter, np, mie
 from numpy.testing import (assert_almost_equal, assert_array_almost_equal,
-                           assert_allclose)
+                           assert_allclose, assert_equal)
 import pytest
 
 def test_cross_sections():
@@ -504,6 +504,13 @@ def test_differential_cross_section():
     # floating-point precision
     assert_allclose(I_parperp, I_parperp_cad, rtol=1e-14)
 
+    # Now check that calc_ang_dist() calls diff_scat_intensity_complex_medium
+    # when kd is specified
+    I_parperp_cad_kd = mie.calc_ang_scat(m, x, theta, kd=kd)
+
+    # should be exactly equal
+    assert_equal(I_parperp_cad_kd, I_parperp)
+
 
 def test_cross_section_complex_medium():
 
@@ -545,7 +552,7 @@ def test_cross_section_complex_medium():
                                                      wavelen)[0]
     # With Mie solutions in absorbing medium
     rho_scat = (k*distance).to("").magnitude
-    I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, rho_scat)
+    I_parperp = mie.calc_ang_scat(m, x, theta, kd=rho_scat)
     cscat_exact = mie.integrate_intensity_complex_medium(I_parperp, theta,
                                                          rho_scat)[0]
     cscat_exact_dimensional = (cscat_exact/np.abs(k)**2).to("um^2")
@@ -611,7 +618,7 @@ def test_cross_section_complex_medium():
     rho_scat = (k*distance).to("").magnitude
 
     # With full Mie solutions
-    I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, rho_scat)
+    I_parperp = mie.calc_ang_scat(m, x, theta, kd=rho_scat)
 
     cscat_exact3 = mie.integrate_intensity_complex_medium(I_parperp, theta,
                                                           rho_scat)[0]
@@ -647,8 +654,7 @@ def test_multilayer_complex_medium():
     cscat_real = mie.calc_cross_sections(marray, xarray)[0]
 
     # with imag solutions
-    I_parperp = mie.diff_scat_intensity_complex_medium(marray, xarray, angles,
-                                                       kd)
+    I_parperp = mie.calc_ang_scat(marray, xarray, angles, kd=kd)
     cscat_imag = mie.integrate_intensity_complex_medium(I_parperp, angles,
                                                         kd)[0]
 
@@ -775,11 +781,8 @@ def test_integrate_intensity_complex_medium_cartesian():
     kd = (k*distance).to("").magnitude
 
     # calculate the differential scattered intensities
-    I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
-                                                  cartesian=True, phis=phis_2d,
-                                                  near_field=False)
-    I_parperp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                                                       near_field=False)
+    I_xy = mie.calc_ang_scat(m, x, thetas_2d, kd=kd, phis=phis_2d)
+    I_parperp = mie.calc_ang_scat(m, x, thetas, kd=kd)
 
     # integrate the differential scattered intensities
     cscat_xy = mie.integrate_intensity_complex_medium(I_xy, thetas, kd,
@@ -826,7 +829,7 @@ def test_value_errors():
                                                    cartesian=True,
                                                    phis=phis_2d,
                                                    near_field=True)
-    # calculate the differenetial scattered intensities
+    # calculate the differential scattered intensities
     I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
                                                   cartesian=True, phis=phis_2d,
                                                   near_field=False)

@@ -57,7 +57,7 @@ from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2  # default tolerances
 # User-facing functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
 
-def calc_ang_scat(m, x, angles, check=False):
+def calc_ang_scat(m, x, thetas, kd=None, phis=None, check=False):
     """
     Calculates the angular scattering of light intensity for parallel and
     perpendicular polarization for a sphere.
@@ -68,8 +68,16 @@ def calc_ang_scat(m, x, angles, check=False):
         complex particle relative refractive index, n_part/n_med
     x : complex or float, array-like
         size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
-    angles : array-like
+    thetas : array-like
         array of angles. Must be specified in radians
+    kd : float
+        k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
+        distance away from the center of the particle. The standard far-field
+        solutions are obtained when distance >> radius in a non-absorbing
+        medium.
+    phis : None or ndarray
+        azimuthal angles for which to calculate the diff scat intensity. If
+        set, a cartesian basis is used
     check : Boolean (optional)
         if true, outputs scattering efficiencies
 
@@ -82,6 +90,12 @@ def calc_ang_scat(m, x, angles, check=False):
         polarization parallel and perpendicular to scattering plane. See Bohren
         & Huffman ch. 3 for details.
     """
+    if (kd is not None) or (phis is not None):
+        cartesian = (phis is not None)
+        return diff_scat_intensity_complex_medium(m, x, thetas, kd=kd,
+                                                  phis=phis,
+                                                  cartesian=cartesian)
+
     # Mie scattering preliminaries
     nstop = _nstop(x.max())
 
@@ -89,7 +103,7 @@ def calc_ang_scat(m, x, angles, check=False):
     n = np.arange(nstop)+1.
     prefactor = (2*n+1.)/(n*(n+1.))
 
-    S2, S1 = _amplitude_scattering_matrix(nstop, prefactor, coeffs, angles)
+    S2, S1 = _amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas)
     ipar = np.absolute(S2)**2
     iperp = np.absolute(S1)**2
 
@@ -346,13 +360,8 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
         angles = np.linspace(min_angle, np.pi, num_angles)
         distance = radius.max()
         kd = (k*distance).to("").magnitude
-        (diff_cscat_par,
-         diff_cscat_perp) = diff_scat_intensity_complex_medium(m, x, angles,
-                                                               kd)
-
-        cscat = integrate_intensity_complex_medium(diff_cscat_par,
-                                                   diff_cscat_perp,
-                                                   angles, kd)[0]
+        diff_cscat = diff_scat_intensity_complex_medium(m, x, angles, kd)
+        cscat = integrate_intensity_complex_medium(diff_cscat, angles, kd)[0]
     else:
         cscat = calc_cross_sections(m, x, eps1 = eps1, eps2 = eps2)[0]
         cscat = cscat * 1/k**2
@@ -640,6 +649,7 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     cldl = np.array([cl[..., 1:], dl[..., 1:]])
     # remove unneeded layer axis
     return cldl[..., 0, :]
+
 
 def _trans_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''

@@ -912,6 +912,7 @@ class TestVectorizedUserFunctions():
         # (smaller than the default atol for this test).
         assert_allclose(form_factor_RG, form_factor_mie, rtol=1e-1)
 
+
     @pytest.mark.parametrize("n_medium",
                              [1.33, pytest.param(1.33+0.1j)])
     @pytest.mark.parametrize("num_wavelen, num_layer",
