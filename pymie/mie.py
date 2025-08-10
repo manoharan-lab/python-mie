@@ -57,7 +57,8 @@ from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2  # default tolerances
 # User-facing functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
 
-def calc_ang_scat(m, x, thetas, kd=None, phis=None, check=False):
+def calc_ang_scat(m, x, thetas, kd=None, phis=None, incident_vector=None,
+                  check=False):
     """
     Calculates the angular scattering of light intensity for parallel and
     perpendicular polarization for a sphere.
@@ -78,6 +79,9 @@ def calc_ang_scat(m, x, thetas, kd=None, phis=None, check=False):
     phis : None or ndarray
         azimuthal angles for which to calculate the diff scat intensity. If
         set, a cartesian basis is used
+    incident_vector : 2-tuple (default None)
+        If supplied, gives the polarization direction in the appropriate basis
+        (cartesian if phis is set or scattering plane if not)
     check : Boolean (optional)
         if true, outputs scattering efficiencies
 
@@ -94,7 +98,9 @@ def calc_ang_scat(m, x, thetas, kd=None, phis=None, check=False):
         cartesian = (phis is not None)
         return diff_scat_intensity_complex_medium(m, x, thetas, kd=kd,
                                                   phis=phis,
-                                                  cartesian=cartesian)
+                                                  cartesian=cartesian,
+                                                  incident_vector =
+                                                  incident_vector)
 
     # Mie scattering preliminaries
     nstop = _nstop(x.max())
