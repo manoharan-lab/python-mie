@@ -703,12 +703,11 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     as_vec_x0, as_vec_y0 = mie.vector_scattering_amplitude(m, x, thetas,
                                                            phis=phis)
 
-    # calculate the amplitude scattering matrix in par/perp basis.  Need to
-    # setup for broadcasting first:
-    thetas = thetas[:, np.newaxis]
-    phis = phis[np.newaxis, :]
+    # calculate the amplitude scattering matrix in par/perp basis.
     S1_sp, S2_sp, _, _ = mie.amplitude_scattering_matrix(m, x, thetas)
 
+    S1_sp = S1_sp[..., np.newaxis]
+    S2_sp = S2_sp[..., np.newaxis]
     cosphi = np.cos(phis)
     sinphi = np.sin(phis)
     as_vec_x = S2_sp * cosphi**2 + S1_sp * sinphi**2
@@ -735,19 +734,17 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     thetas = np.linspace(np.pi/2, np.pi, 4)
     phis = np.linspace(0, 2*np.pi, 3)
 
-    # allow broadcasting over phi
-    thetas_2d = np.repeat(thetas[:, np.newaxis], phis.shape, axis=1)
-
     # parameters for calculating scattering
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
     kd = (2*np.pi*n_matrix/wavelen*Quantity(10000.0, "nm")).to("").magnitude
 
     # calculate differential scattered intensity in par/perp basis
-    # use of theta_2d here (instead of theta) broadcasts over the phi
-    # dimension, allowing us to compare to cartesian calculation
-    I_parperp = mie.diff_scat_intensity_complex_medium(m, x, thetas_2d, kd,
+    I_parperp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
                                                        near_field=False)
+    # broadcast over the phi dimension, allowing us to compare to cartesian
+    # calculation
+    I_parperp = np.repeat(I_parperp[..., np.newaxis], phis.shape, axis=3)
 
     # calculate differential scattered intensity in xy basis
     # if incident vector is unpolarized (1,1), then the resulting differential

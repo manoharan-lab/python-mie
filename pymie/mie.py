@@ -503,7 +503,7 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
 
-    # coefficient array has shape [2, num_values, nstop]
+    # coefficient array has shape (2, ..., nstop)
     return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]])
 
 
@@ -1441,8 +1441,7 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     return I_par.real, I_perp.real
 
 
-def amplitude_scattering_matrix(m, x, thetas,
-                                phis = None):
+def amplitude_scattering_matrix(m, x, thetas, phis=None):
     """
     Calculates the amplitude scattering matrix for an n-dim array of thetas
     (and phis if in cartesian coordinate system)
@@ -1506,32 +1505,27 @@ def amplitude_scattering_matrix(m, x, thetas,
     # calculate mie coefficients
     coeffs = _scatcoeffs(m, x, nstop)
 
-    # expand dims to allow broadcasting over phi
-    if phis is not None:
-        if np.ndim(phis) < 2:
-            thetas = thetas[..., np.newaxis]
-            phis = phis[..., np.newaxis, :]
-
-    # calculate amplitude scattering matrix in 'scattering plane' coordinate
-    # system
-    S2_sp, S1_sp = _amplitude_scattering_matrix(nstop, prefactor,
-                                                coeffs, thetas)
-    S3_sp = np.zeros_like(S1_sp)
-    S4_sp = np.zeros_like(S1_sp)
+    # calculate amplitude scattering matrix in scattering plane basis
+    S2, S1 = _amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas)
 
     if phis is not None:
-        # calculate sines and cosines
-        cosphi = np.cos(phis)
-        sinphi = np.sin(phis)
+        # expand dims to allow broadcasting over phi
+        S1 = S1[..., np.newaxis]
+        S2 = S2[..., np.newaxis]
+        phis = phis[..., np.newaxis, :]
 
         # calculate elements of scattering matrix
-        S1_xy = S2_sp*(sinphi)**2 + S1_sp*(cosphi)**2
-        S2_xy = S2_sp*(cosphi)**2 + S1_sp*(sinphi)**2
-        S3_xy = S2_sp*sinphi*cosphi - S1_sp*sinphi*cosphi
-        S4_xy = S2_sp*cosphi*sinphi - S1_sp*cosphi*sinphi
+        cosphi = np.cos(phis)
+        sinphi = np.sin(phis)
+        S1_xy = S2*(sinphi)**2 + S1*(cosphi)**2
+        S2_xy = S2*(cosphi)**2 + S1*(sinphi)**2
+        S3_xy = S2*sinphi*cosphi - S1*sinphi*cosphi
+        S4_xy = S2*cosphi*sinphi - S1*cosphi*sinphi
         return S1_xy, S2_xy, S3_xy, S4_xy
     else:
-        return S1_sp, S2_sp, S3_sp, S4_sp
+        S3 = np.zeros_like(S1)
+        S4 = np.zeros_like(S1)
+        return S1, S2, S3, S4
 
 
 def vector_scattering_amplitude(m, x, thetas,
@@ -1639,25 +1633,14 @@ def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, thetas):
     """
     pis, taus = _pis_and_taus(n_stop, thetas)
 
-    # to broadcast correctly over the dimensions of coeffs (which may be
-    # wavelength or other variable), we need to add leading dimensions to the
-    # pis and taus, which have shape [num_angles, order].  Result should have
-    #   pis, taus shape: [1, ..., 1, num_angles, order]
-    # Similarly, we need to insert dimensions in coeffs corresponding to the
-    # angles in pis and taus.  Result should have
-    #   coeffs[0].shape: [num_values, ..., 1, order]
-    num_leading_dims = len(coeffs[0].shape[:-1])
-    num_insert_dims = len(pis.shape[:-1])
-    new_coeffs_shape = (coeffs.shape[:-1] + num_insert_dims*(1,)
-                        + (coeffs.shape[-1],))
-    pis = pis.reshape(num_leading_dims*(1,) + pis.shape)
-    taus = taus.reshape(num_leading_dims*(1,) + taus.shape)
-    coeffs = coeffs.reshape(new_coeffs_shape)
+    # For broadcasting over theta, set shape to (..., 1, order)
+    coeffs = coeffs[..., np.newaxis, :]
 
-    # result should have shape [num_values, ..., num_angles]
+    # result should have shape (..., num_thetas)
     S1 = np.sum(prefactor*(coeffs[0]*pis + coeffs[1]*taus), axis=-1)
     S2 = np.sum(prefactor*(coeffs[0]*taus + coeffs[1]*pis), axis=-1)
     return S2, S1
+
 
 def _amplitude_scattering_matrix_RG(prefactor, x, thetas):
     """Amplitude scattering matrix from Rayleigh-Gans approximation
@@ -1674,7 +1657,7 @@ def _amplitude_scattering_matrix_RG(prefactor, x, thetas):
     p = np.divide(np.sin(u) - u*np.cos(u), u**3, out=np.ones_like(u),
                   where=u!=0)
 
-    # result should have shape [num_values, ..., num_angles]
+    # result should have shape (..., num_angles)
     S1 = prefactor * 3 * p
     S2 = S1 * np.cos(thetas)
     return S2, S1
