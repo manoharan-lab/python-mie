@@ -519,7 +519,7 @@ def _pis_and_taus(nstop, thetas):
     Returns
     -------
     pis, taus (order 1 to n): ndarray
-        angular functions, each has shape (thetas.shape, nstop)
+        angular functions, each has shape (..., num_thetas, nstop)
 
     Notes
     -----
@@ -553,13 +553,11 @@ def _pis_and_taus(nstop, thetas):
     ang_shape = thetas.shape + (nstop+1,)
     pis = np.reshape(pis, ang_shape)
     taus = np.reshape(taus, ang_shape)
-    return pis[...,1:nstop+1], taus[...,1:nstop+1]
+    return pis[..., 1:nstop+1], taus[..., 1:nstop+1]
 
 
 def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
-    # index ratio should be specified as a 2D array with shape
-    # [num_values, num_layers] to calculate over a set of different values,
-    # such as wavelengths. If specified as a 1D array, shape is [num_layers].
+    # test for multilayer particle
     if m.shape[-1] > 1:
         return _scatcoeffs_multi(m, x)
 
@@ -578,9 +576,9 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     n = np.arange(nstop+1)
     psi, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
 
-    # insert zeroes at the beginning of second axis (order axis)
-    psishift = np.pad(psi, ((0,), (1,)))[:, 0:nstop+1]
-    xishift = np.pad(xi, ((0,), (1,)))[:, 0:nstop+1]
+    # insert zeroes at the beginning of last axis (order axis)
+    psishift = np.pad(psi, ((0,), (1,)))[..., 0:nstop+1]
+    xishift = np.pad(xi, ((0,), (1,)))[..., 0:nstop+1]
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
 
@@ -644,32 +642,35 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     z2 = marray[..., 1:] * xarray[..., 1:]
 
     # pre-calculate logarithmic derivatives for all layers
+    # log_der_13 returns 2-tuple, each element w/ shape (..., nlayers-1, nstop)
     derz1s = mie_specfuncs.log_der_13(z1, nstop, eps1, eps2)
     derz2s = mie_specfuncs.log_der_13(z2, nstop, eps1, eps2)
 
     # pre-calculate ratio Q_n^l for all layers
+    # Qratio returns array with shape (..., nlayers-1, nstop)
     Qnl_arr = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s,
                                    dns2 = derz2s, eps1 = eps1, eps2 = eps2)
 
     # lay is l-1 (index on layers used by Yang)
     for lay in np.arange(1, nlayers):
-        m = marray[..., lay]
-        mm1 = marray[..., lay-1]
+        # add axis for order; resulting shape is (..., 1, 1)
+        m = marray[..., lay, np.newaxis]
+        mm1 = marray[..., lay-1, np.newaxis]
 
         # calculate logarithmic derivatives D_n^1 and D_n^3
-        dz1s0, dz1s1 = derz1s[0][:, lay-1], derz1s[1][:, lay-1]
-        dz2s0, dz2s1 = derz2s[0][:, lay-1], derz2s[1][:, lay-1]
+        dz1s0, dz1s1 = derz1s[0][..., lay-1, :], derz1s[1][..., lay-1, :]
+        dz2s0, dz2s1 = derz2s[0][..., lay-1, :], derz2s[1][..., lay-1, :]
 
         # calculate G1, G2, Gtilde1, Gtilde2 according to
         # eqns 26-29
         # using H^a_n and H^b_n from previous layer
-        G1 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*dz1s0
-        G2 = m[:, np.newaxis]*hans - mm1[:, np.newaxis]*dz1s1
-        Gt1 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*dz1s0
-        Gt2 = mm1[:, np.newaxis]*hbns - m[:, np.newaxis]*dz1s1
+        G1 = m * hans - mm1 * dz1s0
+        G2 = m * hans - mm1 * dz1s1
+        Gt1 = mm1 * hbns - m * dz1s0
+        Gt2 = mm1 * hbns - m * dz1s1
 
         # calculate ratio Q_n^l for this layer
-        Qnl = Qnl_arr[:, lay-1]
+        Qnl = Qnl_arr[..., lay-1, :]
 
         # now calculate H^a_n and H^b_n in current layer
         # see eqns 24 and 25
@@ -681,10 +682,11 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     # see Yang eqns 14 and 15
     #
     # n = 0 to nstop
-    # (below we vectorize over the first dimension of xarray; we calculate the
-    # max x over layers for each value of the first dimension)
-    psiandxi = mie_specfuncs.riccati_psi_xi(xarray.max(axis=1)[:, np.newaxis],
-                                            nstop)
+    # (below we vectorize over the leading dimensions of x; we calculate the
+    # max x over layers for each value specified in leading dims)
+    xmax = xarray.max(axis=-1)
+    psiandxi = mie_specfuncs.riccati_psi_xi(xmax[..., np.newaxis], nstop)
+
     n = np.arange(nstop+1)
     psi = psiandxi[0]
     xi = psiandxi[1]
@@ -694,8 +696,8 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
                          np.zeros(psi.shape[:-1]), axis=-1)[..., 0:nstop+1]
     xishift = np.insert(xi, 0,
                          np.zeros(xi.shape[:-1]), axis=-1)[..., 0:nstop+1]
-    mlast = marray[..., nlayers-1][:, np.newaxis]
-    xlast = xarray[..., nlayers-1][:, np.newaxis]
+    mlast = marray[..., nlayers-1][..., np.newaxis]
+    xlast = xarray[..., nlayers-1][..., np.newaxis]
     an = (((hans/mlast + n/xlast)*psi - psishift)
           / ((hans/mlast + n/xlast)*xi - xishift))
     bn = (((hbns*mlast + n/xlast)*psi- psishift)
