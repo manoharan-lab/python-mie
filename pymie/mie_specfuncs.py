@@ -233,15 +233,14 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
     -----
     Logarithmic derivatives calculated automatically if not specified.
 
-    Inputs z1 and z2 should be 2d complex arrays with shape [num_values,
-    num_layers], where num_values could be the number of wavelengths or other
-    variable.
+    Inputs z1 and z2 should be complex arrays with shape (..., num_layers),
+    where "..." means any number of leading dimensions.
 
     Parameters
     ----------
-    z1 : array-like with shape [num_values, num_layers]
+    z1 : array-like with shape (..., num_layers)
         m for layer * x for previous layer
-    z2 : array-like with shape [num_values, num_layers]
+    z2 : array-like with shape (..., num_layers)
         m for layer * x for layer
     nstop : integer
         maximum order of computation
@@ -252,10 +251,10 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
 
     Returns
     -------
-    Qnl : array-like with shape [num_values, num_layers, order]
+    Qnl : array-like with shape (..., num_layers, order)
         Q_n^l for all values (e.g. wavelengths) and layers in z
     """
-    if (dns1 is None) and (dns2 is None):
+    if (dns1 is None) or (dns2 is None):
         logdersz1 = log_der_13(z1, nstop, eps1, eps2)
         logdersz2 = log_der_13(z2, nstop, eps1, eps2)
         d1z1 = logdersz1[0]
@@ -275,14 +274,15 @@ def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
     b2 = np.imag(z2)
     qns0 = (np.exp(-2.*(b2-b1)) * (np.exp(-1j*2.*a1)-np.exp(-2.*b1))
              / (np.exp(-1j*2.*a2) - np.exp(-2.*b2)))
-    # shape is [num_values, num_layers, order]
-    qns0 = qns0[:, :, np.newaxis]
+    # resulting shape is (..., num_layers, order)
+    qns0 = qns0[..., np.newaxis]
 
     # Vectorized loop (using np.cumprod) to do upwards recursion in eqn. 33
-    irange = np.arange(1, nstop+1)
-    # shape is [num_values, num_layers, order]
-    i_over_z1 = irange[np.newaxis, np.newaxis, :]/z1[:, :, np.newaxis]
-    i_over_z2 = irange[np.newaxis, np.newaxis, :]/z2[:, :, np.newaxis]
+    irange = np.arange(1, nstop+1)[np.newaxis, :]
+    # irange shape is (1, order) where 1 is for layer axis; Need to add order
+    # axis to z1, z2 for broadcasting
+    i_over_z1 = irange / z1[..., np.newaxis]
+    i_over_z2 = irange / z2[..., np.newaxis]
     prod = ((d3z1[..., 1:] + i_over_z1) * (d1z2[..., 1:] + i_over_z2)
             / ((d3z2[..., 1:] + i_over_z2) * (d1z1[..., 1:] + i_over_z1)))
     qns = np.concatenate((qns0, qns0 * np.cumprod(prod, axis=-1)), axis=-1)
@@ -306,17 +306,18 @@ def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
     See Mackowski eqns. 65-66.
 
-    z1, z2 are complex arrays with shape [num_values, 1]
+    z1, z2 are complex arrays with shape (..., 1)
     '''
     # Vectorized loop (using np.cumprod) to do up recursion
-    output_0 = (np.sin(z1) / np.sin(z2))[:, :, np.newaxis]
+    output_0 = (np.sin(z1) / np.sin(z2))[..., np.newaxis]
     dnz1 = dn_1_down(z1, nmax + 1, nmax, lentz_dn1(z1, nmax + 1, eps1, eps2))
     dnz2 = dn_1_down(z2, nmax + 1, nmax, lentz_dn1(z2, nmax + 1, eps1, eps2))
 
-    irange = np.arange(1, nmax+1)
-    # shape is [num_values, num_layers, order]
-    i_over_z1 = irange[np.newaxis, np.newaxis, :]/z1[:, :, np.newaxis]
-    i_over_z2 = irange[np.newaxis, np.newaxis, :]/z2[:, :, np.newaxis]
+    irange = np.arange(1, nmax+1)[np.newaxis, :]
+    # irange shape is (1, order) where 1 is for layer axis; Need to add order
+    # axis to z1, z2 for broadcasting
+    i_over_z1 = irange / z1[..., np.newaxis]
+    i_over_z2 = irange / z2[..., np.newaxis]
     prod = (dnz2[..., 1:] + i_over_z2) / (dnz1[..., 1:] + i_over_z1)
     output_vec = np.concatenate((output_0,
                                  output_0 * np.cumprod(prod, axis=-1)),
