@@ -445,31 +445,25 @@ def _pis_and_taus(nstop, thetas):
     # make theta an array if it's not already
     thetas = np.atleast_1d(thetas)
 
-    # get the shape of thetas to reshape arrays later
-    ang_shape = list(thetas.shape)
-
     # flatten to make calculations easier
-    thetas = np.ndarray.flatten(thetas)
-
-    mu = np.cos(thetas)
+    mu = np.cos(thetas.ravel())
 
     # returns P_n and derivatives up to degree n for all values in mu array.
-    # legendre0 has shape (2, nmax, len(mu)), where legendre0[0,:,:] is P_n and
-    # legendre0[1,:,:] is the derivative.
+    # legendre0 has shape (2, nmax, num_thetas), where legendre0[0,:,:] is P_n
+    # and legendre0[1,:,:] is the derivative.
     legendre0 = legendre_p_all(nstop, mu, diff_n=1)
 
-    # Perform calculations on pis to get taus. We rearrange the order of the
-    # axes to the order that we used in previous versions of the code, where
-    # the Legendre polynomial calculation was not automatically vectorized.
+    # Perform calculations on pis to get taus. We swap axes so that the order
+    # axis is last; resulting shape is (num_thetas, nstop+1)
     pis = np.swapaxes(legendre0[1, 0:nstop+1, :], 0, 1)
-    pishift = np.concatenate((np.zeros((len(thetas),1)), pis),
-                             axis=1)[:, :nstop+1]
+    pishift = np.pad(pis, ((0,), (1,)))[..., 0:nstop+1]
     n = np.arange(nstop+1)
-    mus = np.swapaxes(np.tile(mu, (nstop+1,1)),0,1)
-    taus = n*pis*mus - (n+1)*pishift
+    # add order axis to mu; resulting shape is (num_thetas, 1)
+    mu = mu[..., np.newaxis]
+    taus = (n * pis * mu) - (n+1) * pishift
 
     # reshape to match thetas original shape
-    ang_shape.append(nstop+1)
+    ang_shape = thetas.shape + (nstop+1,)
     pis = np.reshape(pis, ang_shape)
     taus = np.reshape(taus, ang_shape)
     return pis[...,1:nstop+1], taus[...,1:nstop+1]
