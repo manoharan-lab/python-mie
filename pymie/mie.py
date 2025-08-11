@@ -543,7 +543,7 @@ def _pis_and_taus(nstop, thetas):
     # Perform calculations on pis to get taus. We swap axes so that the order
     # axis is last; resulting shape is (num_thetas, nstop+1)
     pis = np.swapaxes(legendre0[1, 0:nstop+1, :], 0, 1)
-    pishift = np.pad(pis, ((0,), (1,)))[..., 0:nstop+1]
+    pishift = _shift_and_pad(pis)
     n = np.arange(nstop+1)
     # add order axis to mu; resulting shape is (num_thetas, 1)
     mu = mu[..., np.newaxis]
@@ -576,9 +576,8 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     n = np.arange(nstop+1)
     psi, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
 
-    # insert zeroes at the beginning of last axis (order axis)
-    psishift = np.pad(psi, ((0,), (1,)))[..., 0:nstop+1]
-    xishift = np.pad(xi, ((0,), (1,)))[..., 0:nstop+1]
+    psishift = _shift_and_pad(psi)
+    xishift = _shift_and_pad(xi)
     an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
 
@@ -692,10 +691,8 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     xi = psiandxi[1]
     # this doesn't bother to calculate psi/xi_{-1} correctly,
     # but OK since we're throwing out a_0, b_0 where it appears
-    psishift = np.insert(psi, 0,
-                         np.zeros(psi.shape[:-1]), axis=-1)[..., 0:nstop+1]
-    xishift = np.insert(xi, 0,
-                         np.zeros(xi.shape[:-1]), axis=-1)[..., 0:nstop+1]
+    psishift = _shift_and_pad(psi)
+    xishift = _shift_and_pad(xi)
     mlast = marray[..., nlayers-1][..., np.newaxis]
     xlast = xarray[..., nlayers-1][..., np.newaxis]
     an = (((hans/mlast + n/xlast)*psi - psishift)
@@ -758,15 +755,13 @@ def _trans_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     nstop=n_max
     n = np.arange(nstop+1)
     psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop)
-    psishift = np.insert(psi, 0,
-                         np.zeros(psi.shape[:-1]), axis=-1)[..., 0:nstop+1]
+    psishift = _shift_and_pad(psi)
     psi_prime = psishift - n*psi/(m*x)
     psi = psi[..., 1:nstop+1]
     psi_prime = psi_prime[..., 1:nstop+1]
 
     _, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
-    xishift = np.insert(xi, 0,
-                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:nstop+1]
+    xishift = _shift_and_pad(xi)
     xi_prime = xishift - n*xi/x
     xi = xi[..., 1:nstop+1]
     xi_prime = xi_prime[..., 1:nstop+1]
@@ -792,9 +787,8 @@ def _time_coeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     n = np.arange(nstop+1)
     n_max = np.max(n)
     psi, _ = mie_specfuncs.riccati_psi_xi(m*x, nstop)
-    psishift = np.insert(psi, 0,
-                         np.zeros(psi.shape[:-1]), axis=-1)[..., 1:nstop+1]
     psi = psi[..., 1:nstop+1]
+    psishift = _shift_and_pad(psi)
     n = n[..., 1:nstop+1]
     cn, dn = _trans_coeffs(m,x, n_max, eps1=eps1, eps2=eps2)
 
@@ -932,8 +926,7 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
 
     # calculate the scattering efficiency
     _, xi = mie_specfuncs.riccati_psi_xi(x_medium, lmax)
-    xishift = np.insert(xi, 0,
-                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    xishift = _shift_and_pad(xi)
     xi = xi[..., 1:]
     xishift = xishift[..., 1:]
 
@@ -944,8 +937,7 @@ def _cross_sections_complex_medium_fu(al, bl, cl, dl, radius, n_particle,
 
     # calculate the absorption and extinction efficiencies
     psi, _ = mie_specfuncs.riccati_psi_xi(x_scatterer, lmax)
-    psishift = np.insert(psi, 0,
-                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    psishift = _shift_and_pad(psi)
     psi = psi[..., 1:]
     psishift = psishift[..., 1:]
 
@@ -1006,14 +998,12 @@ def _cross_sections_complex_medium_sudiarta(al, bl, x, radius):
 
     psi, xi = mie_specfuncs.riccati_psi_xi(x, lmax)
 
-    xishift = np.insert(xi, 0,
-                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    xishift = _shift_and_pad(xi)
     xi = xi[..., 1:]
     xishift = xishift[..., 1:]
     xideriv = xishift - l*xi/x
 
-    psishift = np.insert(psi, 0,
-                        np.zeros(xi.shape[:-1]), axis=-1)[..., 0:lmax+1]
+    psishift = _shift_and_pad(psi)
     psi = psi[..., 1:]
     psishift = psishift[..., 1:]
     psideriv = psishift - l*psi/x
@@ -1145,8 +1135,7 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
         zn = zn[..., 1:]
 
         _, xi = mie_specfuncs.riccati_psi_xi(kd, nstop)
-        # insert zeroes at the beginning of second axis (order axis)
-        xishift = np.pad(xi, ((0,), (1,)))[:, 0:nstop+1]
+        xishift = _shift_and_pad(xi)
         xi = xi[..., 1:]
         xishift = xishift[..., 1:]
         bessel_deriv = xishift - n*xi/kd
@@ -1490,9 +1479,9 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     zn = zn[1:]
 
     psi, _ = mie_specfuncs.riccati_psi_xi(ktd, nstop)
-    psishift = np.concatenate((np.zeros(1), psi))[0:nstop+1]
-    psi = psi[1:]
-    psishift = psishift[1:]
+    psishift = _shift_and_pad[psi]
+    psi = psi[..., 1:]
+    psishift = psishift[..., 1:]
     bessel_deriv = psishift - n*psi/ktd
 
     # calculate pis and taus at the scattering angles theta
@@ -1744,3 +1733,13 @@ def _amplitude_scattering_matrix_RG(prefactor, x, thetas):
     S1 = prefactor * 3 * p
     S2 = S1 * np.cos(thetas)
     return S2, S1
+
+def _shift_and_pad(arr):
+    """Shifts an array arr along the order axis by one element and inserts
+    zeros at the beginning.  Order axis is assumed to be the last axis.
+
+    """
+    arr_new = np.roll(arr, 1, axis=-1)
+    arr_new[..., 0] = 0.0
+
+    return arr_new
