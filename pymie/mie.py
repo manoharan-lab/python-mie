@@ -1476,10 +1476,10 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     # calculate spherical Bessel function and derivative
     nstop_array = np.arange(0,nstop+1)
     zn = spherical_jn(nstop_array, ktd)
-    zn = zn[1:]
+    zn = zn[..., 1:]
 
     psi, _ = mie_specfuncs.riccati_psi_xi(ktd, nstop)
-    psishift = _shift_and_pad[psi]
+    psishift = _shift_and_pad(psi)
     psi = psi[..., 1:]
     psishift = psishift[..., 1:]
     bessel_deriv = psishift - n*psi/ktd
@@ -1490,6 +1490,8 @@ def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
     # calculate the scattered electric and magnetic fields (omitting the
     # sin(phi) and cos(phi) factors because they will be accounted for when
     # integrating to get the scattering cross section)
+    # TODO: change the code below to broadcast correctly for multidimensional
+    # m, x
     En = np.broadcast_to(En, [len(thetas), len(En)])
     cn = np.broadcast_to(cn, [len(thetas), len(cn)])
     dn = np.broadcast_to(dn, [len(thetas), len(dn)])
