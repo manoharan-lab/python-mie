@@ -31,6 +31,93 @@ this code is in the HoloPy package (http://manoharan.seas.harvard.edu/holopy).
 
 Key reference for multilayer algorithm is [3]_
 
+Some notes on array dimensions and broadcasting:
+
+-   Nearly all calculations are vectorized.  Let "..." denote the dimensions
+    corresponding to parameters of the calculations.  For example, we might be
+    interested in calculating scattering quantities as a function of wavelength
+    and volume fraction (volume fraction can enter into a calculation
+    indirectly through an effective refractive index).  Then "..." might
+    represent the volume fraction and wavelength dimensions.
+
+-   m and x must be specified as at least 2D arrays.  The shapes are
+        m: (..., num_layers)
+        x: (..., num_layers)
+    where num_layers is the number of layers of a multilayer particle, and
+    "..." means at least one other dimension (wavelength). If specified with
+    shape (1, 1), the calculation will be done at a single, scalar value of m
+    and of x.  This situation would correspond to a single wavelength and a
+    single, non-layered sphere.
+
+-   Angles (thetas and phis) must be specified with shape
+        thetas: ([angle_leading_dims], num_thetas)
+        phis:   ([angle_leading_dims], num_phis)
+    where [angle_leading_dims] is a subset of the leading dimensions of m/x.
+
+-   For example, if m has shape
+        m:      (num_volume_fractions, num_wavelengths, num_layers),
+    then thetas can have shape
+        thetas: (num_thetas) or
+        thetas: (num_wavelengths, num_thetas) or
+        thetas: (num_volume_fractions, num_wavelengths, num_thetas).
+    The same is true of phi, but with num_phis instead of num_thetas.
+    Therefore, the angles can be a function of wavelength, for example.  As
+    long as angle_leading_dims are specified in the same order as in "...",
+    thetas and phis will broadcast correctly, once the dimensions of other
+    quantities have been expanded (see below)
+
+-   Intermediate calculations: quantities to be used in calculations with
+    angles have their dimensions expanded to include theta (and phis).  For
+    example, we might expand x to the following:
+        x:      (..., 1)
+    to broadcast with the thetas array.  If phis is specified, we expand x to
+        x:      (..., 1, 1)
+    Other intermediate arrays are expanded to the same dimensions for
+    broadcasting -- but not necessarily the same shapes, because we want to
+    conserve memory.
+
+-   Intermediate calculations: calculations that involve summing over a series
+    will have an "order" dimensions, corresponding to the order of the
+    coefficients used in the series. We add this order dimension to the end of
+    the array, since we want to remove it after we sum over it.  In this case,
+    we might expand x as follows:
+        x:      (..., n_max)
+    where n_max is the maximum order.  If the calculation also involves the
+    angle theta, x would be expanded as
+        x:      (..., 1, n_max)
+    and if phis are involved as well,
+        x:      (..., 1, 1, n_max)
+
+-   Broadcasting: All functions broadcast over the leading dimensions of m and
+    x (the "..." above). Thus, outputs will contain the same dimensions as in
+    "..." and possibly others that have been added (like polarization). A
+    calculation done for a single value of m and of x -- shape (1, 1) for both
+    -- will retain the singlet dimension corresponding to the first 1. This
+    dimension can later be removed by ".squeeze()" but we do not squeeze by
+    default because doing so would lead to inconsistent numbers of dimensions
+    between, for example, single-wavelength and multi-wavelength calculations.
+
+-   Output shapes are as follows.  [] indicates optional
+        scat. coefficients:    (2, ..., n_max)
+        diff. cross-secs:      (num_polarizations, ..., num_thetas, [num_phis])
+        integrated cross-secs: (...,)
+        scat. matrix elements: (..., num_thetas)
+
+-   Outputs generally do not contain a layers dimension because most
+    calculations report scattering quantities for the entire sphere, not
+    individual layers within it.
+
+-   The broadcasting approach has its limitations, primarily because we choose
+    the maximum order (nstop) to calculate the Mie coefficients based on the
+    largest value of x in the array of size parameters. Therefore, in
+    calculations over a wide range of size parameters, the coefficients
+    corresponding to every size parameter are expanded to the same (large)
+    order -- which is not only inefficient, but can also lead to numerical
+    instabilities for small x's in the size parameter array. One way around
+    this limitation would be to use ragged arrays when expanding x to (...,
+    n_max), but doing this efficiently would require installing an extension to
+    numpy like Awkward Array.
+
 References
 ----------
 [1] Bohren, C. F. and Huffman, D. R. "Absorption and Scattering of Light by
