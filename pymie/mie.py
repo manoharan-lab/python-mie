@@ -98,8 +98,8 @@ Some notes on array dimensions and broadcasting:
     between, for example, single-wavelength and multi-wavelength calculations.
 
 -   Output shapes are as follows.  [] indicates optional
-        scat. coefficients:    (2, ..., n_max)
-        diff. cross-secs:      (num_polarizations, ..., num_thetas, [num_phis])
+        scat. coefficients:    (..., n_max, num_polarizations)
+        diff. cross-secs:      (..., num_thetas, [num_phis], num_polarizations)
         integrated cross-secs: (...,)
         scat. matrix elements: (..., num_thetas)
 
@@ -213,7 +213,8 @@ def calc_ang_scat(m, x, thetas, kd=None, phis=None, incident_vector=None,
         ipar = ipar * incident_vector[0]
         iperp = iperp * incident_vector[1]
 
-    return np.array([ipar, iperp])
+    # put polarization along last dimension
+    return np.stack([ipar, iperp], axis=-1)
 
 
 def calc_ang_scat_RG(m, x, angles):
@@ -243,13 +244,14 @@ def calc_ang_scat_RG(m, x, angles):
     ipar = np.absolute(S2)**2
     iperp = np.absolute(S1)**2
 
-    return np.array([ipar, iperp])
+    # put polarization along last dimension
+    return np.stack([ipar, iperp], axis=-1)
 
 
 def calc_cross_sections(m, x, eps1 = DEFAULT_EPS1,
                         eps2 = DEFAULT_EPS2):
     """
-    Calculate dimensionaless scattering, absorption, and extinction cross
+    Calculate dimensionless scattering, absorption, and extinction cross
     sections, and asymmetry parameter for spherically symmetric scatterers.
 
     Parameters
@@ -352,7 +354,7 @@ def calc_integrated_cross_section(m, x, thetas):
         complex relative refractive index
     x : array-like
         size parameter
-    thetas: array-like
+    thetas : array-like
         polar angles over which to integrate the scattering.  Must be specifed
         in radians
 
@@ -365,11 +367,13 @@ def calc_integrated_cross_section(m, x, thetas):
     """
     form_factor = calc_ang_scat(m, x, thetas)
 
+    # add axis corresponding to polarization before integration
+    thetas = thetas[..., np.newaxis]
     integrand = form_factor * np.sin(thetas)
-    integral = 2 * np.pi * np.trapezoid(integrand, x=thetas)
+    integral = 2 * np.pi * np.trapezoid(integrand, x=thetas, axis=-2)
 
     # average over two polarizations
-    return (integral.sum(axis=0))/2.0
+    return (integral.sum(axis=-1))/2.0
 
 
 def calc_energy(radius, n_medium, m, x, nstop,
@@ -593,13 +597,12 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     Parameters
     ----------
     marray : array_like, complex128
-        array of layer indexes, innermost first.  If specified as a 2D array,
-        axis=0 corresponds to the values over which to vectorize (e.g.
-        wavelengths), and axis=1 corresponds to the layer indexes
+        array of layer indexes, innermost first.  Must be specified as at least
+        a 2D array, with the last axis corresponding to the layer indexes.
     xarray : array_like, real
-        array of layer size parameters (k * outer radius), innermost first.  If
-        specified as a 2D array, axis=0 corresponds to the values over which to
-        vectorize and axis=1 corresponds to the layer size parameters.
+        array of layer size parameters (k * outer radius of layer), innermost
+        first.  Must be specified as at least a 2D array, with the last axis
+        corresponding to the layers.
     nstop : int
         maximum order.  If not specified, uses largest value of x to determine
     eps1 : float, optional
@@ -1336,7 +1339,8 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     # resulting nondimensional cross-sections can be dimensionalized by
     # multiplying by 1/|k|^2 (just as with cross-sections returned by other
     # functions)
-    return np.array([I_1.real, I_2.real])*np.abs(kd)**2
+    result = np.stack([I_1.real, I_2.real], axis=-1)
+    return result * np.abs(kd)[..., np.newaxis]**2
 
 
 def integrate_intensity_complex_medium(dscat, thetas, kd,
@@ -1386,10 +1390,15 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
     (1/np.abs(k)**2) to recover the dimensional cross-sections.
 
     """
-    # do phi integral first because it's the last dimension in dscat when
-    # specified (thus phis will broadcast with dscat)
+    # add axis for polarization dimension
+    thetas = thetas[..., np.newaxis]
+    kd = np.atleast_1d(kd)[..., np.newaxis]
+
+    # do phi integral first because it's the next-to-last dimension in dscat
+    # when specified (thus phis will broadcast with dscat)
     if phis is not None:
-        integrand = np.trapezoid(dscat, x=phis)
+        phis = phis[..., np.newaxis]
+        integrand = np.trapezoid(dscat, x=phis, axis=-2)
     else:
         integrand = dscat
         # integrate over phi: multiply by factor to integrate over phi
@@ -1397,14 +1406,16 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
         # parallel and perpendicular polarizations, respectively)
         # This factor is needed to account for polarization, which introduces
         # factors of cos(phi) and sin(phi) for the electric fields.
-        integrand[0] = (integrand[0] * (phi_max/2 + np.sin(2*phi_max)/4
-                                        - phi_min/2 - np.sin(2*phi_min)/4))
-        integrand[1] = (integrand[1] * (phi_max/2 - np.sin(2*phi_max)/4
-                                        - phi_min/2 + np.sin(2*phi_min)/4))
+        factor = np.array([(phi_max/2 + np.sin(2*phi_max)/4
+                                        - phi_min/2 - np.sin(2*phi_min)/4),
+                           (phi_max/2 - np.sin(2*phi_max)/4
+                                        - phi_min/2 + np.sin(2*phi_min)/4)])
+        integrand = integrand * factor
 
     # integrate diff. cross-sections over theta using Jacobian
     integrand = integrand * np.abs(np.sin(thetas))
-    sigma = np.trapezoid(integrand, x=thetas)
+    # shape of integrand is (..., num_thetas, num_polarization)
+    sigma = np.trapezoid(integrand, x=thetas, axis=-2)
 
     # multiply by factor that accounts for attenuation in the incident light
     # (see Sudiarta and Chylek (2001), eq 10).
@@ -1419,11 +1430,11 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
                           1 / (exponent / (2*kd.imag)
                                + (1 - exponent) / (2*kd.imag)**2))
 
-    # calculate the averaged sigma
+    # calculate the averaged sigma (polarization axis is last)
     sigma = sigma * factor
-    sigma_avg = sigma.sum(axis=0)/2
+    sigma_avg = sigma.sum(axis=-1)/2
 
-    return(sigma_avg, sigma[0], sigma[1])
+    return(sigma_avg, sigma[..., 0], sigma[..., 1])
 
 
 def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
@@ -1569,7 +1580,7 @@ def amplitude_scattering_matrix(m, x, thetas, phis=None):
     --------
     S1, S2, S3, S4: tuple of arrays
        amplitude scattering matrix elements for all values (e.g. wavelengths)
-       and theta. Shapes of all arrays are (num_values, num_theta, [num_phi])
+       and theta. Shapes of all arrays are (..., num_theta, [num_phi])
     """
     # calculate n-array
     nstop = _nstop(x.max())
@@ -1676,7 +1687,7 @@ def vector_scattering_amplitude(m, x, thetas,
 
     Returns:
     --------
-    vector scattering amplitude: tuple of arrays (num_values, num_angles)
+    vector scattering amplitude: tuple of arrays (..., num_theta, [num_phi])
         tuple describing the vector scattering amplitude in the specified
         coordinate system. not normalized.
     '''

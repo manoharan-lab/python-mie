@@ -631,7 +631,7 @@ class TestVectorizedInternalFunctions():
             expected_shape = (num_wavelen, ) + (num_theta,) + (num_phi,)
         for element in vsa + mat:
             assert element.shape == expected_shape
-        assert i12.shape == (2,) + expected_shape
+        assert i12.shape == expected_shape + (2,)
 
         # check that vectorized calculations match looped calculations over
         # scalars
@@ -675,7 +675,7 @@ class TestVectorizedInternalFunctions():
 
             S1[i], S2[i], S3[i], S4[i] = mat_loop
             amp0[i], amp1[i] = vsa_loop
-            i1[i], i2[i] = i_loop
+            i1[i], i2[i] = i_loop[..., 0], i_loop[..., 1]
             sigma[i] = integral_loop[0].squeeze()
             sigma_1[i] = integral_loop[1].squeeze()
             sigma_2[i] = integral_loop[2].squeeze()
@@ -688,8 +688,8 @@ class TestVectorizedInternalFunctions():
         assert_equal(vsa[0], amp0)
         assert_equal(vsa[1], amp1)
 
-        assert_equal(i12[0], i1)
-        assert_equal(i12[1], i2)
+        assert_equal(i12[..., 0], i1)
+        assert_equal(i12[..., 1], i2)
 
         assert_equal(integral[0], sigma)
         assert_equal(integral[1], sigma_1)
@@ -843,7 +843,7 @@ class TestVectorizedUserFunctions():
         """
         m, x = mx(num_wavelen, num_layer, **self.mxargs)
         form_factor = mie.calc_ang_scat(m, x, self.angles)
-        expected_shape = (2, num_wavelen, self.num_angle)
+        expected_shape = (num_wavelen, self.num_angle, 2)
         assert form_factor.shape == expected_shape
 
         # we should get same values from loop
@@ -853,7 +853,7 @@ class TestVectorizedUserFunctions():
             iparperp = mie.calc_ang_scat(m[[i]], x[[i]], self.angles)
             iparperp_loop.append(iparperp)
         # concatenate along wavelength axis
-        iparperp_loop = np.concatenate(iparperp_loop, axis=1)
+        iparperp_loop = np.concatenate(iparperp_loop, axis=0)
         assert_equal(form_factor, iparperp_loop)
 
         # check vectorization for Rayleigh-Gans approximation
@@ -866,7 +866,7 @@ class TestVectorizedUserFunctions():
 
         form_factor_RG = mie.calc_ang_scat_RG(m, x, self.angles)
 
-        expected_shape = (2, num_wavelen, self.num_angle)
+        expected_shape = (num_wavelen, self.num_angle, 2)
         assert form_factor_RG.shape == expected_shape
 
         # also check that we recover approximately the same result for RG as we

@@ -89,8 +89,8 @@ def test_form_factor():
 
     iparperp = mie.calc_ang_scat(m, x, angles)
     # squeeze to remove singlet wavelength dimension
-    assert_array_almost_equal(iparperp[0].squeeze(), ipar_bhmie)
-    assert_array_almost_equal(iparperp[1].squeeze(), iperp_bhmie)
+    assert_array_almost_equal(iparperp[..., 0].squeeze(), ipar_bhmie)
+    assert_array_almost_equal(iparperp[..., 1].squeeze(), iperp_bhmie)
 
 def test_efficiencies():
     x = np.array([0.01, 0.01778279, 0.03162278, 0.05623413, 0.1, 0.17782794,
@@ -174,8 +174,8 @@ def test_absorbing_materials():
 
     iparperp = mie.calc_ang_scat(m, x, angles)
     # squeeze to remove singlet wavelen axis before comparison
-    assert_array_almost_equal(iparperp[0].squeeze(), ipar_bhmie)
-    assert_array_almost_equal(iparperp[1].squeeze(), iperp_bhmie)
+    assert_array_almost_equal(iparperp[..., 0].squeeze(), ipar_bhmie)
+    assert_array_almost_equal(iparperp[..., 1].squeeze(), iperp_bhmie)
 
 def test_multilayer_spheres():
     # test that form factors and cross sections are the same for a
@@ -744,7 +744,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
                                                        near_field=False)
     # broadcast over the phi dimension, allowing us to compare to cartesian
     # calculation
-    I_parperp = np.repeat(I_parperp[..., np.newaxis], phis.shape, axis=3)
+    I_parperp = np.repeat(I_parperp[..., np.newaxis, :], phis.shape, axis=2)
 
     # calculate differential scattered intensity in xy basis
     # if incident vector is unpolarized (1,1), then the resulting differential
@@ -753,9 +753,9 @@ def test_diff_scat_intensity_complex_medium_cartesian():
                             phis = phis, near_field=False,
                             incident_vector = (1, 1))
 
-    # calculate magnitudes
-    I_xy_mag = np.sqrt((I_xy**2).sum(axis=0))
-    I_par_perp_mag = np.sqrt((I_parperp**2).sum(axis=0))
+    # calculate magnitudes (polarization axis is last)
+    I_xy_mag = np.sqrt((I_xy**2).sum(axis=-1))
+    I_par_perp_mag = np.sqrt((I_parperp**2).sum(axis=-1))
 
     # check that the magnitudes are equal
     assert_allclose(I_xy_mag, I_par_perp_mag, rtol=1e-15)
