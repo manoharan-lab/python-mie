@@ -928,3 +928,37 @@ class TestVectorizedUserFunctions():
 
         assert_allclose(refl.magnitude, refl_loop, rtol=1e-14)
         assert refl.units == 1/wavelen.units**2
+
+    def test_multidimensional_vectorization(self):
+        """Tests that specifying a multidimensional array of angles works.
+        This is to check that we can specify, for example, a different set of
+        thetas for every wavelength
+
+        """
+        num_wavelen = 11
+        num_angles = 13
+        num_layer = 2
+        m, x, wavelen, radius, n_particle, n_matrix = \
+            mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs,
+               return_all=True)
+        n_medium = 1.33
+
+        # make array of wavelength and angles where at each wavelength there is
+        # a different set of angles
+        thetas = np.linspace(np.linspace(0, 0.5*np.pi, num_angles),
+                             np.linspace(np.pi-0.5*np.pi, np.pi, num_angles),
+                             num_wavelen)
+
+        form_factor = mie.calc_ang_scat(m, x, thetas)
+        expected_shape = (num_wavelen, num_angles, 2)
+        assert form_factor.shape == expected_shape
+
+        # we should get same values from loop
+        iparperp_loop = []
+        for i in range(num_wavelen):
+            # m[[i]] notation preserves 2D array
+            iparperp = mie.calc_ang_scat(m[[i]], x[[i]], thetas[i])
+            iparperp_loop.append(iparperp)
+        # concatenate along wavelength axis
+        iparperp_loop = np.concatenate(iparperp_loop, axis=0)
+        assert_equal(form_factor, iparperp_loop)
