@@ -457,7 +457,7 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
         distance = radius.max()
         kd = (k*distance).to("").magnitude
         diff_cscat = diff_scat_intensity(m, x, angles, kd)
-        cscat = integrate_intensity(diff_cscat, angles, kd)[0]
+        cscat = integrate_intensity(diff_cscat, angles, kd)[..., -1]
     else:
         cscat = calc_cross_sections(m, x, eps1 = eps1, eps2 = eps2)[0]
         cscat = cscat * 1/k**2
@@ -491,7 +491,7 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
         k = np.atleast_1d(2*np.pi/wavelen_media)
         kd = (k*distance).to("").magnitude
         diff_cscat = diff_scat_intensity(m, x, thetas, kd)
-        refl_cscat = integrate_intensity(diff_cscat, thetas, kd)[0]
+        refl_cscat = integrate_intensity(diff_cscat, thetas, kd)[..., -1]
         refl_cscat = refl_cscat/k**2
     else:
         refl_cscat = calc_integrated_cross_section(m, x, thetas)
@@ -1443,7 +1443,10 @@ def integrate_intensity(dscat, thetas, kd=None,
     sigma = sigma * factor
     sigma_avg = sigma.sum(axis=-1)/2
 
-    return (sigma_avg, sigma[..., 0], sigma[..., 1])
+    sigma_arr = np.array((sigma[..., 0], sigma[..., 1], sigma_avg))
+
+    # rotate polarization axis to end
+    return np.moveaxis(sigma_arr, 0, -1)
 
 
 def diff_abs_intensity_complex_medium(m, x, thetas, ktd):

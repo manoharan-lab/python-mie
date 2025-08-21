@@ -669,9 +669,10 @@ class TestVectorizedInternalFunctions():
             S1[i], S2[i], S3[i], S4[i] = mat_loop
             amp0[i], amp1[i] = vsa_loop
             i1[i], i2[i] = i_loop[..., 0], i_loop[..., 1]
-            sigma[i] = integral_loop[0].squeeze()
-            sigma_1[i] = integral_loop[1].squeeze()
-            sigma_2[i] = integral_loop[2].squeeze()
+            sigma_1[i] = integral_loop[..., 0].squeeze()
+            sigma_2[i] = integral_loop[..., 1].squeeze()
+            sigma[i] = integral_loop[..., -1].squeeze()
+
 
         assert_equal(mat[0], S1)
         assert_equal(mat[1], S2)
@@ -684,9 +685,10 @@ class TestVectorizedInternalFunctions():
         assert_equal(i12[..., 0], i1)
         assert_equal(i12[..., 1], i2)
 
-        assert_equal(integral[0], sigma)
-        assert_equal(integral[1], sigma_1)
-        assert_equal(integral[2], sigma_2)
+        assert_equal(integral[..., 0], sigma_1)
+        assert_equal(integral[..., 1], sigma_2)
+        assert_equal(integral[..., -1], sigma)
+
 
 
 class TestVectorizedUserFunctions():

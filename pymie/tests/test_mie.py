@@ -552,7 +552,7 @@ def test_cross_section_complex_medium():
     # With Mie solutions in absorbing medium
     rho_scat = (k*distance).to("").magnitude
     I_parperp = mie.calc_ang_scat(m, x, theta, kd=rho_scat)
-    cscat_exact = mie.integrate_intensity(I_parperp, theta, rho_scat)[0]
+    cscat_exact = mie.integrate_intensity(I_parperp, theta, rho_scat)[..., -1]
     cscat_exact_dimensional = (cscat_exact/np.abs(k)**2).to("um^2")
 
     # check that intensity equations without the asymptotic form of the spherical
@@ -597,7 +597,7 @@ def test_cross_section_complex_medium():
     # With full Mie solutions that include the near fields
     rho_scat = (k*distance).to("").magnitude
     I_parperp = mie.diff_scat_intensity(m, x, theta, rho_scat, near_field=True)
-    cscat_exact2 = mie.integrate_intensity(I_parperp, theta, rho_scat)[0]
+    cscat_exact2 = mie.integrate_intensity(I_parperp, theta, rho_scat)[..., -1]
     cscat_exact2_dimensional = (cscat_exact2/np.abs(k)**2).to("um^2")
 
     assert_allclose(cscat_exact2_dimensional.magnitude,
@@ -616,7 +616,7 @@ def test_cross_section_complex_medium():
     # With full Mie solutions
     I_parperp = mie.calc_ang_scat(m, x, theta, kd=rho_scat)
 
-    cscat_exact3 = mie.integrate_intensity(I_parperp, theta, rho_scat)[0]
+    cscat_exact3 = mie.integrate_intensity(I_parperp, theta, rho_scat)[..., -1]
     cscat_exact3_dimensional = (cscat_exact3/np.abs(k)**2).to("um^2")
 
     # With far-field Mie solutions
@@ -650,7 +650,7 @@ def test_multilayer_complex_medium():
 
     # with imag solutions
     I_parperp = mie.calc_ang_scat(marray, xarray, angles, kd=kd)
-    cscat_imag = mie.integrate_intensity(I_parperp, angles, kd)[0]
+    cscat_imag = mie.integrate_intensity(I_parperp, angles, kd)[..., -1]
 
     cscat_imag_dimensional = (cscat_imag/np.abs(k)**2).to("nm^2")
 
@@ -779,7 +779,7 @@ def test_integrate_intensity_cartesian():
     I_parperp = mie.calc_ang_scat(m, x, thetas, kd=kd)
 
     # integrate the differential scattered intensities
-    cscat_xy = mie.integrate_intensity(I_xy, thetas, kd, phis=phis)[0]
+    cscat_xy = mie.integrate_intensity(I_xy, thetas, kd, phis=phis)[..., -1]
     cscat_xy_dimensional = (cscat_xy/np.abs(k)**2).to("nm^2")
 
     # check that intensity equations without the asymptotic form of the spherical
@@ -788,7 +788,7 @@ def test_integrate_intensity_cartesian():
     cscat_xy_old = Quantity(6010696.7108612377, "nm^2")
     assert_allclose(cscat_xy_dimensional.magnitude, cscat_xy_old.magnitude)
 
-    cscat_parperp = mie.integrate_intensity(I_parperp, thetas, kd=kd)[0]
+    cscat_parperp = mie.integrate_intensity(I_parperp, thetas, kd=kd)[..., -1]
 
     # check that the integrated cross sections are equal
     assert_allclose(cscat_xy, cscat_parperp, rtol=1e-15)
