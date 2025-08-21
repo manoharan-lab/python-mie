@@ -473,7 +473,7 @@ def test_pis_taus():
 
 def test_differential_cross_section():
     """
-    Tests that the differential cross-sections from diff_scat_complex_medium()
+    Tests that the differential cross-sections from diff_scat_intensity()
     and calc_ang_scat() are the same for a non-absorbing medium.
     """
     # set parameters
@@ -494,16 +494,16 @@ def test_differential_cross_section():
     # With Mie solutions at surface of particle (but neglecting near-fields)
     kd = (k*distance).to("").magnitude
     incident_vector = [1, 1]
-    I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, kd,
-                                                       incident_vector =
-                                                       incident_vector)
+    I_parperp = mie.diff_scat_intensity(m, x, theta, kd,
+                                        incident_vector =
+                                        incident_vector)
 
     # since both of these functions rely on the same routine to calculate the
     # amplitude scattering matrix, they should give results to within
     # floating-point precision
     assert_allclose(I_parperp, I_parperp_cad, rtol=1e-14)
 
-    # Now check that calc_ang_dist() calls diff_scat_intensity_complex_medium
+    # Now check that calc_ang_dist() calls diff_scat_intensity
     # when kd is specified
     I_parperp_cad_kd = mie.calc_ang_scat(m, x, theta, kd=kd)
 
@@ -552,8 +552,7 @@ def test_cross_section_complex_medium():
     # With Mie solutions in absorbing medium
     rho_scat = (k*distance).to("").magnitude
     I_parperp = mie.calc_ang_scat(m, x, theta, kd=rho_scat)
-    cscat_exact = mie.integrate_intensity_complex_medium(I_parperp, theta,
-                                                         rho_scat)[0]
+    cscat_exact = mie.integrate_intensity(I_parperp, theta, rho_scat)[0]
     cscat_exact_dimensional = (cscat_exact/np.abs(k)**2).to("um^2")
 
     # check that intensity equations without the asymptotic form of the spherical
@@ -597,10 +596,8 @@ def test_cross_section_complex_medium():
                                                       wavelen)[0]
     # With full Mie solutions that include the near fields
     rho_scat = (k*distance).to("").magnitude
-    I_parperp = mie.diff_scat_intensity_complex_medium(m, x, theta, rho_scat,
-                                                       near_field=True)
-    cscat_exact2 = mie.integrate_intensity_complex_medium(I_parperp, theta,
-                                                          rho_scat)[0]
+    I_parperp = mie.diff_scat_intensity(m, x, theta, rho_scat, near_field=True)
+    cscat_exact2 = mie.integrate_intensity(I_parperp, theta, rho_scat)[0]
     cscat_exact2_dimensional = (cscat_exact2/np.abs(k)**2).to("um^2")
 
     assert_allclose(cscat_exact2_dimensional.magnitude,
@@ -619,8 +616,7 @@ def test_cross_section_complex_medium():
     # With full Mie solutions
     I_parperp = mie.calc_ang_scat(m, x, theta, kd=rho_scat)
 
-    cscat_exact3 = mie.integrate_intensity_complex_medium(I_parperp, theta,
-                                                          rho_scat)[0]
+    cscat_exact3 = mie.integrate_intensity(I_parperp, theta, rho_scat)[0]
     cscat_exact3_dimensional = (cscat_exact3/np.abs(k)**2).to("um^2")
 
     # With far-field Mie solutions
@@ -654,8 +650,7 @@ def test_multilayer_complex_medium():
 
     # with imag solutions
     I_parperp = mie.calc_ang_scat(marray, xarray, angles, kd=kd)
-    cscat_imag = mie.integrate_intensity_complex_medium(I_parperp, angles,
-                                                        kd)[0]
+    cscat_imag = mie.integrate_intensity(I_parperp, angles, kd)[0]
 
     cscat_imag_dimensional = (cscat_imag/np.abs(k)**2).to("nm^2")
 
@@ -717,7 +712,7 @@ def test_vector_scattering_amplitude_2d_theta_cartesian():
     assert_allclose(as_vec_y0, as_vec_y)
 
 
-def test_diff_scat_intensity_complex_medium_cartesian():
+def test_diff_scat_intensity_cartesian():
     '''
     Test that the magnitude of the differential scattered intensity is the
     same in the xy basis as it is in the parallel, perpendicular basis, as
@@ -740,8 +735,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     kd = (2*np.pi*n_matrix/wavelen*Quantity(10000.0, "nm")).to("").magnitude
 
     # calculate differential scattered intensity in par/perp basis
-    I_parperp = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                                                       near_field=False)
+    I_parperp = mie.diff_scat_intensity(m, x, thetas, kd, near_field=False)
     # broadcast over the phi dimension, allowing us to compare to cartesian
     # calculation
     I_parperp = np.repeat(I_parperp[..., np.newaxis, :], phis.shape, axis=2)
@@ -749,9 +743,9 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     # calculate differential scattered intensity in xy basis
     # if incident vector is unpolarized (1,1), then the resulting differential
     # scattered intensity should be the same as I_par, I_perp
-    I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                            phis = phis, near_field=False,
-                            incident_vector = (1, 1))
+    I_xy = mie.diff_scat_intensity(m, x, thetas, kd, phis=phis,
+                                   near_field=False,
+                                   incident_vector = (1, 1))
 
     # calculate magnitudes (polarization axis is last)
     I_xy_mag = np.sqrt((I_xy**2).sum(axis=-1))
@@ -760,7 +754,7 @@ def test_diff_scat_intensity_complex_medium_cartesian():
     # check that the magnitudes are equal
     assert_allclose(I_xy_mag, I_par_perp_mag, rtol=1e-15)
 
-def test_integrate_intensity_complex_medium_cartesian():
+def test_integrate_intensity_cartesian():
     '''
     Test that when integrated over all theta and phi angles, the intensities
     calculated in the par/perp basis match those calculated in the x/y basis
@@ -785,8 +779,7 @@ def test_integrate_intensity_complex_medium_cartesian():
     I_parperp = mie.calc_ang_scat(m, x, thetas, kd=kd)
 
     # integrate the differential scattered intensities
-    cscat_xy = mie.integrate_intensity_complex_medium(I_xy, thetas, kd,
-                                                      phis=phis)[0]
+    cscat_xy = mie.integrate_intensity(I_xy, thetas, kd, phis=phis)[0]
     cscat_xy_dimensional = (cscat_xy/np.abs(k)**2).to("nm^2")
 
     # check that intensity equations without the asymptotic form of the spherical
@@ -795,8 +788,7 @@ def test_integrate_intensity_complex_medium_cartesian():
     cscat_xy_old = Quantity(6010696.7108612377, "nm^2")
     assert_allclose(cscat_xy_dimensional.magnitude, cscat_xy_old.magnitude)
 
-    cscat_parperp = mie.integrate_intensity_complex_medium(I_parperp, thetas,
-                                                           kd)[0]
+    cscat_parperp = mie.integrate_intensity(I_parperp, thetas, kd=kd)[0]
 
     # check that the integrated cross sections are equal
     assert_allclose(cscat_xy, cscat_parperp, rtol=1e-15)
@@ -823,16 +815,13 @@ def test_value_errors():
 
     with pytest.raises(ValueError):
         # try to calculate near field in cartesian
-        _ = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                                                   phis=phis,
-                                                   near_field=True)
-    # calculate the differential scattered intensities
-    I_xy = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                                                  phis=phis,
-                                                  near_field=False)
+        _ = mie.diff_scat_intensity(m, x, thetas, kd, phis=phis,
+                                    near_field=True)
+        # calculate the differential scattered intensities
+    I_xy = mie.diff_scat_intensity(m, x, thetas, kd, phis=phis,
+                                   near_field=False)
 
-    _ = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                                               near_field=True)
+    _ = mie.diff_scat_intensity(m, x, thetas, kd, near_field=True)
 
 
 def test_dwell_time_and_energy():

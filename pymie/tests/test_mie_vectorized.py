@@ -383,9 +383,9 @@ class TestVectorizedInternalFunctions():
         tested by `test_vectorized_cross_sections_complex_medium()`
     _scat_fields_complex_medium() :
         * vectorization not yet tested
-    diff_scat_intensity_complex_medium() :
+    diff_scat_intensity() :
         tested by `test_vectorized_angular_functions()`
-    integrate_intensity_complex_medium() :
+    integrate_intensity() :
         tested by `test_vectorized_angular_functions()`
     diff_abs_intensity_complex_medium() :
         * vectorization not yet tested
@@ -587,12 +587,11 @@ class TestVectorizedInternalFunctions():
                                                     num_layer,
                                                     cartesian):
         """Tests that mie.vector_scattering_amplitude(),
-        mie.amplitude_scattering_matrix(),
-        diff_scat_intensity_complex_medium(), and
-        integrate_intensity_complex_medium() vectorize properly
+        mie.amplitude_scattering_matrix(), diff_scat_intensity(), and
+        integrate_intensity() vectorize properly
 
         TODO: test vectorized near-field calculation in
-        diff_scat_intensity_complex_medium()
+        diff_scat_intensity()
 
         """
         m, x, wavelen, radius, n_particle, n_matrix = \
@@ -617,13 +616,12 @@ class TestVectorizedInternalFunctions():
         k = 2*np.pi*n_matrix/wavelen
         d = 10*np.atleast_1d(radius)[-1]
         kd = np.atleast_1d(k*d).to("").magnitude
-        i12 = mie.diff_scat_intensity_complex_medium(m, x, thetas, kd,
-                                                     phis=phis)
+        i12 = mie.diff_scat_intensity(m, x, thetas, kd, phis=phis)
 
-        integral = mie.integrate_intensity_complex_medium(i12, thetas, kd,
-                                                          phi_min=0.0,
-                                                          phi_max=2*np.pi,
-                                                          phis=phis)
+        integral = mie.integrate_intensity(i12, thetas, kd,
+                                           phi_min=0.0,
+                                           phi_max=2*np.pi,
+                                           phis=phis)
 
         # check that shapes of all the computed quantities are correct
         expected_shape = (num_wavelen, ) + (num_theta,)
@@ -660,18 +658,13 @@ class TestVectorizedInternalFunctions():
             vsa_loop = mie.vector_scattering_amplitude(m[[i]], x[[i]],
                                                        thetas,
                                                        phis = phis)
-            i_loop = mie.diff_scat_intensity_complex_medium(m[[i]], x[[i]],
-                                                            thetas,
-                                                            kd[i],
-                                                            phis = phis)
+            i_loop = mie.diff_scat_intensity(m[[i]], x[[i]], thetas, kd[i],
+                                             phis = phis)
 
-            integral_loop = mie.integrate_intensity_complex_medium(i_loop,
-                                                                   thetas,
-                                                                   kd[i],
-                                                                   phi_min=0.0,
-                                                                   phi_max =
-                                                                   2*np.pi,
-                                                                   phis=phis)
+            integral_loop = mie.integrate_intensity(i_loop, thetas, kd[i],
+                                                    phi_min=0.0,
+                                                    phi_max=2*np.pi,
+                                                    phis=phis)
 
             S1[i], S2[i], S3[i], S4[i] = mat_loop
             amp0[i], amp1[i] = vsa_loop

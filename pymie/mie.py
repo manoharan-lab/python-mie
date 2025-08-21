@@ -180,10 +180,8 @@ def calc_ang_scat(m, x, thetas, kd=None, phis=None, incident_vector=None,
         & Huffman ch. 3 for details.
     """
     if (kd is not None) or (phis is not None):
-        return diff_scat_intensity_complex_medium(m, x, thetas, kd=kd,
-                                                  phis=phis,
-                                                  incident_vector =
-                                                  incident_vector)
+        return diff_scat_intensity(m, x, thetas, kd=kd, phis=phis,
+                                   incident_vector=incident_vector)
 
     # Mie scattering preliminaries
     nstop = _nstop(x.max())
@@ -458,8 +456,8 @@ def calc_dwell_time(radius, n_medium, n_particle, wavelen,
         angles = np.linspace(min_angle, np.pi, num_angles)
         distance = radius.max()
         kd = (k*distance).to("").magnitude
-        diff_cscat = diff_scat_intensity_complex_medium(m, x, angles, kd)
-        cscat = integrate_intensity_complex_medium(diff_cscat, angles, kd)[0]
+        diff_cscat = diff_scat_intensity(m, x, angles, kd)
+        cscat = integrate_intensity(diff_cscat, angles, kd)[0]
     else:
         cscat = calc_cross_sections(m, x, eps1 = eps1, eps2 = eps2)[0]
         cscat = cscat * 1/k**2
@@ -492,10 +490,8 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
         distance = rmax
         k = np.atleast_1d(2*np.pi/wavelen_media)
         kd = (k*distance).to("").magnitude
-        diff_cscat = diff_scat_intensity_complex_medium(m, x, thetas,
-                                                        kd)
-        refl_cscat = integrate_intensity_complex_medium(diff_cscat, thetas,
-                                                        kd)[0]
+        diff_cscat = diff_scat_intensity(m, x, thetas, kd)
+        refl_cscat = integrate_intensity(diff_cscat, thetas, kd)[0]
         refl_cscat = refl_cscat/k**2
     else:
         refl_cscat = calc_integrated_cross_section(m, x, thetas)
@@ -1172,20 +1168,21 @@ def _scat_fields_complex_medium(m, x, thetas, kd, near_field=False):
         # note that these solutions are not currently used anywhere in mie.py.
         # When the fields are multiplied to calculate the intensity, the
         # exponential terms reduce down to a term that depends on kd (see
-        # diff_scat_intensity_complex_medium(). So these equations lead to
+        # diff_scat_intensity(). So these equations lead to
         # intensities that are the same as those calculated with the scattering
-        # matrix in diff_scat_intensity_complex_medium().
+        # matrix in diff_scat_intensity().
         # We leave the expressions here in case users ever have a need to know
         # the actual fields, rather than the intensities.
 
     return Es_theta, Es_phi, Hs_theta, Hs_phi
 
 
-def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
-                                       near_field=False,
-                                       incident_vector=None):
+def diff_scat_intensity(m, x, thetas, kd=None, phis=None,
+                        near_field=False,
+                        incident_vector=None):
     """
-    Calculates the differential scattered intensity in an absorbing medium.
+    Calculates the differential scattered intensity for both absorbing and
+    non-absorbing medium.
     User can choose whether to include near fields.
 
     When phis is None:
@@ -1223,11 +1220,11 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
         size parameter, x = ka = 2*pi*n_med/lambda * a (sphere radius a)
     thetas : array-like
         Scattering angles.  Must be in radians.
-    kd : float
+    kd : float (default None)
         k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
         distance away from the center of the particle. The standard far-field
         solutions are obtained when distance >> radius in a non-absorbing
-        medium.
+        medium.  If kd is None, far-field solutions are used.
     phis : None or ndarray
         Azimuthal angles for which to calculate the diff scat intensity. If not
         provided, scattering calculations will be carried out in the
@@ -1295,25 +1292,29 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
     in an absorbing medium". Applied Optics, 40, 9 (2001).
 
     """
-    # ensure that broadcasting will work correctly by adding an axis
-    # corresponding to theta
-    kd = np.atleast_1d(kd)[..., np.newaxis]
-    if phis is not None:
-        kd = kd[..., np.newaxis]
+    if kd is not None:
+        # ensure that broadcasting will work correctly by adding an axis
+        # corresponding to theta
+        kd = np.atleast_1d(kd)[..., np.newaxis]
+        if phis is not None:
+            kd = kd[..., np.newaxis]
 
     if near_field:
+        if kd is None:
+            raise ValueError("Near field calculation requires nondimensional "
+                             "distance kd to be specified")
         if phis is None:
             # calculate scattered fields in scattering plane coordinate system
             Es_theta, Es_phi, Hs_theta, Hs_phi = _scat_fields_complex_medium(m,
                                         x,thetas, kd, near_field=near_field)
-            I_1 = Es_theta * np.conj(Hs_phi) # I_par
-            I_2 = -Es_phi * np.conj(Hs_theta) # I_perp
+            # calculate intensity and multiply by |kd|^2 so that resulting
+            # values can be dimensionalized by multiplying by 1/|k|^2
+            I_1 = Es_theta * np.conj(Hs_phi) * np.abs(kd)**2  # I_par
+            I_2 = -Es_phi * np.conj(Hs_theta) * np.abs(kd)**2 # I_perp
         else:
             raise ValueError("Near fields have not been implemented for the "
                              "Cartesian coordinate system. Set near_field "
                              "to False to calculate scattered intensity")
-
-
     else:
         # calculate vector scattering amplitude
         vec_scat_amp_1, vec_scat_amp_2 = vector_scattering_amplitude(m, x,
@@ -1331,25 +1332,28 @@ def diff_scat_intensity_complex_medium(m, x, thetas, kd, phis=None,
         # down to 1/(kd)^2 when k is real, which is the factor usually used to
         # get the final intensity in a non-absorbing medium (p. 113 of Bohren
         # and Huffman).
-        factor = np.exp(-2*kd.imag) / ((kd.real)**2 + (kd.imag)**2)
+        if kd is not None:
+            # The factor is normally e^(-2k_I)/|k|^2 but we simplify to
+            # e^(2k_I) so that the resulting non-dimensional cross-sections can
+            # be dimensionalized by multiplying by 1/|k|^2 (just as with
+            # cross-sections returned by other functions). For far-field, the
+            # simplified factor is unity
+            factor = np.exp(-2*kd.imag)
+        else:
+            factor = 1
+
         I_1 = (np.abs(vec_scat_amp_1)**2)*factor # par or x
         I_2 = (np.abs(vec_scat_amp_2)**2)*factor # perp or y
 
-    # the intensities should be real. We multiply by |kd|^2 so that the
-    # resulting nondimensional cross-sections can be dimensionalized by
-    # multiplying by 1/|k|^2 (just as with cross-sections returned by other
-    # functions)
-    result = np.stack([I_1.real, I_2.real], axis=-1)
-    return result * np.abs(kd)[..., np.newaxis]**2
+    # the intensities should be real
+    return np.stack([I_1.real, I_2.real], axis=-1)
 
 
-def integrate_intensity_complex_medium(dscat, thetas, kd,
-                                       phi_min=0.0,
-                                       phi_max=2*np.pi,
-                                       phis=None):
+def integrate_intensity(dscat, thetas, kd=None,
+                        phi_min=0.0, phi_max=2*np.pi, phis=None):
     """
     Calculates the scattering cross section by integrating the differential
-    scattered intensity at a distance of our choice in an absorbing medium.
+    scattered intensity. If the medium is absorbing, kd should be specified.
     Choosing the right distance is essential in an absorbing medium because the
     differential scattering intensities decrease with increasing distance.
     The integration is done over scattering angles theta and azimuthal angles
@@ -1357,10 +1361,9 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
 
     Parameters
     ----------
-    dscat : array-like with shape (2, ..., num_thetas, [num_phis])
+    dscat : array-like with shape (..., num_thetas, [num_phis], 2)
         differential scattered intensities for both polarizations. Can be
-        functions of theta or of theta and phi. If a function of theta and phi,
-        the theta dimension MUST come first
+        functions of theta or of theta and phi.
     thetas : array-like, shape ([angle_leading_dims], num_thetas)
         scattering angles
     kd : array-like, shape (...)
@@ -1392,7 +1395,6 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
     """
     # add axis for polarization dimension
     thetas = thetas[..., np.newaxis]
-    kd = np.atleast_1d(kd)[..., np.newaxis]
 
     # do phi integral first because it's the next-to-last dimension in dscat
     # when specified (thus phis will broadcast with dscat)
@@ -1407,9 +1409,9 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
         # This factor is needed to account for polarization, which introduces
         # factors of cos(phi) and sin(phi) for the electric fields.
         factor = np.array([(phi_max/2 + np.sin(2*phi_max)/4
-                                        - phi_min/2 - np.sin(2*phi_min)/4),
+                            - phi_min/2 - np.sin(2*phi_min)/4),
                            (phi_max/2 - np.sin(2*phi_max)/4
-                                        - phi_min/2 + np.sin(2*phi_min)/4)])
+                            - phi_min/2 + np.sin(2*phi_min)/4)])
         integrand = integrand * factor
 
     # integrate diff. cross-sections over theta using Jacobian
@@ -1421,20 +1423,27 @@ def integrate_intensity_complex_medium(dscat, thetas, kd,
     # (see Sudiarta and Chylek (2001), eq 10).
     # if the imaginary part of k is close to 0 (because the medium index is
     # close to 0), then use the limit value of factor for the calculations
-    exponent = np.exp(2*kd.imag)
-    factor_limit = 2
-    # ignore division by zero in case k.imag=0; we'll replace the nans with the
-    # limit value of factor anyway
-    with np.errstate(divide='ignore', invalid='ignore'):
-        factor = np.where(kd.imag <= 1e-6, factor_limit,
-                          1 / (exponent / (2*kd.imag)
-                               + (1 - exponent) / (2*kd.imag)**2))
+    if kd is not None:
+        # add axis corresponding to polarization
+        kd = np.atleast_1d(kd)[..., np.newaxis]
+
+        exponent = np.exp(2*kd.imag)
+        factor_limit = 2
+        # ignore division by zero in case k.imag=0; we'll replace the nans
+        # with the limit value of factor anyway
+        with np.errstate(divide='ignore', invalid='ignore'):
+            factor = np.where(kd.imag <= 1e-6, factor_limit,
+                              1 / (exponent / (2*kd.imag)
+                                   + (1 - exponent) / (2*kd.imag)**2))
+    else:
+        # far field result
+        factor = 2
 
     # calculate the averaged sigma (polarization axis is last)
     sigma = sigma * factor
     sigma_avg = sigma.sum(axis=-1)/2
 
-    return(sigma_avg, sigma[..., 0], sigma[..., 1])
+    return (sigma_avg, sigma[..., 0], sigma[..., 1])
 
 
 def diff_abs_intensity_complex_medium(m, x, thetas, ktd):
