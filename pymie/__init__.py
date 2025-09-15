@@ -33,12 +33,11 @@ Docs: https://pint.readthedocs.io/en/latest/
 """
 
 import numpy as np
-from pint import UnitRegistry
+import pint
 
-# Load the default unit registry from pint and use it everywhere.
-# Using the unit registry (and wrapping all functions) ensures that we don't
-# make unit mistakes
-ureg = UnitRegistry()
+# Load either the default unit registry or the registry that has been set by
+# packages that use pymie
+ureg = pint.get_application_registry()
 Quantity = ureg.Quantity
 
 @ureg.check('[length]', None)
