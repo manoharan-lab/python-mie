@@ -70,3 +70,30 @@ class MieCalculations:
         # and packages in addition to array memory
         mie.calc_ang_scat(self.m, self.x, self.thetas, phis=self.phis,
                           kd=self.kd)
+
+class VectorizedMieCalculations:
+    """As above, but benchmarks results for functions that are vectorized over
+    m and x.
+
+    """
+    # we'll check how time and memory scale with number of sphere diameters
+    params = [1, 10, 100, 1000]
+    param_names = ["n_sizes"]
+
+    def setup(self, n_sizes):
+        # Use a PS sphere with absorption in non-absorbing medium (water), and
+        # remember that m has to have shape (..., 1) for homogeneous spheres
+        self.m = np.ones((n_sizes, 1)) * 1.59/1.33 + 1e-3j
+        # Choose size parameters around 10, corresponding to about
+        # 1-micrometer-diameter particles at 500 nm incident wavelength
+        self.x = np.linspace(7.0, 13.0, n_sizes)[:, np.newaxis]
+        self.thetas = np.linspace(0, np.pi, 100)
+
+    def time_calc_cross_sections(self, n_sizes):
+        mie.calc_cross_sections(self.m, self.x)
+
+    def time_calc_ang_scat(self, n_sizes):
+        mie.calc_ang_scat(self.m, self.x, self.thetas)
+
+    def peakmem_calc_ang_scat(self, n_sizes):
+        mie.calc_ang_scat(self.m, self.x, self.thetas)
