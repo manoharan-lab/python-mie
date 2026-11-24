@@ -31,7 +31,10 @@ class MieCalculations:
     params = [[(1.59/1.33,),
                (1.59/1.33 + 1e-3j,),
                (1.59/1.33, 1.45/1.33 + 1e-3j)],
-              [0.1, 1.0, 10.0, 100.0, 1000.0]]
+              [0.1, 1.0, 10.0, 100.0, 1000.0,
+               # the following values correspond to an absorbing medium with an
+               # imaginary index ~0.01
+               0.1 + 0.001j, 10.0 + 0.1j, 1000.0 + 10.0j]]
     param_names = ["m", "x"]
 
     def setup(self, m, x):
@@ -42,6 +45,11 @@ class MieCalculations:
         self.x = x * (np.arange(1, n_layers + 1) / n_layers)
         self.thetas = np.linspace(0, np.pi, 1000)
         self.phis = np.linspace(0, 2*np.pi, 300)
+        # for absorbing medium, calculate intensity at the particle surface
+        if np.iscomplexobj(self.x):
+            self.kd = self.x[-1]
+        else:
+            self.kd = None
 
     def time_calc_cross_sections(self, m, x):
         mie.calc_cross_sections(self.m, self.x)
@@ -50,13 +58,15 @@ class MieCalculations:
         mie.amplitude_scattering_matrix(self.m, self.x, self.thetas)
 
     def time_calc_ang_scat(self, m, x):
-        mie.calc_ang_scat(self.m, self.x, self.thetas)
+        mie.calc_ang_scat(self.m, self.x, self.thetas, kd=self.kd)
 
     def time_calc_ang_scat_2d(self, m, x):
         # time calculation of 2D phase function
-        mie.calc_ang_scat(self.m, self.x, self.thetas, phis=self.phis)
+        mie.calc_ang_scat(self.m, self.x, self.thetas, phis=self.phis,
+                          kd=self.kd)
 
     def peakmem_calc_ang_scat_2d(self, m, x):
         # reports peak memory during execution, including memory used by python
         # and packages in addition to array memory
-        mie.calc_ang_scat(self.m, self.x, self.thetas, phis=self.phis)
+        mie.calc_ang_scat(self.m, self.x, self.thetas, phis=self.phis,
+                          kd=self.kd)
