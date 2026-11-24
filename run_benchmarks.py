@@ -25,9 +25,14 @@ Usage (from repository root): python run_benchmarks.py
 import subprocess
 import sys
 
+import asv.results
+from asv.config import Config
+
+CONFIG_FILE = "asv.conf.json"
+
 
 def run_asv():
-    """Run benchmarks on HEAD.  Results are saved to asv's JSON file
+    """Run benchmarks on HEAD.  Results are saved to asv's JSON file.
 
     """
     asv_run_command = ["asv", "run", "HEAD^!", "--show-stderr"]
@@ -40,6 +45,25 @@ def run_asv():
     return status
 
 
+def load_results():
+    """Load asv's results.
+    """
+    conf = Config.load(CONFIG_FILE)
+    all_results = list(asv.results.iter_results(conf.results_dir))
+    # search through all benchmarks in all result files to find the one that is
+    # most recent
+    # TODO: change this to find the commit hash for HEAD and load the file
+    # directly, which will be more efficient than searching
+    results = max(all_results,
+                  key=lambda r: max(r.started_at.values(), default=0))
+
+    return results
+
+
 if __name__ == "__main__":
-    # running with sys.exit() will pass asv's exit status to the caller
-    sys.exit(run_asv())
+    status = run_asv()
+    if status != 0:
+        # if there's an error, exit and pass asv's exit status to the caller
+        sys.exit(status)
+    results = load_results()
+
