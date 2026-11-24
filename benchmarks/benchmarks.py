@@ -48,3 +48,6 @@ class MieCalculations:
     def time_amplitude_scattering_matrix(self, m, x):
         mie.amplitude_scattering_matrix(self.m, self.x, self.thetas)
 
+    def time_calc_ang_scat(self, m, x):
+        mie.calc_ang_scat(self.m, self.x, self.thetas)
+
