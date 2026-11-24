@@ -125,7 +125,9 @@
     "req": {
       "numpy": [""],
       "scipy": [""],
-      "pint": [""]
+      "pint": [""],
+      "miepython": [""],
+      "numba": [""]
     }
   },
   // Combinations of libraries/python versions can be excluded/included
