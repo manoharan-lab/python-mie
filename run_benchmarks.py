@@ -97,10 +97,23 @@ def get_timings(results, benchmark, param_names):
                      dtype=float)
 
 
+def print_comparison(title, pymie_result, miepython_result):
+    """Prints pymie timings, miepython timings, and ratio of the two
+
+    """
+    # merge results into a DataFrame
+    table = pd.DataFrame({"pymie (ms)": pymie_result*1e3,
+                          "miepython (ms)": miepython_result*1e3,
+                          "pymie/miepython": pymie_result/miepython_result})
+    print(f"\n{title}")
+    print(table.to_string(float_format="{:.3f}".format))
+
+
 def print_results(results):
     """
     Print results for selected benchmarks with consistent units.
     """
+    # results for cross sections as a function of x
     pymie_result = get_timings(
         results,
         "benchmarks.MieCalculations.time_calc_cross_sections",
@@ -118,13 +131,21 @@ def print_results(results):
     pymie_x_result = pymie_x_result[np.imag(pymie_x_result.index) == 0]
     # convert index to real
     pymie_x_result.index = pd.Index(np.real(pymie_x_result.index), name="x")
+    print_comparison("Times for cross section as a function of size parameter",
+                     pymie_x_result, miepython_x_result)
 
-    print("Cross-section evaluation times (ms) "
-          "as a function of size parameter")
-    print("pymie")
-    print(pymie_x_result*1e3)
-    print("miepython")
-    print(miepython_x_result*1e3)
+    # results for vectorized cross sections as a function of n_sizes
+    pymie_result = get_timings(
+        results,
+        "benchmarks.VectorizedMieCalculations.time_calc_cross_sections",
+        ["n_sizes"])
+    miepython_result = get_timings(
+        results,
+        "miepython_reference.VectorizedMiepythonCalculations.time_efficiencies",
+        ["n_sizes"])
+    print_comparison("Times for vectorized cross section as a function of "
+                     "number of sizes",
+                     pymie_result, miepython_result)
 
 
 if __name__ == "__main__":
@@ -134,4 +155,3 @@ if __name__ == "__main__":
         sys.exit(status)
     results = load_results()
     print_results(results)
-
