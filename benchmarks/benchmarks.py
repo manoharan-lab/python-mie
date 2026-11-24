@@ -23,11 +23,20 @@ import numpy as np
 from pymie import mie
 
 
-class CrossSections:
-    def setup(self):
-        # arrays need to be at least 1d (axis corresponds to layers)
-        self.m = np.array([1.59/1.33])
-        self.x = np.array([10.0])
+class MieCalculations:
+    params = [[1.59/1.33, 1.59/1.33 + 1e-3j],
+              [0.1, 1.0, 10.0, 100.0, 1000.0]]
+    param_names = ["m", "x"]
 
-    def time_calc_cross_sections(self):
+    def setup(self, m, x):
+        # arrays need to be at least 1d (axis corresponds to layers)
+        self.m = np.array([m])
+        self.x = np.array([x])
+        self.thetas = np.linspace(0, np.pi, 1000)
+
+    def time_calc_cross_sections(self, m, x):
         mie.calc_cross_sections(self.m, self.x)
+
+    def time_amplitude_scattering_matrix(self, m, x):
+        mie.amplitude_scattering_matrix(self.m, self.x, self.thetas)
+
