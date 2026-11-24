@@ -41,6 +41,7 @@ class MieCalculations:
         # k/n of the particle size, where n is the number of layers
         self.x = x * (np.arange(1, n_layers + 1) / n_layers)
         self.thetas = np.linspace(0, np.pi, 1000)
+        self.phis = np.linspace(0, 2*np.pi, 300)
 
     def time_calc_cross_sections(self, m, x):
         mie.calc_cross_sections(self.m, self.x)
@@ -51,3 +52,11 @@ class MieCalculations:
     def time_calc_ang_scat(self, m, x):
         mie.calc_ang_scat(self.m, self.x, self.thetas)
 
+    def time_calc_ang_scat_2d(self, m, x):
+        # time calculation of 2D phase function
+        mie.calc_ang_scat(self.m, self.x, self.thetas, phis=self.phis)
+
+    def peakmem_calc_ang_scat_2d(self, m, x):
+        # reports peak memory during execution, including memory used by python
+        # and packages in addition to array memory
+        mie.calc_ang_scat(self.m, self.x, self.thetas, phis=self.phis)
