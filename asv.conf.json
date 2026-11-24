@@ -218,4 +218,10 @@
   //    "some_benchmark": 0.01,     // Threshold of 1%
   //    "another_benchmark": 0.5,   // Threshold of 50%
   // },
+
+  // In v0.6.6 asv started spawning a new python process for each benchmark,
+  // leading to very long run times (since packages have to be imported each
+  // time). Here we set asv to use "forkserver" (the previous default).
+  // This will not work on Windows, which does not support fork()
+  "launch_method": "forkserver"
 }

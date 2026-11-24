@@ -42,6 +42,11 @@ def run_asv():
 
     """
     asv_run_command = ["asv", "run", "HEAD^!", "--show-stderr"]
+    # config file sets launch_method to "forkserver" but this won't work on
+    # Windows. Fall back to spawning a new process for each benchmark on
+    # Windows.
+    if sys.platform == "win32":
+        asv_run_command += ["--launch-method", "spawn"]
     print("running " + " ".join(asv_run_command))
     # run asv, printing progress and errors to the terminal
     status = subprocess.run(asv_run_command).returncode
