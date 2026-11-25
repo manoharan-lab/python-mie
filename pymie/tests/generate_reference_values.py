@@ -33,6 +33,7 @@ import datetime
 import hashlib
 import json
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import mpmath
@@ -86,6 +87,20 @@ def to_string(z, stored_digits=STORED_DIGITS):
     return real + imag + "j"
 
 
+@contextmanager
+def report(step, output=True):
+    """Context manager to print the name of a calculation step and output how
+    long it took.  If output is False, prints nothing.
+
+    """
+    if output:
+        print(f"    {step} ...", end=" ", flush=True)
+    t_start = time.perf_counter()
+    yield
+    if output:
+        print(f"{time.perf_counter() - t_start:.1f} s", flush=True)
+
+
 def particle_values(m, x, output=True):
     """Calculate reference values for scattering from a particle.  Each
     reference value is associated with [m], [x] specified as lists (per pymie
@@ -99,10 +114,9 @@ def particle_values(m, x, output=True):
     # use the outermost layer to set the stopping criterion
     nstop = int(mie._nstop(x[-1]))
     with mpmath.workdps(WORKING_DIGITS):
-        if output:
-            print("   computing scattering coefficients", flush=True)
-        a, b = mie_reference.scatcoeffs(mpmath.mpmathify(m[0]),
-                                        mpmath.mpmathify(x[0]), nstop)
+        with report("scattering coefficients", output):
+            a, b = mie_reference.scatcoeffs(mpmath.mpmathify(m[0]),
+                                            mpmath.mpmathify(x[0]), nstop)
     # store the inputs with repr() so that they convert back to the same
     # numbers when loaded again, and store nstop so that tests can load it;
     # then the tests stay valid even if pymie's stopping criterion changes
