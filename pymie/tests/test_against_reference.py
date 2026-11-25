@@ -65,3 +65,31 @@ def test_scatcoeffs_match_reference(m, x):
                     rtol=1e-10, atol=1e-13)
     assert_allclose(b_pymie, np.array(b, dtype=complex),
                     rtol=1e-10, atol=1e-13)
+
+
+@pytest.mark.parametrize("m, x", [(1.5, 0.1), (1.5, 10.0), (0.8, 100.0),
+                                  (1.5 + 0.01j, 100.0), (1.5 + 1j, 100.0),
+                                  (1.5 + 1e-3j, 1000.0)])
+def test_efficiencies_match_reference(m, x):
+    """Tests that pymie's scattering efficiencies (including asymmetry
+    parameter) match those of the mpmath reference implementation
+
+    """
+    nstop = mie._nstop(x)
+    m_pymie = np.array([m])
+    x_pymie = np.array([x])
+    m = mpmath.mpmathify(m)
+    x = mpmath.mpmathify(x)
+    with mpmath.workdps(30):
+        a, b = mie_reference.scatcoeffs(m, x, nstop)
+        qsca, qext, qback, g = mie_reference.efficiencies(a, b, x)
+    qsca_pymie, qext_pymie, qback_pymie = mie.calc_efficiencies(m_pymie,
+                                                                x_pymie)
+    g_pymie = mie.calc_g(m_pymie, x_pymie)
+    assert_allclose(qsca_pymie, np.array(qsca, dtype=float), rtol=1e-12)
+    assert_allclose(qext_pymie, np.array(qext, dtype=float), rtol=1e-12)
+    assert_allclose(qback_pymie, np.array(qback, dtype=float), rtol=1e-12)
+    # looser tolerance for g because pymie calculates b_1 with a larger
+    # relative error than a_1 using B&H 4.88 (perhaps because of cancellation
+    # in the numerator at small x)
+    assert_allclose(g_pymie, np.array(g, dtype=float), rtol=1e-10)

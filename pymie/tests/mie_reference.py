@@ -96,3 +96,46 @@ def scatcoeffs(m, x, nstop):
         a.append(an)
         b.append(bn)
     return a, b
+
+
+def efficiencies(a, b, x):
+    """Calculates scattering, extinction, and backscattering efficiencies from
+    the scattering coefficients, using B&H eqs. 4.61 and 4.62, plus the
+    equation at the top of p. 122 for the radar backscattering efficiency.
+    Following the convention in pymie, we divide this value by (4 pi) to get
+    the backscattering efficiency.  Also calculates the asymmetry parameter g
+    from formula on B&H page 120.
+
+    """
+    qsca = 0
+    qext = 0
+    sum_back = 0
+    for n, (an, bn) in enumerate(zip(a, b), start=1):
+        qsca += (2*n + 1) * (abs(an)**2 + abs(bn)**2)
+        qext += (2*n + 1) * (an + bn).real
+        sum_back += (2*n + 1) * (-1)**n * (an - bn)
+    qsca = 2/x**2 * qsca
+    qext = 2/x**2 * qext
+    qback = 1/x**2 * abs(sum_back)**2/(4*mpmath.pi)
+    asym = asymmetry_parameter_unnormalized(a, b)
+    g = 4 * asym/(x**2 * qsca)
+    return qsca, qext, qback, g
+
+
+def asymmetry_parameter_unnormalized(a, b):
+    """Calculates the unnormalized sum for the asymmetry parameter from the
+    scattering coefficients using equation on B&H page 120. To recover g,
+    multiply by 4/(x^2 Q_sca).
+
+    """
+    # term for n = 1
+    asym = 3/2 * (a[0]*mpmath.conj(b[0])).real
+    for n in range(2, len(a)+1):
+        # remember that a[n-1] (python indexing) = a_n (math notation)
+        k = n-1
+        # wrap numerators so that division yields arbitrary precision floats
+        asym += (mpmath.mpf(k*(k + 2))/(k + 1)
+                 * (a[k-1]*mpmath.conj(a[k]) + b[k-1]*mpmath.conj(b[k])).real)
+        asym += (mpmath.mpf(2*n + 1)/(n*(n+1))
+                 * (a[n-1]*mpmath.conj(b[n-1])).real)
+    return asym
