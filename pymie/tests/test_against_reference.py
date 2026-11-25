@@ -27,10 +27,18 @@ import pytest
 
 from .. import mie, mie_specfuncs
 
-mpmath = pytest.importorskip("mpmath")
-from . import mie_reference     # noqa: E402
+try:
+    import mpmath
+except ImportError:
+    mpmath = None
+else:
+    from . import mie_reference
+
+requires_mpmath = pytest.mark.skipif(mpmath is None,
+                                     reason="mpmath is not installed")
 
 
+@requires_mpmath
 @pytest.mark.parametrize("z", [0.1, 1.0, 10.0, 100.0, 1000.0])
 def test_riccati_psi_xi_matches_reference(z):
     """Tests that pymie Riccati-Bessel functions return results that match
@@ -48,6 +56,7 @@ def test_riccati_psi_xi_matches_reference(z):
     assert_allclose(xi_pymie, np.array(xi, dtype=complex), rtol=1e-12)
 
 
+@requires_mpmath
 @pytest.mark.parametrize("m, x", [(1.5, 0.1), (1.5, 10.0), (0.8, 10.0),
                                   (1.5 + 0.01j, 100.0), (1.5 + 1j, 100.0),
                                   (1.5 + 1e-3j, 1000.0)])
@@ -67,6 +76,7 @@ def test_scatcoeffs_match_reference(m, x):
                     rtol=1e-10, atol=1e-13)
 
 
+@requires_mpmath
 @pytest.mark.parametrize("m, x", [(1.5, 0.1), (1.5, 10.0), (0.8, 100.0),
                                   (1.5 + 0.01j, 100.0), (1.5 + 1j, 100.0),
                                   (1.5 + 1e-3j, 1000.0)])
@@ -95,6 +105,7 @@ def test_efficiencies_match_reference(m, x):
     assert_allclose(g_pymie, np.array(g, dtype=float), rtol=1e-10)
 
 
+@requires_mpmath
 def test_pis_and_taus_match_reference():
     """Tests that pymie's angular functions pi_n and tau_n evaluated over a
     range of angles match the results from the mpmath reference implementation.
@@ -120,6 +131,7 @@ def test_pis_and_taus_match_reference():
     assert_allclose(tau_pymie/bound, tau/bound, rtol=0, atol=1e-12)
 
 
+@requires_mpmath
 @pytest.mark.parametrize("m, x", [(1.5, 0.1), (1.5, 10.0), (0.8, 10.0),
                                   (1.5 + 0.01j, 100.0), (1.5 + 1j, 100.0)])
 def test_amplitude_scattering_matrix_matches_reference(m, x):
