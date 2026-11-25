@@ -133,6 +133,22 @@ def riccati_values(z, output=True):
             "xi": [to_string(xi_n) for xi_n in xi]}
 
 
+def angular_values(theta, nstop, output=True):
+    """Calculates reference values of the angular functions pi_n and tau_n for
+    n = 1, ..., nstop at scattering angle theta (in radians).  If output is
+    True, print status messages.
+
+    """
+    with mpmath.workdps(WORKING_DIGITS):
+        with report("angular functions", output):
+            pi, tau = mie_reference.pis_and_taus(mpmath.mpmathify(theta),
+                                                 nstop)
+    return {"theta": repr(theta),
+            "nstop": nstop,
+            "pi": [mpmath.nstr(pi_n, STORED_DIGITS) for pi_n in pi],
+            "tau": [mpmath.nstr(tau_n, STORED_DIGITS) for tau_n in tau]}
+
+
 def particle_values(m, x, output=True):
     """Calculate reference values for scattering from a particle.  Each
     reference value is associated with [m], [x] specified as lists (per pymie
@@ -171,6 +187,11 @@ def generate_and_save():
         print(f"generating reference values for z = {z}", flush=True)
         riccati.append(riccati_values(z))
 
+    angular = []
+    for theta in ANGULAR_THETAS:
+        print(f"generating reference values for theta = {theta}", flush=True)
+        angular.append(angular_values(theta, ANGULAR_NSTOP))
+
     particles = []
     for m, x in MX_VALUES:
         print(f"generating reference values for m = {m}, x = {x}",
@@ -190,6 +211,7 @@ def generate_and_save():
             "generator_sha256": file_hash(__file__)
         },
         "riccati": riccati,
+        "angular": angular,
         "particles": particles,
     }
 

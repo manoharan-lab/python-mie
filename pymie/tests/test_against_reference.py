@@ -124,21 +124,18 @@ def test_efficiencies_match_reference(m, x):
     assert_allclose(g_pymie, np.array(g, dtype=float), rtol=1e-10)
 
 
-@requires_mpmath
-def test_pis_and_taus_match_reference():
-    """Tests that pymie's angular functions pi_n and tau_n evaluated over a
-    range of angles match the results from the mpmath reference implementation.
+@pytest.mark.parametrize("values", REFERENCE_VALUES["angular"],
+                         ids=lambda values: f"theta={values['theta']}")
+def test_pis_and_taus_match_reference(values):
+    """Tests that pymie's angular functions pi_n and tau_n match the stored
+    values calculated from the reference implementation.
 
     """
-    # test up to high n
-    nstop = 200
-    thetas = np.linspace(0, np.pi, 7)
-    with mpmath.workdps(30):
-        reference = [mie_reference.pis_and_taus(mpmath.mpmathify(theta), nstop)
-                     for theta in thetas]
-    pi = np.array([p for p, _ in reference], dtype=float)
-    tau = np.array([t for _, t in reference], dtype=float)
-    pi_pymie, tau_pymie = mie._pis_and_taus(nstop, thetas)
+    theta = ast.literal_eval(values["theta"])
+    nstop = values["nstop"]
+    pi = to_array(values["pi"])
+    tau = to_array(values["tau"])
+    pi_pymie, tau_pymie = mie._pis_and_taus(nstop, theta)
     # In the forward direction (mu=1), pi_n and tau_n are n(n+1)/2 (see B&H
     # page 112).  We normalize by this value so that all orders are on the same
     # scale, making it possible to test all orders using a single absolute
@@ -146,8 +143,9 @@ def test_pis_and_taus_match_reference():
     # near a zero of one of the angular functions.
     n = np.arange(1, nstop + 1)
     bound = n*(n + 1)/2
-    assert_allclose(pi_pymie/bound, pi/bound, rtol=0, atol=1e-12)
-    assert_allclose(tau_pymie/bound, tau/bound, rtol=0, atol=1e-12)
+    # shape of pi_pymie and tau_pymie is (1, nstop), so we squeeze first
+    assert_allclose(pi_pymie.squeeze()/bound, pi/bound, rtol=0, atol=1e-12)
+    assert_allclose(tau_pymie.squeeze()/bound, tau/bound, rtol=0, atol=1e-12)
 
 
 @requires_mpmath
