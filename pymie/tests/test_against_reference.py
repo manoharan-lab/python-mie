@@ -118,3 +118,34 @@ def test_pis_and_taus_match_reference():
     bound = n*(n + 1)/2
     assert_allclose(pi_pymie/bound, pi/bound, rtol=0, atol=1e-12)
     assert_allclose(tau_pymie/bound, tau/bound, rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("m, x", [(1.5, 0.1), (1.5, 10.0), (0.8, 10.0),
+                                  (1.5 + 0.01j, 100.0), (1.5 + 1j, 100.0)])
+def test_amplitude_scattering_matrix_matches_reference(m, x):
+    """Tests that pymie's scattering amplitude matrix elements S_1 and S_2
+    match those of the mpmath reference implementation over a range of angles.
+
+    """
+    nstop = mie._nstop(x)
+    thetas = np.linspace(0, np.pi, 7)
+    m_pymie = np.array([m])
+    x_pymie = np.array([x])
+    with mpmath.workdps(30):
+        m = mpmath.mpmathify(m)
+        x = mpmath.mpmathify(x)
+        a, b = mie_reference.scatcoeffs(m, x, nstop)
+        S = [mie_reference.amplitude_scattering_matrix(a, b,
+                                                       mpmath.mpmathify(theta))
+             for theta in thetas]
+    S1 = np.array([s[0] for s in S], dtype=complex)
+    S2 = np.array([s[1] for s in S], dtype=complex)
+    S_pymie = mie.amplitude_scattering_matrix(m_pymie, x_pymie, thetas)
+    S1_pymie = S_pymie[0][0]
+    S2_pymie = S_pymie[1][0]
+
+    # because S can vary so much with angle, we scale the absolute tolerance by
+    # the forward-scattering amplitude. We also use a relative tolerance.
+    scale = np.abs(S1[0])
+    assert_allclose(S1_pymie, S1, rtol=1e-12, atol=1e-13*scale)
+    assert_allclose(S2_pymie, S2, rtol=1e-12, atol=1e-13*scale)

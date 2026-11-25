@@ -241,3 +241,77 @@ def test_pis_and_taus_recurrence(theta):
         assert_allclose(np.array(tau, dtype=float),
                         np.array(tau_recurrence, dtype=float),
                         rtol=1e-14)
+
+
+@pytest.mark.parametrize("m, x", [(1.5, 0.1), (1.5, 10.0), (0.8, 10.0),
+                                  (1.5 + 0.1j, 10.0)])
+def test_amplitude_scattering_matrix_forward_backward(m, x):
+    """Tests that the amplitude scattering matrix has the correct values in
+    forward scattering (theta = 0) and backscattering (theta = pi). In the
+    forward direction,
+
+        S_1(0) = S_2(0)
+
+    (see B&H page 112) and
+
+        Q_ext = 4/x**2 Re(S_1(0))
+
+    which is the optical theorem [B&H 4.76 with k = x/a and
+    Q_ext = C_ext/(pi a^2)].  In the backward direction,
+
+        S_1(pi) = -S_2(pi)
+
+    (see B&H bottom of p. 121; alternatively, note that at theta=0 or pi both
+    polarizations must give equivalent scattering by symmetry, and note that
+    the sign of the coefficients is determined by the direction of the basis
+    vectors relative to the incident direction).  We also have
+
+        Q_back = |S_1(pi)|^2/(pi x^2),
+
+    which comes from eq. 4.82 (divided by 4 pi following pymie convention), the
+    vector scattering amplitude expressed in terms of S_1 and S_2 (bottom of p.
+    121) and S_1(pi) = -S_2(pi).
+
+    """
+    with mpmath.workdps(30):
+        m = mpmath.mpmathify(m)
+        x = mpmath.mpmathify(x)
+        a, b = mie_reference.scatcoeffs(m, x, NSTOP)
+        _, qext, qback, _ = mie_reference.efficiencies(a, b, x)
+        S1_0, S2_0 = mie_reference.amplitude_scattering_matrix(a, b,
+                                                               mpmath.mpf(0))
+        S1_pi, S2_pi = mie_reference.amplitude_scattering_matrix(a, b,
+                                                                 mpmath.pi)
+        qext_forward = 4/x**2 * S1_0.real
+        qback_expected = abs(S1_pi)**2/(mpmath.pi * x**2)
+
+    assert_allclose(complex(S1_0), complex(S2_0), rtol=1e-14)
+    assert_allclose(float(qext), float(qext_forward), rtol=1e-14)
+    assert_allclose(complex(S1_pi), complex(-S2_pi), rtol=1e-14)
+    assert_allclose(float(qback), float(qback_expected), rtol=1e-14)
+
+
+@pytest.mark.parametrize("m", [1.5, 0.8, 1.5 + 0.1j])
+@pytest.mark.parametrize("theta", [0.0, 0.3, 1.0, 2.5, np.pi])
+def test_amplitude_scattering_matrix_small_x(m, theta):
+    """Tests that the amplitude scattering matrix elements reduce to the
+    Rayleigh result for small x.  From B&H eq. 5.4, to order x^3,
+
+        S_1 = 3/2 a_1
+        S_2 = 3/2 a_1 cos(theta)
+
+    where
+
+        a_1 = -2i/3 x^3 (m^2 - 1)/(m^2 + 2)
+    """
+    with mpmath.workdps(30):
+        m = mpmath.mpmathify(m)
+        x = mpmath.mpmathify(1e-7)
+        theta = mpmath.mpmathify(theta)
+        a, b = mie_reference.scatcoeffs(m, x, NSTOP)
+        S1, S2 = mie_reference.amplitude_scattering_matrix(a, b, theta)
+        a_1 = -mpmath.mpc(0, 2)/3 * x**3 * (m**2 - 1)/(m**2 + 2)
+        S1_expected = mpmath.mpf(3)/2 * a_1
+        S2_expected = mpmath.mpf(3)/2 * a_1 * mpmath.cos(theta)
+    assert_allclose(complex(S1), complex(S1_expected), rtol=1e-12)
+    assert_allclose(complex(S2), complex(S2_expected), rtol=1e-12)

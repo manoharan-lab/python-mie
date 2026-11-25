@@ -232,6 +232,9 @@ def pis_and_taus(theta, nstop):
     use numerical derivatives with arbitrary precision to write the functions
     in a simpler way.
 
+    Note that we don't insert pi_0 into the returned pi values (since it's
+    zero). So pi[0] = pi_1 and tau[0] = tau_1.
+
     """
     mu = mpmath.cos(theta)
     pi = [ ]
@@ -243,3 +246,24 @@ def pis_and_taus(theta, nstop):
         pi.append(dP)
         tau.append(mu * dP - (1-mu**2) * d2P)
     return pi, tau
+
+
+def amplitude_scattering_matrix(a, b, theta):
+    """Calculates the amplitude scattering matrix elements S1 and S2 at
+    scattering angle theta (in radians) from the scattering coefficients a_n
+    and b_n, using B&H 4.74:
+
+        S_1 = sum_n (2n+1)/(n(n+1)) (a_n pi_n + b_n tau_n)
+        S_2 = sum_n (2n+1)/(n(n+1)) (a_n tau_n + b_n pi_n)
+
+    """
+    pi, tau = pis_and_taus(theta, len(a))
+    S1 = 0
+    S2 = 0
+    for n in range(1, len(a) + 1):
+        prefactor = mpmath.mpf(2*n+1)/(n*(n+1))
+        # index of arrays here is n-1 because a_1 is the first element in the
+        # array (a[0]=a_1) and likewise for the other arrays
+        S1 += prefactor * (a[n-1] * pi[n-1] + b[n-1] * tau[n-1])
+        S2 += prefactor * (a[n-1] * tau[n-1] + b[n-1] * pi[n-1])
+    return S1, S2
