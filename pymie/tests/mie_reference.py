@@ -56,3 +56,43 @@ def riccati_psi_xi(z, nstop):
         xi.append(prefactor * (j_nu + y_nu*1j))
 
     return psi, xi
+
+
+def scatcoeffs(m, x, nstop):
+    """Calculates Mie scattering coefficients a_n and b_n for n = 1, ..., nstop
+    from Bohren and Huffman eqs. 4.56 and 4.57. As B&H note, these equations
+    are not typically used in computing the scattering coefficients because of
+    round-off error accumulation.  But with mpmath we can increase the
+    precision to reduce round-off error.
+
+            m psi_n(mx) psi'_n(x) - psi_n(x) psi'_n(mx)
+      a_n = -------------------------------------------
+            m psi_n(mx) xi'_n(x)  - xi_n(x) psi'_n(mx)
+
+            psi_n(mx) psi'_n(x) - m psi_n(x) psi'_n(mx)
+      b_n = ---------------------------------------------
+            psi_n(mx) xi'_n(x)  - m xi_n(x) psi'_n(mx)
+
+    m and x should be specified as mpmath float or complex.
+
+    """
+    psi_x, xi_x = riccati_psi_xi(x, nstop)
+    psi_mx, _ = riccati_psi_xi(m*x, nstop)
+    a = []
+    b = []
+    for n in range(1, nstop + 1):
+        # calculate derivatives using recurrence relations (equations are below
+        # B&H eq 4.88):
+        #     psi'_n(x) = psi_{n-1}(x) - n psi_n(x)/x
+        #     xi'_n(x) = xi_{n-1}(x) - n xi_n(x)/x
+        dpsi_x = psi_x[n-1] - n * psi_x[n]/x
+        dxi_x = xi_x[n-1] - n * xi_x[n]/x
+        dpsi_mx = psi_mx[n-1] - n * psi_mx[n]/(m*x)
+
+        an = ((m * psi_mx[n] * dpsi_x - psi_x[n] * dpsi_mx)/
+              (m * psi_mx[n] * dxi_x  - xi_x[n] * dpsi_mx))
+        bn = ((psi_mx[n] * dpsi_x - m * psi_x[n] * dpsi_mx)/
+              (psi_mx[n] * dxi_x  - m * xi_x[n] * dpsi_mx))
+        a.append(an)
+        b.append(bn)
+    return a, b

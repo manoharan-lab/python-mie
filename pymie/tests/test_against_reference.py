@@ -33,9 +33,9 @@ from . import mie_reference     # noqa: E402
 
 @pytest.mark.parametrize("z", [0.1, 1.0, 10.0, 100.0, 1000.0])
 def test_riccati_psi_xi_matches_reference(z):
-    """
-    Tests that pymie Riccati-Bessel functions return results that match those
-    of the reference (mpmath) implementation.
+    """Tests that pymie Riccati-Bessel functions return results that match
+    those of the reference (mpmath) implementation.
+
     """
     # use pymie's stopping criterion (Allardice & Le Ru)
     nstop = mie._nstop(z)
@@ -46,3 +46,22 @@ def test_riccati_psi_xi_matches_reference(z):
 
     assert_allclose(psi_pymie, np.array(psi, dtype=complex), rtol=1e-12)
     assert_allclose(xi_pymie, np.array(xi, dtype=complex), rtol=1e-12)
+
+
+@pytest.mark.parametrize("m, x", [(1.5, 0.1), (1.5, 10.0), (0.8, 10.0),
+                                  (1.5 + 0.01j, 100.0), (1.5 + 1j, 100.0),
+                                  (1.5 + 1e-3j, 1000.0)])
+def test_scatcoeffs_match_reference(m, x):
+    """Tests that pymie's scattering coefficients match those of the reference
+    (mpmath) implementation.
+
+    """
+    nstop = mie._nstop(x)
+    with mpmath.workdps(30):
+        a, b = mie_reference.scatcoeffs(mpmath.mpmathify(m),
+                                        mpmath.mpmathify(x), nstop)
+    a_pymie, b_pymie = mie._scatcoeffs(np.array([m]), x, nstop)[:, 0]
+    assert_allclose(a_pymie, np.array(a, dtype=complex),
+                    rtol=1e-10, atol=1e-13)
+    assert_allclose(b_pymie, np.array(b, dtype=complex),
+                    rtol=1e-10, atol=1e-13)

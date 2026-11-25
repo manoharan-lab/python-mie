@@ -95,3 +95,52 @@ def test_riccati_psi_xi_recurrence(reference_psi_xi, z):
         # normalize by the value at each n.  Note that this scaling will not
         # work if z puts psi(z) or xi(z) near a zero of the function.
         assert_array_less(np.abs(residual/f[1:-1]), 1e-12)
+
+
+def test_scatcoeffs_index_matched():
+    """Test that scattering coefficients go to zero when the particle is
+    index-matched to the medium
+
+    """
+    with mpmath.workdps(30):
+        # index ratio is 1 for index matching
+        m = mpmath.mpf(1)
+        # choose reasonably large size parameter
+        x = mpmath.mpf(10)
+        a, b = mie_reference.scatcoeffs(m, x, NSTOP)
+    assert_allclose(np.array(a, dtype=complex), 0, atol=1e-14)
+    assert_allclose(np.array(b, dtype=complex), 0, atol=1e-14)
+
+
+@pytest.mark.parametrize("m, x", [(1.5, 0.1), (1.5, 10.0), (0.8, 10.0)])
+def test_scatcoeffs_no_absorption(m, x):
+    """Test that scattering coefficients obey the relations
+        Re(a_n) = |a_n|^2
+        Re(b_n) = |b_n|^2
+    which follow from the equality of C_sca and C_ext when there is no
+    absorption (see B&H eqs. 4.61 and 4.62)
+
+    """
+    m = mpmath.mpmathify(m)
+    x = mpmath.mpmathify(x)
+    with mpmath.workdps(30):
+        a, b = mie_reference.scatcoeffs(m, x, NSTOP)
+    a = np.array(a, dtype=complex)
+    b = np.array(b, dtype=complex)
+    assert_allclose(np.real(a), np.abs(a)**2, rtol=1e-14)
+    assert_allclose(np.real(b), np.abs(b)**2, rtol=1e-14)
+
+
+@pytest.mark.parametrize("m", [1.5, 0.8, 1.5 + 0.1j])
+def test_scatcoeffs_small_x(m):
+    """Test that scattering coefficient a_1 reduces to Rayleigh result in limit
+    of small x. From B&H eq. 5.4,
+        a_1 = -i2x^3/3 (m^2 - 1)/(m^2 + 2)
+
+    """
+    m = mpmath.mpmathify(m)
+    x = mpmath.mpmathify(1e-7)
+    with mpmath.workdps(30):
+        a, _ = mie_reference.scatcoeffs(m, x, 1)
+        a1_expected = -1j * 2 * x**3 / 3 * (m**2 - 1)/(m**2 + 2)
+    assert_allclose(complex(a[0]), complex(a1_expected), rtol=1e-12)
