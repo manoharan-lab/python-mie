@@ -162,9 +162,15 @@ def particle_values(m, x, output=True):
     # use the outermost layer to set the stopping criterion
     nstop = int(mie._nstop(x[-1]))
     with mpmath.workdps(WORKING_DIGITS):
+        x_outer = mpmath.mpmathify(x[-1])
         with report("scattering coefficients", output):
             a, b = mie_reference.scatcoeffs(mpmath.mpmathify(m[0]),
                                             mpmath.mpmathify(x[0]), nstop)
+        with report("efficiencies", output):
+            qsca, qext, qback, g = mie_reference.efficiencies(a, b, x_outer)
+        with report("amplitude scattering matrix", output):
+            S = [mie_reference.amplitude_scattering_matrix(
+                    a, b, mpmath.mpmathify(theta)) for theta in THETAS]
     # store the inputs with repr() so that they convert back to the same
     # numbers when loaded again, and store nstop so that tests can load it;
     # then the tests stay valid even if pymie's stopping criterion changes
@@ -172,7 +178,14 @@ def particle_values(m, x, output=True):
             "x": [repr(x_layer) for x_layer in x],
             "nstop": nstop,
             "a": [to_string(an) for an in a],
-            "b": [to_string(bn) for bn in b]}
+            "b": [to_string(bn) for bn in b],
+            "qsca": mpmath.nstr(qsca, STORED_DIGITS),
+            "qext": mpmath.nstr(qext, STORED_DIGITS),
+            "qback": mpmath.nstr(qback, STORED_DIGITS),
+            "g": mpmath.nstr(g, STORED_DIGITS),
+            "thetas": [repr(theta) for theta in THETAS],
+            "S1": [to_string(S1) for S1, _ in S],
+            "S2": [to_string(S2) for _, S2 in S]}
 
 
 def generate_and_save():
