@@ -137,23 +137,23 @@ def scatcoeffs(m, x, nstop):
     m and x should be specified as mpmath float or complex.
 
     """
-    psi_x, xi_x = riccati_psi_xi(x, nstop)
-    psi_mx, _ = riccati_psi_xi(m*x, nstop)
     a = []
     b = []
     for n in range(1, nstop + 1):
-        # calculate derivatives using recurrence relations (equations are below
-        # B&H eq 4.88):
-        #     psi'_n(x) = psi_{n-1}(x) - n psi_n(x)/x
-        #     xi'_n(x) = xi_{n-1}(x) - n xi_n(x)/x
-        dpsi_x = psi_x[n-1] - n * psi_x[n]/x
-        dxi_x = xi_x[n-1] - n * xi_x[n]/x
-        dpsi_mx = psi_mx[n-1] - n * psi_mx[n]/(m*x)
+        psi_x = riccati_psi(x, n)
+        xi_x = riccati_xi(x, n)
+        psi_mx = riccati_psi(m*x, n)
 
-        an = ((m * psi_mx[n] * dpsi_x - psi_x[n] * dpsi_mx)/
-              (m * psi_mx[n] * dxi_x  - xi_x[n] * dpsi_mx))
-        bn = ((psi_mx[n] * dpsi_x - m * psi_x[n] * dpsi_mx)/
-              (psi_mx[n] * dxi_x  - m * xi_x[n] * dpsi_mx))
+        # calculate derivatives using mpmath.diff, which adjusts its working
+        # precision to keep finite differences from losing digits
+        dpsi_x = mpmath.diff(lambda z: riccati_psi(z, n), x)
+        dxi_x = mpmath.diff(lambda z: riccati_xi(z, n), x)
+        dpsi_mx = mpmath.diff(lambda z: riccati_psi(z, n), m*x)
+
+        an = ((m * psi_mx * dpsi_x - psi_x * dpsi_mx)/
+              (m * psi_mx * dxi_x  - xi_x * dpsi_mx))
+        bn = ((psi_mx * dpsi_x - m * psi_x * dpsi_mx)/
+              (psi_mx * dxi_x  - m * xi_x * dpsi_mx))
         a.append(an)
         b.append(bn)
     return a, b
