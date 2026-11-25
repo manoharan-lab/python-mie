@@ -49,22 +49,27 @@ requires_mpmath = pytest.mark.skipif(mpmath is None,
                                      reason="mpmath is not installed")
 
 
-@requires_mpmath
-@pytest.mark.parametrize("z", [0.1, 1.0, 10.0, 100.0, 1000.0])
-def test_riccati_psi_xi_matches_reference(z):
-    """Tests that pymie Riccati-Bessel functions return results that match
-    those of the reference (mpmath) implementation.
+def to_array(strings):
+    """Convert a list of stored strings to an array.
 
     """
-    # use pymie's stopping criterion (Allardice & Le Ru)
-    nstop = mie._nstop(z)
-    # set 30 digits of precision for calculations
-    with mpmath.workdps(30):
-        psi, xi = mie_reference.riccati_psi_xi(mpmath.mpf(z), nstop)
-    psi_pymie, xi_pymie = mie_specfuncs.riccati_psi_xi(z, nstop)
+    return np.array([ast.literal_eval(s) for s in strings])
 
-    assert_allclose(psi_pymie, np.array(psi, dtype=complex), rtol=1e-12)
-    assert_allclose(xi_pymie, np.array(xi, dtype=complex), rtol=1e-12)
+
+@pytest.mark.parametrize("values", REFERENCE_VALUES["riccati"],
+                         ids=lambda values: f"z={values['z']}")
+def test_riccati_psi_xi_matches_reference(values):
+    """Tests that pymie Riccati-Bessel functions return results that match
+    stored values from the reference (mpmath) implementation.
+
+    """
+    z = ast.literal_eval(values["z"])
+    psi = to_array(values["psi"])
+    xi = to_array(values["xi"])
+    psi_pymie, xi_pymie = mie_specfuncs.riccati_psi_xi(z, values["nstop"])
+
+    assert_allclose(psi_pymie, psi, rtol=1e-12)
+    assert_allclose(xi_pymie, xi, rtol=1e-12)
 
 
 def particle_id(particle):
@@ -81,10 +86,10 @@ def test_scatcoeffs_match_reference(particle):
     the reference (mpmath) implementation.
 
     """
-    m = np.array([ast.literal_eval(m_layer) for m_layer in particle["m"]])
-    x = np.array([ast.literal_eval(x_layer) for x_layer in particle["x"]])
-    a = np.array([complex(an) for an in particle["a"]])
-    b = np.array([complex(bn) for bn in particle["b"]])
+    m = to_array(particle["m"])
+    x = to_array(particle["x"])
+    a = to_array(particle["a"])
+    b = to_array(particle["b"])
     a_pymie, b_pymie = mie._scatcoeffs(m, x, particle["nstop"])[:, 0]
     assert_allclose(a_pymie, a, rtol=1e-10, atol=1e-13)
     assert_allclose(b_pymie, b, rtol=1e-10, atol=1e-13)

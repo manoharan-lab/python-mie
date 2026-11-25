@@ -37,6 +37,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import mpmath
+import numpy as np
 
 from pymie import mie
 from pymie.tests import mie_reference
@@ -60,6 +61,20 @@ MX_VALUES = [([1.5], [0.1]),
              ([1.5 + 0.01j], [100.0]),
              ([1.5 + 1j], [100.0]),
              ([1.5 + 1e-3j], [1000.0])]
+
+# scattering angles (in radians) at which to calculate the amplitude scattering
+# matrix for each particle.  We use .tolist() to convert to Python floats
+# because we're using repr() to output them to the reference value file (and
+# repr() for a numpy array would give things like "np.float64(0.8888)")
+THETAS = np.linspace(0, np.pi, 7).tolist()
+
+# arguments at which to calculate the Riccati-Bessel functions
+Z_VALUES = [0.1, 1.0, 10.0, 100.0, 1000.0]
+
+# scattering angles (in radians) and maximum order at which to calculate the
+# angular functions pi_n and tau_n
+ANGULAR_THETAS = THETAS
+ANGULAR_NSTOP = 200
 
 
 def file_hash(path):
@@ -101,6 +116,23 @@ def report(step, output=True):
         print(f"{time.perf_counter() - t_start:.1f} s", flush=True)
 
 
+def riccati_values(z, output=True):
+    """Calculates reference values of the Riccati-Bessel functions psi_n(z) and
+    xi_n(z) for n = 0, ..., nstop. If output is True, print status messages.
+
+    """
+    # use pymie's stopping criterion (Allardice & Le Ru)
+    nstop = int(mie._nstop(z))
+
+    with mpmath.workdps(WORKING_DIGITS):
+        with report("Riccati-Bessel functions", output):
+            psi, xi = mie_reference.riccati_psi_xi(mpmath.mpmathify(z), nstop)
+    return {"z": repr(z),
+            "nstop": nstop,
+            "psi": [to_string(psi_n) for psi_n in psi],
+            "xi": [to_string(xi_n) for xi_n in xi]}
+
+
 def particle_values(m, x, output=True):
     """Calculate reference values for scattering from a particle.  Each
     reference value is associated with [m], [x] specified as lists (per pymie
@@ -134,6 +166,11 @@ def generate_and_save():
     # mark progress and time
     t_start = time.perf_counter()
 
+    riccati = []
+    for z in Z_VALUES:
+        print(f"generating reference values for z = {z}", flush=True)
+        riccati.append(riccati_values(z))
+
     particles = []
     for m, x in MX_VALUES:
         print(f"generating reference values for m = {m}, x = {x}",
@@ -152,6 +189,7 @@ def generate_and_save():
             "mie_reference_sha256": file_hash(mie_reference.__file__),
             "generator_sha256": file_hash(__file__)
         },
+        "riccati": riccati,
         "particles": particles,
     }
 
