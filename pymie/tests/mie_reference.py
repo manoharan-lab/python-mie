@@ -200,3 +200,46 @@ def asymmetry_parameter_unnormalized(a, b):
         asym += (mpmath.mpf(2*n + 1)/(n*(n+1))
                  * (a[n-1]*mpmath.conj(b[n-1])).real)
     return asym
+
+
+def pis_and_taus(theta, nstop):
+    """Calculate the angular functions pi_n and tau_n for n = 1, ..., nstop at
+    scattering angle theta (in radians) from Legendre polynomials P_n.  From
+    B&H eq. 4.46,
+                   P1_n(mu)
+        pi_n =  ---------------
+                  sin(theta)
+
+        tau_n = dP1_n(mu)/d(theta)
+
+    where mu = cos(theta) and P1_n = -dP_n/d(theta) (eq. 4.30), where P_n is
+    the Legendre polynomial of degree n.  We rewrite the equations in terms of
+    mu to avoid dividing by sin(theta) at theta = 0 and pi. Then
+
+        P1_n(mu) = sqrt(1 - mu^2) dP_n(mu)/d(mu)
+
+    (cf. B&H eq 4.25) and
+
+        pi_n = dP_n/d(mu)
+
+    since d(mu)/d(theta) = -sin(theta), and
+
+        tau_n = mu dP_n/d(mu) - (1 - mu^2) d^2P_n/d(mu)^2
+
+    by the chain rule.
+
+    B&H use recurrence relations (eq. 4.47) to compute pi_n and tau_n but we
+    use numerical derivatives with arbitrary precision to write the functions
+    in a simpler way.
+
+    """
+    mu = mpmath.cos(theta)
+    pi = [ ]
+    tau = [ ]
+    for n in range(1, nstop+1):
+        # calculate first and second derivatives of P_n(mu) and evaluate at mu
+        # (note first output is the value of P_n(mu), which we don't need)
+        _, dP, d2P = mpmath.diffs(lambda z: mpmath.legendre(n, z), mu, 2)
+        pi.append(dP)
+        tau.append(mu * dP - (1-mu**2) * d2P)
+    return pi, tau

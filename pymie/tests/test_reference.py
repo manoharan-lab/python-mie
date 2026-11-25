@@ -184,3 +184,60 @@ def test_efficiencies_small_x(m):
     assert_allclose(float(qext), float(qext_expected), rtol=1e-12)
     assert_allclose(float(qback), float(qback_expected), rtol=1e-12)
     assert_allclose(float(g), 0, atol=1e-12)
+
+
+@pytest.mark.parametrize("theta", [0.0, 0.3, 1.0, 2.5, np.pi])
+def test_pis_and_taus_low_order(theta):
+    """Test that the angular functions pi_n and tau_n agree with the analytical
+    forms at low order (see B&H 4.47 and initial conditions for the recurrence
+    relations on p. 95):
+
+        pi_1 = 1
+        pi_2 = 3 mu
+        tau_1 = mu pi_1 = mu
+        tau_2 = 2 mu pi_2 - 3 pi_1 = 6 mu^2 - 3
+
+    where mu = cos(theta)
+    """
+    with mpmath.workdps(30):
+        pi, tau = mie_reference.pis_and_taus(mpmath.mpmathify(theta), 2)
+    mu = np.cos(theta)
+    assert_allclose(np.array(pi, dtype=float), [1, 3*mu], rtol=1e-14)
+    assert_allclose(np.array(tau, dtype=float), [mu, 6*mu**2 - 3], rtol=1e-14)
+
+
+@pytest.mark.parametrize("theta", [0.0, 0.3, 1.0, 2.5, np.pi])
+def test_pis_and_taus_recurrence(theta):
+    """Test that the angular functions pi_n and tau_n satisfy the recurrence
+    relations in B&H 4.47:
+
+        pi_n = (2n-1)/(n-1) mu pi_{n-1} - n/(n-1) pi_{n-2}
+        tau_n = n mu pi_n - (n+1) pi_{n-1}
+
+    where mu = cos(theta).
+    """
+    with mpmath.workdps(30):
+        mu = mpmath.cos(theta)
+        pi, tau = mie_reference.pis_and_taus(mpmath.mpmathify(theta), NSTOP)
+        # insert the zeroth coefficient (pi_0 = 0) at the front of the list
+        pi.insert(0, mpmath.mpf(0))
+
+        # calculate the values by recurrence
+        pi_recurrence = [0, 1]
+        for n in range(2, NSTOP+1):
+            pi_recurrence.append(mpmath.mpf(2*n-1)/(n-1) * mu * pi[n-1]
+                                 - mpmath.mpf(n)/(n-1) * pi[n-2])
+        tau_recurrence = []
+        for n in range(1, NSTOP+1):
+            tau_recurrence.append(n * mu * pi[n]
+                                  - (n+1) * pi[n-1])
+
+        # we use relative tolerance here because the angles chosen aren't close
+        # to zeros of either angular function. Would need to change the tests
+        # to check angles that are close to zeros.
+        assert_allclose(np.array(pi, dtype=float),
+                        np.array(pi_recurrence, dtype=float),
+                        rtol=1e-14)
+        assert_allclose(np.array(tau, dtype=float),
+                        np.array(tau_recurrence, dtype=float),
+                        rtol=1e-14)
