@@ -60,7 +60,17 @@ def test_riccati_psi_xi_matches_reference(values):
     xi = to_array(values["xi"])
     psi_pymie, xi_pymie = mie_specfuncs.riccati_psi_xi(z, values["nstop"])
 
-    assert_allclose(psi_pymie, psi, rtol=1e-12)
+
+    # In the oscillatory region (n <= |z|), psi_n is of order 1 but passes
+    # through zeros, where relative errors are not meaningful (and depend on
+    # platform-specific rounding), so we use an absolute tolerance there.  For
+    # n > |z|, psi_n decays rapidly, and we require full relative accuracy,
+    # which guards against unstable upward recurrence.
+    n = np.arange(values["nstop"] + 1)
+    oscillatory = n <= abs(z)
+    assert_allclose(psi_pymie[oscillatory], psi[oscillatory], rtol=1e-12,
+                    atol=1e-13)
+    assert_allclose(psi_pymie[~oscillatory], psi[~oscillatory], rtol=1e-12)
     assert_allclose(xi_pymie, xi, rtol=1e-12)
 
 
