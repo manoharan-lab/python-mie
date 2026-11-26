@@ -68,8 +68,17 @@ MX_VALUES = [([1.5], [0.1]),
 # repr() for a numpy array would give things like "np.float64(0.8888)")
 THETAS = np.linspace(0, np.pi, 7).tolist()
 
-# arguments at which to calculate the Riccati-Bessel functions
-Z_VALUES = [0.1, 1.0, 10.0, 100.0, 1000.0]
+# arguments at which to calculate the Riccati-Bessel functions, along with the
+# highest order to calculate. If the order is None, the generation function
+# should use pymie's stopping criterion to determine it. Note that z=pi and
+# z=10 pi are where psi_0(z) = sin(z) is nearly zero. Tests that check these
+# cases will catch methods that normalize by psi_0. Tests that check the cases
+# at small z and large n will catch methods that compute psi_n by upward
+# recurrence, which is known to be unstable for n > z.
+Z_VALUES = [(0.1, None), (1.0, None), (10.0, None), (100.0, None),
+            (1000.0, None),
+            (np.pi, None), (10*np.pi, None),
+            (0.01, 30), (0.1, 30), (1.0, 30)]
 
 # scattering angles (in radians) and maximum order at which to calculate the
 # angular functions pi_n and tau_n
@@ -116,13 +125,15 @@ def report(step, output=True):
         print(f"{time.perf_counter() - t_start:.1f} s", flush=True)
 
 
-def riccati_values(z, output=True):
+def riccati_values(z, nstop=None, output=True):
     """Calculates reference values of the Riccati-Bessel functions psi_n(z) and
-    xi_n(z) for n = 0, ..., nstop. If output is True, print status messages.
+    xi_n(z) for n = 0, ..., nstop. If nstop is None, it is set by pymie's
+    stopping criterion.  If output is True, print status messages.
 
     """
     # use pymie's stopping criterion (Allardice & Le Ru)
-    nstop = int(mie._nstop(z))
+    if nstop is None:
+        nstop = int(mie._nstop(z))
 
     with mpmath.workdps(WORKING_DIGITS):
         with report("Riccati-Bessel functions", output):
@@ -196,9 +207,10 @@ def generate_and_save():
     t_start = time.perf_counter()
 
     riccati = []
-    for z in Z_VALUES:
-        print(f"generating reference values for z = {z}", flush=True)
-        riccati.append(riccati_values(z))
+    for z, nstop in Z_VALUES:
+        print(f"generating reference values for z = {z}, nstop = {nstop}",
+              flush=True)
+        riccati.append(riccati_values(z, nstop))
 
     angular = []
     for theta in ANGULAR_THETAS:

@@ -48,7 +48,8 @@ def to_array(strings):
 
 
 @pytest.mark.parametrize("values", REFERENCE_VALUES["riccati"],
-                         ids=lambda values: f"z={values['z']}")
+                         ids=lambda values: (f"z={values['z']};"
+                                             f"nstop={values['nstop']}"))
 def test_riccati_psi_xi_matches_reference(values):
     """Tests that pymie Riccati-Bessel functions return results that match
     stored values from the reference (mpmath) implementation.
