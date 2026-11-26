@@ -891,3 +891,75 @@ def test_dwell_time_and_energy():
     assert_allclose(np.real(distance_calc.magnitude).squeeze(),
                     distance_reported.magnitude, rtol=1e-1)
 
+
+# Sample results from W. J. Wiscombe, "Mie Scattering Calculations: Advances in
+# Technique and Fast, Vector-speed Computer Codes," NCAR Technical Note
+# NCAR/TN-140+STR (1979), Appendix III, pp. A22-A29, computed with his MIEV1
+# code and rounded (by Wiscombe) to 6 significant digits.  MIEV1 is a variant
+# of MIEV0 with some optimizations for the Cray.  Each entry is
+#     (m, x, Qext, Qsca, g, S1(0 deg), S1(180 deg))
+# using Wiscombe's conventions, in which the refractive index is m = n - ik,
+# and the amplitude scattering matrix elements are the complex conjugates of
+# those in Bohren & Huffman (and pymie). These values were transcribed by
+# Claude Opus 5.5 from the Technical Note. There is much more data in the
+# report, but it is for intermediate angles.
+WISCOMBE_DATA = [
+    (1.5, 10.0, 2.881999, 2.881999, 0.742913,
+     72.0500+4.16662j, 4.32164+4.86827j),
+    (1.5, 100.0, 2.094388, 2.094388, 0.818246,
+     5235.97-367.988j, 40.7669+51.7546j),
+    (1.5, 1000.0, 2.013945, 2.013945, 0.827882,
+     503486-8361.82j, 565.233+1502.09j),
+    (1.5, 5000.0, 2.008650, 2.008650, 0.829592,
+     1.25541e7-67229.4j, -14562.5-5071.55j),
+    (1.5-0.1j, 10.0, 2.459791, 1.235144, 0.922350,
+     61.4948-3.17799j, 1.49343+0.296366j),
+    (1.5-0.1j, 100.0, 2.089822, 1.132134, 0.950392,
+     5224.55-261.694j, -9.54952-3.55581j),
+    (1.5-0.1j, 1000.0, 2.019703, 1.106932, 0.950880,
+     504926-7214.99j, 99.4571+22.1736j),
+    (1.5-0.1j, 5000.0, 2.006775, 1.099193, 0.950650,
+     1.25423e7-66647.2j, -77.7833+503.522j),
+]
+
+
+@pytest.mark.parametrize("m_w, x, qext_w, qsca_w, g_w, S1_0_w, S1_180_w",
+                         WISCOMBE_DATA,
+                         ids=[f"m={data[0]};x={data[1]}"
+                              for data in WISCOMBE_DATA])
+def test_wiscombe(m_w, x, qext_w, qsca_w, g_w, S1_0_w, S1_180_w):
+    """Tests efficiencies, asymmetry parameter, and forward- and
+    back-scattering amplitudes against results from
+
+    W. J. Wiscombe, "Mie Scattering Calculations: Advances in Technique and
+    Fast, Vector-speed Computer Codes," NCAR Technical Note NCAR/TN-140+STR
+    (1979), Appendix III, pp. A22-A29
+
+    The size parameters tested by Wiscombe go from x = 10.0 to x = 5000.
+
+    This test and the values from Wiscombe were produced with help from Claude
+    Opus 5.5.
+
+    """
+    # convert to pymie's convention
+    m = np.array([np.conj(m_w)])
+    S1_0 = np.conj(S1_0_w)
+    S1_180 = np.conj(S1_180_w)
+    x = np.array([x])
+
+    qsca, qext, _ = mie.calc_efficiencies(m, x)
+    g = mie.calc_g(m, x)
+    S1, S2, _, _ = mie.amplitude_scattering_matrix(m, x,
+                                                   np.array([0, np.pi]))
+    S1 = S1.squeeze()
+    S2 = S2.squeeze()
+
+    # because the efficiencies and g are tabulated to 6 decimal places, the
+    # rounding error is at most 5e-7
+    assert_allclose(qext, qext_w, rtol=0, atol=1e-6)
+    assert_allclose(qsca, qsca_w, rtol=0, atol=1e-6)
+    assert_allclose(g, g_w, rtol=0, atol=1e-6)
+    # each part (real, imaginary) of S1 is tabulated to 6 significant digits
+    assert_allclose(S1, [S1_0, S1_180], rtol=1e-5)
+    # in the forward direction S2 = S1, and in the backward direction S2 = -S1
+    assert_allclose(S2, [S1_0, -S1_180], rtol=1e-5)
