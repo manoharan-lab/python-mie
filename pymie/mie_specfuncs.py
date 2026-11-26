@@ -42,30 +42,161 @@ sphere," Applied Optics 42, 1710-1720, (1993).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 import numpy as np
-from scipy.special import spherical_jn, spherical_yn
+
 
 # default tolerances
 DEFAULT_EPS1 = 1e-3
 DEFAULT_EPS2 = 1e-16
 
+
 def riccati_psi_xi(x, nstop):
+    """Calculates Riccati-Bessel functions psi_n(x) and xi_n(x) for
+    n = 0, ..., nstop.  From Bohren & Huffman page 101,
+
+        psi_n(x) = x j_n(x)
+        xi_n(x) = x h1_n(x)
+
+    Both functions satisfy the recurrence relation (B&H 4.11)
+
+        f_{n-1}(x) + f_{n+1}(x) = (2n+1)/x f_n(x)
+
+    For xi_n we use upward recurrence, which is stable for all n. For psi_n we
+    use upward recurrence for n <= |x| and downward recurrence for n > |x|. As
+    Wiscombe and others have shown, upward recurrence for psi_n is stable at n
+    <= |x| and unstable above. Upward recurrence is more accurate than downward
+    recurrence in the region where the function is oscillatory (n <= |x|).
+
+    Specifically, the downward recurrence is for the ratios r_n, where
+
+        r_n = psi_n/psi_{n-1} = 1 / ((2n+1)/x - r_{n+1}),
+
+    starting from r = 0 at an order well above nstop and |x|.  We recover psi_n
+    using the relationship
+
+        psi_{n-1} = -i / (xi_n - r_n xi_{n-1})
+
+    which can be derived from the Wronskian (B&H eq. 4.60), the definition xi_n
+    = psi_n - i chi_n, the recurrence relations for the Riccati-Bessel
+    derivatives (below B&H eq. 4.88), and the definition of r_n. Other
+    approaches (see SBESJY.F and scipy's riccati_jn) recover psi_n using
+    psi_0(x) = sin(x) but these approaches are not accurate near zeros of
+    sin(x).
+
+    Parameters
+    ----------
+    x : float, complex, or array-like
+        Argument. By convention, x is treated as at least 1D.  The order n is
+        added as the last axis or, if the trailing axis is length 1 as for a
+        layer axis of a homogeneous sphere, replaces it.
+    nstop : int
+        Highest order to calculate
+
+    Returns
+    -------
+    ndarray
+        Array of shape (2, ..., nstop+1) containing psi_n(x) and xi_n(x)
+
+    Notes
+    -----
+    This function used to use scipy's spherical_jn/spherical_yn, which are
+    vectorized over the parameter x. However, they calculate each order
+    separately, even though all orders are calculated en route. They ended up
+    being very inefficient for Mie calculations. scipy's riccati_jn/riccati_yn
+    calculate all orders in one pass, but they are not vectorized over x. This
+    function is vectorized over the inputs and calculates all orders (though
+    note that there are loops over the order that cannot be vectorized because
+    they come from three-term recurrence relations).
+
+    Note also that the stability criterion for upward recurrence may not hold
+    if x has a substantial imaginary part. This situation needs to be addressed
+    with a test.
+
+    References
+    ----------
+    [1] C. F. Bohren and D. R. Huffman, Absorption and Scattering of Light by
+    Small Particles (Wiley, 1983).
+
+    [2] Wiscombe WJ "Mie Scattering Calculations: Advances in Technique
+    and Fast, Vector-speed Computer Codes." NCAR Technical Note
+    NCAR/TN-140+STR (1979)
+
     """
-    Construct riccati hankel function of 1st kind by linear combination of
-    RB's based on j_n and y_n.
+    x = np.atleast_1d(x)
+    abs_x = np.abs(x)
+    # dtype for psi_n and r_n which is real for real x and complex for complex
+    # x (real arithmetic is faster and uses less memory)
+    real_or_complex = np.result_type(x, float)
 
-    Notes: we use scipy's spherical_jn/spherical_yn, which are vectorized,
-    rather than riccati_jn/riccati_yn, which are not. Also we use the general
-    formula which is valid for both real and complex x
-    """
+    # xi_n for n = 0, ..., nstop+1 by upward recurrence, starting from
+    #     xi_0 = -i exp(ix)
+    #     xi_1 = -exp(ix) (1 + i/x)
+    # which follow from xi_n = x j_n + ix y_n and the first two orders of j_n
+    # and y_n (top of p. 87)
+    xi = np.empty(x.shape + (nstop + 2,), dtype=complex)
+    xi[..., 0] = -1j * np.exp(1j*x)
+    xi[..., 1] = -np.exp(1j*x) * (1 + 1j/x)
+    for n in range(1, nstop + 1):
+        xi[..., n+1] = (2*n + 1)/x * xi[..., n] - xi[..., n-1]
 
-    # Calculate spherical bessel functions and compute the complex
-    # riccati-bessel solutions
-    nstop_array = np.arange(0,nstop+1)
-    psin = spherical_jn(nstop_array, x)*x
-    xin = psin + 1j*spherical_yn(nstop_array, x)*x
-    rbh = np.array([psin, xin])
+    # psi_n for n = 0, ..., n_intermediate, where n_intermediate <= |x|, by
+    # upward recurrence starting from
+    #     psi_0 = sin(x)
+    #     psi_1 = sin(x)/x - cos(x).
+    # We choose maximum order from max value of x.  So in a vectorized
+    # calculation, some calculations may overflow, but we will not use these
+    # values in the end.  Note that for real x, psi is real.
+    psi_up = np.zeros(x.shape + (nstop+1,), dtype=real_or_complex)
+    psi_up[..., 0] = np.sin(x)
+    if nstop >= 1:
+        psi_up[..., 1] = np.sin(x)/x - np.cos(x)
+    n_up = min(nstop, int(abs_x.max()))
+    # ignore overflows when they happen (we will discard these anyway)
+    with np.errstate(over="ignore", invalid="ignore"):
+        for n in range(1, n_up):
+            psi_up[..., n+1] = (2*n + 1)/x * psi_up[..., n] - psi_up[..., n-1]
 
-    return rbh
+    # r_n = psi_n/psi_{n-1} for n = 1, ..., nstop+1 by downward recurrence.
+    # The starting order must be well above both nstop and |x| so that error
+    # from starting at r = 0 decays before reaching nstop.  Each element of x
+    # starts at its own order, so that results for an element don't depend on
+    # the other elements.
+    ratio = np.zeros(x.shape, dtype=real_or_complex)
+    r = np.empty(x.shape + (nstop + 2,), dtype=real_or_complex)
+    # BHMIE downward recurrence uses max(nstop, |x|) + 15 terms. We include
+    # more terms using a scaling factor determined empirically by Claude
+    n_start = np.floor(np.maximum(nstop, abs_x) + 15 + 4*abs_x**(1/3))
+    # warmup phase: from n_start to nstop+2; these values are not saved
+    for n in range(int(n_start.max()), nstop + 1, -1):
+        # np.where is needed because n_start varies with x
+        ratio = np.where(n <= n_start, 1 / ((2*n + 1)/x - ratio), 0)
+    # store ratios for n = nstop + 1 to n = 1 (n_start > nstop+1 always)
+    for n in range(nstop + 1, 0, -1):
+        ratio = 1 / ((2*n + 1)/x - ratio)
+        r[..., n] = ratio
+
+    # recover psi_n for n = 0, ..., nstop from the Wronskian-based relation
+    psi_down = -1j / (xi[..., 1:] - r[..., 1:] * xi[..., :-1])
+    if not np.iscomplexobj(x):
+        # discard imaginary part because psi(x) should be real for real x
+        psi_down = psi_down.real
+
+    # now combine the values from upward and downward recurrence, using upward
+    # when n <= |x| (stable region) and downward otherwise
+    n = np.arange(nstop + 1)
+    psi = np.where(n <= abs_x[..., np.newaxis], psi_up, psi_down)
+
+    result = np.array([psi, xi[..., :nstop+1]])
+    # the order replaces a trailing axis of length 1 (such as the layer axis
+    # for a homogeneous sphere).  We remove that axis only at the end, so that
+    # all of the arithmetic above is done on arrays.  NumPy can round
+    # arithmetic on scalars differently from arithmetic on arrays, and we want
+    # the result for an element of x not to depend on whether it is part of an
+    # array.
+    if x.shape[-1] == 1:
+        result = result[..., 0, :]
+
+    return result
+
 
 def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     """Calculate logarithmic derivative D_n(z) of the Riccati-Bessel function

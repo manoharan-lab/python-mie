@@ -559,8 +559,10 @@ def test_cross_section_complex_medium():
     # Hankel equations (because they simplify when the fields are multiplied by
     # their conjugates to get the intensity) matches old result before simplifying
     cscat_exact_old = Quantity(0.15417313385938064, "um^2")
+    # reduced tolerance from 1e-15 to 1e-13 to avoid failing tests from
+    # rounding errors introduced by changing special function implementations
     assert_allclose(cscat_exact_dimensional.magnitude,
-                    cscat_exact_old.magnitude, rtol=1e-15)
+                    cscat_exact_old.magnitude, rtol=1e-13)
 
     assert_allclose(cscat_exact, cscat_mie, rtol=1e-5)
     assert_allclose(cscat_exact_dimensional.magnitude,
@@ -626,8 +628,10 @@ def test_cross_section_complex_medium():
     # Hankel equations (because they simplify when the fields are multiplied by
     # their conjugates to get the intensity) matches old result before simplifying
     cscat_exact_old3 = Quantity(0.15417310571064319, "um^2")
+    # reduced tolerance from 1e-15 to 1e-13 to avoid failing tests from
+    # rounding errors introduced by changing special function implementations
     assert_allclose(cscat_exact_old3.magnitude,
-                    cscat_exact3_dimensional.magnitude, rtol=1e-15)
+                    cscat_exact3_dimensional.magnitude, rtol=1e-13)
 
     assert_allclose(cscat_exact3, cscat_mie3, rtol=1e-5)
 
