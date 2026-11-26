@@ -20,7 +20,41 @@ Benchmarks for Mie calculations and special function evaluations
 """
 import numpy as np
 
-from pymie import mie
+from pymie import mie, mie_specfuncs
+
+
+class SpecialFunctions:
+    """Benchmarks for the special functions used in Mie calculations, applied
+    to non-vectorized cases.
+
+    """
+    # use the same size parameters as in MieCalculations (below)
+    params = [0.1, 1.0, 10.0, 100.0, 1000.0,
+              0.1 + 0.001j, 10.0 + 0.1j, 1000.0 + 10.0j]
+    param_names = ["x"]
+
+    def setup(self, x):
+        self.nstop = mie._nstop(x)
+
+    def time_riccati_psi_xi(self, x):
+        mie_specfuncs.riccati_psi_xi(x, self.nstop)
+
+
+class VectorizedSpecialFunctions:
+    """As above, but for special functions evaluated over many size parameters.
+
+    """
+    params = [1, 10, 100, 1000]
+    param_names = ["n_sizes"]
+
+    def setup(self, n_sizes):
+        # size parameters have shape (n_sizes, 1), with nstop set by the
+        # largest x
+        self.x = np.linspace(7.0, 13.0, n_sizes)[:, np.newaxis]
+        self.nstop = mie._nstop(self.x.max())
+
+    def time_riccati_psi_xi(self, n_sizes):
+        mie_specfuncs.riccati_psi_xi(self.x, self.nstop)
 
 
 class MieCalculations:
