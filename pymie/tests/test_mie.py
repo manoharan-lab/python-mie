@@ -25,6 +25,29 @@ from numpy.testing import (assert_almost_equal, assert_array_almost_equal,
                            assert_allclose, assert_equal)
 import pytest
 
+
+# Define a few strongly absorbing particles in water to test special functions.
+# The three cases are:
+#   1. Gold near its plasmon resonance (Johnson and Christy, Phys. Rev. B 6,
+#      4370 (1972), at about 517 nm), RI read off from refractiveindex.info
+#   2. An organic dye particle near its absorption peak. I estimated the index
+#      from solution-based measurements of the absorption coefficient.
+#   3. Carbon black at about 633 nm, based on single-particle measurements
+#      described in Moteki, Ohata, Yoshida, Adachi, Aerosol Science and
+#      Technology 57(7): 678–699 (2023).
+# For the largest gold sphere, the special functions are evaluated at an
+# argument with a large imaginary part, about 63.
+ABSORBING_PARTICLES = [
+    ("gold", 0.62 + 2.08j, Quantity(517.0, "nm"), Quantity(0.25, "um")),
+    ("gold", 0.62 + 2.08j, Quantity(517.0, "nm"), Quantity(1.0, "um")),
+    ("gold", 0.62 + 2.08j, Quantity(517.0, "nm"), Quantity(2.5, "um")),
+    ("dye", 1.9 + 0.6j, Quantity(450.0, "nm"), Quantity(0.25, "um")),
+    ("dye", 1.9 + 0.6j, Quantity(450.0, "nm"), Quantity(2.5, "um")),
+    ("carbon black", 1.95 + 0.96j, Quantity(633.0, "nm"), Quantity(0.25, "um")),
+    ("carbon black", 1.95 + 0.96j, Quantity(633.0, "nm"), Quantity(2.5, "um")),
+]
+
+
 def test_cross_sections():
     # Test cross sections against values calculated from BHMIE code (originally
     # calculated for testing fortran-based Mie code in holopy)
@@ -428,6 +451,46 @@ def test_cross_section_Sudiarta():
     assert_almost_equal(cscat3.to('um^2').magnitude, cscat4.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cabs3.to('um^2').magnitude, cabs4.to('um^2').magnitude, decimal=6)
     assert_almost_equal(cext3.to('um^2').magnitude, cext4.to('um^2').magnitude, decimal=6)
+
+
+@pytest.mark.xfail(reason="riccati_psi_xi is inaccurate for arguments with "
+                          "a large imaginary part")
+@pytest.mark.parametrize("material, n_particle, wavelen, radius",
+                         ABSORBING_PARTICLES,
+                         ids=lambda value: (f"{value.to('nm').magnitude:g}nm"
+                                            if isinstance(value, Quantity)
+                                            else None))
+def test_cross_sections_fu_sudiarta_absorbing_particle(material, n_particle,
+                                                       wavelen, radius):
+    """Tests that the Fu and Sudiarta methods give the same cross sections for
+    strongly absorbing particles in a nonabsorbing medium.  Fu's method
+    evaluates the Riccati-Bessel function psi_n at the particle's complex size
+    parameter, which can have a large imaginary part, whereas Sudiarta's method
+    does not.
+
+    Written with help from Claude Opus 5.5.
+
+    """
+    n_medium = 1.33
+    m = index_ratio(n_particle, n_medium)
+    x = size_parameter(wavelen, n_medium, radius)
+    x_scat = size_parameter(wavelen, n_particle, radius)
+
+    nstop = mie._nstop(np.abs(x))
+    coeffs = mie._scatcoeffs(m, x, nstop)
+    internal_coeffs = mie._internal_coeffs(m, x, nstop)
+
+    cross_sections_fu = mie._cross_sections_complex_medium_fu(
+        coeffs[0], coeffs[1], internal_coeffs[0], internal_coeffs[1], radius,
+        n_particle, n_medium, x_scat, x, wavelen)
+    cross_sections_sudiarta = mie._cross_sections_complex_medium_sudiarta(
+        coeffs[0], coeffs[1], x, radius)
+
+    # scattering, absorption, and extinction cross sections
+    for c_fu, c_sudiarta in zip(cross_sections_fu, cross_sections_sudiarta):
+        assert_allclose(c_fu.to("um^2").magnitude,
+                        c_sudiarta.to("um^2").magnitude, rtol=1e-12)
+
 
 def test_pis_taus():
     '''
