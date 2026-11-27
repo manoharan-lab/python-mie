@@ -246,8 +246,7 @@ def calc_ang_scat_RG(m, x, angles):
     return np.stack([ipar, iperp], axis=-1)
 
 
-def calc_cross_sections(m, x, eps1 = DEFAULT_EPS1,
-                        eps2 = DEFAULT_EPS2):
+def calc_cross_sections(m, x, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
     """
     Calculate dimensionless scattering, absorption, and extinction cross
     sections, and asymmetry parameter for spherically symmetric scatterers.
@@ -556,77 +555,111 @@ def _pis_and_taus(nstop, thetas):
     return pis[..., 1:nstop+1], taus[..., 1:nstop+1]
 
 
-def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
-    # test for multilayer particle
-    if m.shape[-1] > 1:
-        return _scatcoeffs_multi(m, x, nstop, eps1, eps2)
-
-    # Scattering coefficients for single-layer particles.
-    # see B/H eqn 4.88
-    # implement criterion used by BHMIE plus a couple more orders to be safe
-    # nmx = np.array([nstop, np.round(np.absolute(m*x))]).max() + 20
-    # Dnmx = mie_specfuncs.log_der_1(m*x, nmx, nstop)
-    # above replaced with Lentz algorithm
-    z = m * x
-    z = z[..., 0]       # remove unneeded layer axis
-    Dnmx = mie_specfuncs.dn_1_down(z, nstop + 1, nstop,
-                                   mie_specfuncs.lentz_dn1(z, nstop + 1,
-                                                           eps1, eps2))
-
-    n = np.arange(nstop+1)
-    psi, xi = mie_specfuncs.riccati_psi_xi(x, nstop)
-
-    psishift = _shift_and_pad(psi)
-    xishift = _shift_and_pad(xi)
-    an = ( (Dnmx/m + n/x)*psi - psishift ) / ( (Dnmx/m + n/x)*xi - xishift )
-    bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
-
-    # coefficient array has shape (2, ..., nstop)
-    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]])
-
-
-def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
-    """Calculate scattered field expansion coefficients (in the Mie formalism)
-    for a particle with an arbitrary number of spherically symmetric layers
-    with different refractive indices.
+def _scatcoeffs(m, x, nstop=None, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
+    """Calculate scattering coefficients a_n and b_n for n = 1, ..., nstop for
+    a homogeneous or multilayer sphere.
 
     Parameters
     ----------
-    marray : array_like, complex128
-        array of layer indexes, innermost first.  Must be specified as at least
-        a 2D array, with the last axis corresponding to the layer indexes.
-    xarray : array_like, real
-        array of layer size parameters (k * outer radius of layer), innermost
-        first.  Must be specified as at least a 2D array, with the last axis
-        corresponding to the layers.
-    nstop : int
-        maximum order.  If not specified, uses largest value of x to determine
+    m : ndarray, shape (..., num_layers)
+        relative index of each layer, innermost first
+    x : ndarray, shape (..., num_layers)
+        size parameter (k times outer radius) of each layer, innermost first
+    nstop : int, optional
+        maximum order.  If not specified, calculated from the largest x
     eps1 : float, optional
-        underflow criterion for Lentz continued fraction for Dn1
+        underflow criterion for Lentz continued fraction for D_n^1
     eps2 : float, optional
-        convergence criterion for Lentz continued fraction for Dn1
+        convergence criterion for Lentz continued fraction for D_n^1
 
     Returns
     -------
-    scat_coeffs : ndarray (complex)
-        Scattering coefficients
+    ndarray (complex), shape (2, ..., nstop)
+        a_n and b_n for n = 1, ..., nstop
+
+    Notes
+    -----
+    We use the formulation of Yang [1]_, in which a_n and b_n are determined by
+    functions H_n^a and H_n^b in the outer layer of a multilayer sphere (Yang
+    eqs. 14 and 15).  For a homogeneous sphere, H_n^a = H_n^b = D_n(mx) (Yang
+    eqs. 12a and 13a; note that for a homogeneous sphere, l=1 and there are no
+    larger values of l), and Yang eqs. 14 and 15 reduce to B&H eq. 4.88.  For a
+    multilayer sphere, `_multilayer_h()` calculates H_n^a and H_n^b in the
+    outer layer using the recurrence over layers discussed by Yang.
+
+    References
+    ----------
+    [1] W. Yang, "Improved recursive algorithm for light scattering by a
+    multilayered sphere," Applied Optics 42(9), 1710-1720 (2003).
 
     """
-    # ensure correct data types and shapes
-    marray = marray.astype(complex)
-    xarray = xarray.astype(complex)
-
-    # sanity check: marray and xarray must be same size
-    if marray.size != xarray.size:
-        raise ValueError("Arrays of layer indices and size parameters must "
-                         "have the same dimensions")
-
-    # need number of layers L
-    nlayers = marray.shape[-1]
-
     # calculate nstop based on largest radius
     if nstop is None:
-        nstop = _nstop(xarray.max())
+        nstop = _nstop(x.max())
+
+    if m.shape[-1] == 1:
+        # homogeneous sphere: H_n^a = H_n^b = D_n(mx)
+        z = (m * x)[..., 0]     # remove unneeded layer axis
+        ha = mie_specfuncs.dn_1_down(z, nstop + 1, nstop,
+                                     mie_specfuncs.lentz_dn1(z, nstop + 1,
+                                                             eps1, eps2))
+        hb = ha
+    else:
+        if m.size != x.size:
+            raise ValueError("Arrays of layer indices and size parameters "
+                             "must have the same dimensions")
+        m = m.astype(complex)
+        x = x.astype(complex)
+        ha, hb = _multilayer_h(m, x, nstop, eps1, eps2)
+
+    # index and size parameter of the outer layer, keeping the layer axis for
+    # broadcasting against the order axis
+    m_outer = m[..., -1:]
+    x_outer = x[..., -1:]
+    psi, xi = mie_specfuncs.riccati_psi_xi(x_outer, nstop)
+
+    # Yang eqs. 14 and 15 (B&H eq. 4.88) for orders n = 1, ..., nstop, with
+    # psi and xi also needed at n-1
+    n_over_x = np.arange(1, nstop + 1) / x_outer
+    psi_n, psi_nm1 = psi[..., 1:], psi[..., :-1]
+    xi_n, xi_nm1 = xi[..., 1:], xi[..., :-1]
+    fa = ha[..., 1:]/m_outer + n_over_x
+    fb = hb[..., 1:]*m_outer + n_over_x
+
+    # coefficient array has shape (2, ..., nstop)
+    return np.array([(fa*psi_n - psi_nm1) / (fa*xi_n - xi_nm1),
+                     (fb*psi_n - psi_nm1) / (fb*xi_n - xi_nm1)])
+
+
+def _multilayer_h(marray, xarray, nstop, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
+    """Calculate the functions H_n^a and H_n^b in the outer layer of a
+    multilayer sphere, by recurrence over layers (Yang [1]_ eqs. 24 and 25).
+
+    Parameters
+    ----------
+    marray : ndarray (complex), shape (..., num_layers)
+        relative index of each layer, innermost first
+    xarray : ndarray (complex), shape (..., num_layers)
+        size parameter (k times outer radius) of each layer, innermost first
+    nstop : int
+        maximum order
+    eps1 : float, optional
+        underflow criterion for Lentz continued fraction for D_n^1
+    eps2 : float, optional
+        convergence criterion for Lentz continued fraction for D_n^1
+
+    Returns
+    -------
+    hans, hbns : ndarray (complex), each with shape (..., nstop+1)
+        H_n^a and H_n^b in the outer layer for n = 0, ..., nstop
+
+    References
+    ----------
+    [1] W. Yang, "Improved recursive algorithm for light scattering by a
+    multilayered sphere," Applied Optics 42(9), 1710-1720 (2003).
+
+    """
+    nlayers = marray.shape[-1]
 
     # m_l x_{l-1}
     z1 = marray[..., 1:] * xarray[..., :-1]
@@ -650,7 +683,7 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     derz2s = (d1_all[..., nlayers:, :], d3_all[..., nlayers:, :])
 
     # pre-calculate ratio Q_n^l for all layers
-    # Qratio returns array with shape (..., nlayers-1, nstop)
+    # Qratio returns array with shape (..., nlayers-1, nstop+1)
     Qnl_arr = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s, dns2 = derz2s)
 
     # lay is l-1 (index on layers used by Yang)
@@ -680,34 +713,18 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
         hbns = (Gt2*dz2s0 - Qnl*Gt1*dz2s1) / (Gt2 - Qnl*Gt1)
         # repeat for next layer
 
-    # Relate H^a and H^b in the outer layer to the Mie scat coeffs
-    # see Yang eqns 14 and 15
-    #
-    # n = 0 to nstop
-    # (below we vectorize over the leading dimensions of x; we calculate the
-    # max x over layers for each value specified in leading dims)
-    xmax = xarray.max(axis=-1)
-    psiandxi = mie_specfuncs.riccati_psi_xi(xmax[..., np.newaxis], nstop)
-
-    n = np.arange(nstop+1)
-    psi = psiandxi[0]
-    xi = psiandxi[1]
-    # this doesn't bother to calculate psi/xi_{-1} correctly,
-    # but OK since we're throwing out a_0, b_0 where it appears
-    psishift = _shift_and_pad(psi)
-    xishift = _shift_and_pad(xi)
-    mlast = marray[..., nlayers-1][..., np.newaxis]
-    xlast = xarray[..., nlayers-1][..., np.newaxis]
-    an = (((hans/mlast + n/xlast)*psi - psishift)
-          / ((hans/mlast + n/xlast)*xi - xishift))
-    bn = (((hbns*mlast + n/xlast)*psi- psishift)
-          / ((hbns*mlast + n/xlast)*xi - xishift))
-
-    # output begins at n=1
-    return np.array([an[..., 1:nstop+1], bn[..., 1:nstop+1]])
+    return hans, hbns
 
 
-def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+# can delete once references to _scatcoeffs_multi() in structcol are changed to
+# _scatcoeffs()
+def _scatcoeffs_multi(marray, xarray, nstop=None, eps1=DEFAULT_EPS1,
+                      eps2=DEFAULT_EPS2):
+    """Deprecated: use `_scatcoeffs()`, which handles multilayer spheres."""
+    return _scatcoeffs(marray, xarray, nstop, eps1, eps2)
+
+
+def _internal_coeffs(m, x, n_max, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
     """Calculate internal Mie coefficients c_n and d_n given relative index,
     size parameter, and maximum order of expansion.
 

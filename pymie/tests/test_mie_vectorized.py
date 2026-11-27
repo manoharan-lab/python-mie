@@ -357,8 +357,8 @@ class TestVectorizedInternalFunctions():
         in `test_mie.py::test_pis_taus()`
     _scatcoeffs() :
         tested by `test_vectorized_scatcoeffs()`
-    _scatcoeffs_multi() :
-        tested by `test_vectorized_scatcoeffs()`
+    _multilayer_h() :
+        tested implicitly by `test_vectorized_scatcoeffs()`
     _internal_coeffs() :
         tested by `test_vectorized_internal_coeffs()`
     _trans_coeffs() :
@@ -423,36 +423,25 @@ class TestVectorizedInternalFunctions():
     @pytest.mark.parametrize("num_wavelen,num_layer",
                              [(10, 1), (1, 5), (10, 5)])
     def test_vectorized_scatcoeffs(self, num_wavelen, num_layer):
-        """Tests that mie._scatcoeffs() and mie._scatcoeffs_multi() vectorize
-        properly.
+        """Tests that mie._scatcoeffs() vectorizes properly for both
+        homogeneous and multilayer spheres.
 
         """
         m, x = mx(num_wavelen=num_wavelen, num_layer=num_layer, **self.mxargs)
         nstop, coeffs = calc_coeffs(m, x)
 
-        # if multilayer, check that _scatcoeffs is actually calling the
-        # multilayer code
-        if num_layer > 1:
-            coeffs_direct = mie._scatcoeffs_multi(m, x)
-            assert_equal(coeffs, coeffs_direct)
-
         # make sure shape is correct
         expected_shape = (2, num_wavelen, nstop)
         assert coeffs.shape == expected_shape
 
-        # we should get same value from loop
+        # we should get same value from loop.  Need to specify nstop here;
+        # otherwise each wavelength would get a different number of
+        # coefficients, since nstop is calculated from the largest x
         coeffs_loop = []
         for i in range(m.shape[0]):
-            if num_layer == 1:
-                # m[[i]] preserves 2D array
-                coeffs_loop.append(mie._scatcoeffs(m[[i]], x[[i]], nstop))
-            else:
-                # need to specify nstop here; otherwise we will get a
-                # different number of scattering coefficients for each
-                # wavelength, since _scatcoeffs_multi() picks the largest x
-                # for each wavelength.
-                coeffs_loop.append(mie._scatcoeffs_multi(m[[i]], x[[i]],
-                                                         nstop))
+            # m[[i]] preserves 2D array
+            coeffs_loop.append(mie._scatcoeffs(m[[i]], x[[i]], nstop))
+
         # concatenate along wavelength axis
         coeffs_loop = np.concatenate(coeffs_loop, axis=1)
         assert_equal(coeffs, coeffs_loop)

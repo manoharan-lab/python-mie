@@ -378,7 +378,7 @@ def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     across z but requires loops over order.
 
     This function is used to calculate the scattering coefficients of
-    multilayer spheres (`mie._scatcoeffs_multi()`) and the internal-field
+    multilayer spheres (`mie._multilayer_h()`) and the internal-field
     coefficients of homogeneous spheres (`mie._internal_coeffs()`), which are
     needed only for calculations in an absorbing medium. Scattering
     coefficients of homogeneous spheres, in absorbing or nonabsorbing media,
@@ -442,7 +442,7 @@ def Qratio(z1, z2, nstop, dns1, dns2):
     rather than a loop over order.
 
     This function is used only in calculating the scattering coefficients of
-    multilayer spheres (`mie._scatcoeffs_multi()`). In Yang's algorithm, the
+    multilayer spheres (`mie._multilayer_h()`). In Yang's algorithm, the
     functions H_n^a and H_n^b in each layer (Yang eqs. 24 and 25) depend on
     Q_n^l, the ratio of psi_n/xi_n at the inner boundary of layer l to
     psi_n/xi_n at its outer boundary. As Yang notes, calculating Q_n^l by
