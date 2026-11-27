@@ -16,7 +16,7 @@
 # this package. If not, see <https://www.gnu.org/licenses/>.
 """
 Benchmarks for miepython (https://github.com/scottprahl/miepython) that are
-nearly equivalent to those in pymie and miepython. There is currently no
+nearly equivalent to those for pymie in benchmarks.py. There is currently no
 layered sphere model in miepython, so these benchmarks look only at homogeneous
 spheres.
 
@@ -33,7 +33,10 @@ import miepython
 class MiepythonCalculations:
     """Analogous to MieCalculations in benchmarks.py. Parameters should be set
     to be the same in both files (though miepython does not handle absorbing
-    media).
+    media), but note that miepython uses the opposite convention to pymie for
+    the imaginary index.  In miepython, negative imaginary index corresponds to
+    absorption, whereas in pymie, positive imaginary index corresponds to
+    absorption.
 
     """
     # m values correspond to
@@ -41,7 +44,7 @@ class MiepythonCalculations:
     #   2) absorbing PS in water
     # we don't use the 1-element tuple form because miepython expects scalars
     params = [[1.59/1.33,
-               1.59/1.33 + 1e-3j],
+               1.59/1.33 - 1e-3j],
               [0.1, 1.0, 10.0, 100.0, 1000.0]]
     param_names = ["m", "x"]
 
@@ -61,7 +64,9 @@ class MiepythonCalculations:
 
 
 class VectorizedMiepythonCalculations:
-    """Analogous to VectorizedMieCalculations in benchmarks.py.
+    """Analogous to VectorizedMieCalculations in benchmarks.py, with refractive
+    index the complex conjugate of that in pymie (see note in
+    MiepythonCalculations).
 
     """
     # we'll check how time scales with number of sphere diameters
@@ -70,7 +75,7 @@ class VectorizedMiepythonCalculations:
 
     def setup(self, n_sizes):
         # Use a PS sphere with absorption in non-absorbing medium (water)
-        self.m = 1.59/1.33 + 1e-3j
+        self.m = 1.59/1.33 - 1e-3j
         # Choose size parameters around 10, corresponding to about
         # 1-micrometer-diameter particles at 500 nm incident wavelength
         self.x = np.linspace(7.0, 13.0, n_sizes)

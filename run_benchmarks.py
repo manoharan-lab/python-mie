@@ -125,7 +125,10 @@ def print_results(results):
     # we'll look only at the weakly absorbing homogeneous sphere in the
     # nonabsorbing medium.
     pymie_x_result = pymie_result.xs(WEAKLY_ABSORBING_M, level="m")
-    miepython_x_result = miepython_result.xs(WEAKLY_ABSORBING_M, level="m")
+    # to find the corresponding result, have to take complex conjugate because
+    # miepython uses opposite sign convention for the imaginary index
+    miepython_x_result = miepython_result.xs(np.conj(WEAKLY_ABSORBING_M),
+                                             level="m")
     # Remove values for absorbing medium from pymie results (these are not in
     # the miepython results)
     pymie_x_result = pymie_x_result[np.imag(pymie_x_result.index) == 0]
