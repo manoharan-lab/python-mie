@@ -559,7 +559,7 @@ def _pis_and_taus(nstop, thetas):
 def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     # test for multilayer particle
     if m.shape[-1] > 1:
-        return _scatcoeffs_multi(m, x)
+        return _scatcoeffs_multi(m, x, nstop, eps1, eps2)
 
     # Scattering coefficients for single-layer particles.
     # see B/H eqn 4.88
