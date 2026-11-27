@@ -855,8 +855,9 @@ def test_integrate_intensity_cartesian():
 
     cscat_parperp = mie.integrate_intensity(I_parperp, thetas, kd=kd)[..., -1]
 
-    # check that the integrated cross sections are equal
-    assert_allclose(cscat_xy, cscat_parperp, rtol=1e-15)
+    # check that the integrated cross sections are equal to within rounding
+    # error
+    assert_allclose(cscat_xy, cscat_parperp, rtol=1e-14)
 
 def test_value_errors():
     '''

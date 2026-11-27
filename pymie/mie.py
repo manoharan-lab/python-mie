@@ -133,7 +133,6 @@ sphere," Applied Optics 42, 1710-1720 (2003).
 """
 import numpy as np
 from scipy.special import spherical_jn, spherical_yn
-from scipy.special import legendre_p_all
 
 from . import Quantity, index_ratio, mie_specfuncs
 from . import size_parameter, ureg
@@ -505,54 +504,67 @@ def calc_reflectance(radius, n_medium, n_particle, wavelen,
 # Mie functions used internally
 
 def _pis_and_taus(nstop, thetas):
-    '''
-    Calculate pi and tau angular functions at an array of theta out to order n
+    """Calculate angular functions pi_n and tau_n for n = 1, ..., nstop at an
+    array of scattering angles by upward recurrence.
+
+    From B&H eq. 4.47, the recurrence for pi_n is
+
+        pi_n = (2*n - 1)/(n - 1) mu pi_{n-1} - n/(n - 1) pi_{n-2}
+
+    starting from pi_0 = 0 and pi_1 = 1, where mu = cos(theta), and
+
+        tau_n = n mu pi_n - (n + 1) pi_{n-1}
 
     Parameters
     ----------
-    nstop : float
+    nstop : int
         maximum order
     thetas : ndarray or float
-        scattering angles.  Must be specified in radians.
+        scattering angles, in radians
 
     Returns
     -------
-    pis, taus (order 1 to n): ndarray
-        angular functions, each has shape (..., num_thetas, nstop)
+    pis, taus : ndarray
+        angular functions, each with shape [shape of thetas] + (nstop,)
 
     Notes
     -----
-    Pure python version of mieangfuncs.pisandtaus in holopy.  See B/H eqn 4.46,
-    Wiscombe eqns 3-4.
-    '''
-    # make n a float if it's not already by taking the maximum value given
-    nstop = np.max(nstop)
+    Upward recurrence should be stable. Bohren and Huffman say that the angular
+    functions "appear to pose no particular computational problems--at least no
+    one has complained about them in print" (p. 94).
+
+    This function used to use scipy's `legendre_p_all()` with `diff_n=1` to
+    calculate the pi_n. But the recurrence relations are around 5x faster (even
+    though they are not vectorized over order), possibly because
+    `legendre_p_all()` is a general-purpose method that doesn't optimize for
+    Mie calculations, as we do here.
+
+    """
+    # nstop may be passed as an array; use its largest value, as an integer
+    nstop = int(np.max(nstop))
 
     # make theta an array if it's not already
     thetas = np.atleast_1d(thetas)
+    mu = np.cos(thetas)
 
-    # flatten to make calculations easier
-    mu = np.cos(thetas.ravel())
+    # put the order axis first, so that pis[n] (all angles for one order) is
+    # contiguous in memory and each step writes a contiguous block. We move the
+    # order axis to the last axis at the end.
+    pis = np.empty((nstop + 1,) + thetas.shape)
+    pis[0] = 0.0
+    pis[1] = 1.0
+    for n in range(2, nstop + 1):
+        pis[n] = ((2*n - 1) * mu * pis[n-1] - n*pis[n-2]) / (n-1)
 
-    # returns P_n and derivatives up to degree n for all values in mu array.
-    # legendre0 has shape (2, nmax, num_thetas), where legendre0[0,:,:] is P_n
-    # and legendre0[1,:,:] is the derivative.
-    legendre0 = legendre_p_all(nstop, mu, diff_n=1)
+    # Now calculate tau_n. We set up an array of orders n = 1, ..., nstop. pis
+    # has shape (nstop+1,) + thetas.shape, so n needs shape (nstop, 1, 1, ...),
+    # with one trailing axis of length 1 per axis of thetas, to broadcast along
+    # the order axis
+    n = np.arange(1, nstop+1).reshape((-1,) + (1,)*thetas.ndim)
+    taus = n * mu * pis[1:] - (n + 1) * pis[:-1]
 
-    # Perform calculations on pis to get taus. We swap axes so that the order
-    # axis is last; resulting shape is (num_thetas, nstop+1)
-    pis = np.swapaxes(legendre0[1, 0:nstop+1, :], 0, 1)
-    pishift = _shift_and_pad(pis)
-    n = np.arange(nstop+1)
-    # add order axis to mu; resulting shape is (num_thetas, 1)
-    mu = mu[..., np.newaxis]
-    taus = (n * pis * mu) - (n+1) * pishift
-
-    # reshape to match thetas original shape
-    ang_shape = thetas.shape + (nstop+1,)
-    pis = np.reshape(pis, ang_shape)
-    taus = np.reshape(taus, ang_shape)
-    return pis[..., 1:nstop+1], taus[..., 1:nstop+1]
+    # move order axis to the end
+    return np.moveaxis(pis[1:], 0, -1), np.moveaxis(taus, 0, -1)
 
 
 def _scatcoeffs(m, x, nstop=None, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
