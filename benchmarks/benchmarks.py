@@ -140,3 +140,41 @@ class VectorizedMieCalculations:
 
     def time_scatcoeffs(self, n_sizes):
         mie._scatcoeffs(self.m, self.x, self.nstop)
+
+
+class HologramCalculations:
+    """Benchmarks for angular calculations over a large number of scattering
+    angles, as might be used in calculating a hologram. In that case, each
+    angle would correspond to a pixel. We time the full set of pixels and a
+    random subset.
+
+    """
+    # x = 6.3 and 25 correspond to polystyrene spheres of radius 0.5 and 2
+    # micrometer in water at 660 nm
+    params = [[6.3, 25.0], [1.0, 0.1]]
+    param_names = ["x", "fraction_of_pixels"]
+
+    def setup(self, x, fraction):
+        # 256 x 256 detector with 0.1-um pixels (in the object plane) and a
+        # sphere 15 um above the focal plane, centered on the detector, giving
+        # scattering angles from about 0 to 50 degrees
+        npix = 256
+        coords = (np.arange(npix) - npix/2 + 0.5) * 0.1
+        X, Y = np.meshgrid(coords, coords)
+        thetas = np.arctan2(np.hypot(X, Y), 15.0)
+        if fraction < 1:
+            # random subset of pixels; flattened and unsorted, as in HoloPy
+            rng = np.random.default_rng(0)
+            thetas = rng.choice(thetas.ravel(), size=int(fraction*thetas.size),
+                                replace=False)
+        self.thetas = thetas
+        self.m = np.array([1.59/1.33])
+        self.x = np.array([x])
+        self.nstop = mie._nstop(x)
+
+    def time_amplitude_scattering_matrix(self, x, fraction):
+        mie.amplitude_scattering_matrix(self.m, self.x, self.thetas)
+
+    def time_pis_and_taus(self, x, fraction):
+        mie._pis_and_taus(self.nstop, self.thetas)
+
