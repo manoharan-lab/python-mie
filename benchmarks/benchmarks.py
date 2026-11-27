@@ -84,6 +84,7 @@ class MieCalculations:
             self.kd = self.x[-1]
         else:
             self.kd = None
+        self.nstop = mie._nstop(self.x.max())
 
     def time_calc_cross_sections(self, m, x):
         mie.calc_cross_sections(self.m, self.x)
@@ -105,6 +106,10 @@ class MieCalculations:
         mie.calc_ang_scat(self.m, self.x, self.thetas, phis=self.phis,
                           kd=self.kd)
 
+    def time_scatcoeffs(self, m, x):
+        mie._scatcoeffs(self.m, self.x, self.nstop)
+
+
 class VectorizedMieCalculations:
     """As above, but benchmarks results for functions that are vectorized over
     m and x.
@@ -122,6 +127,7 @@ class VectorizedMieCalculations:
         # 1-micrometer-diameter particles at 500 nm incident wavelength
         self.x = np.linspace(7.0, 13.0, n_sizes)[:, np.newaxis]
         self.thetas = np.linspace(0, np.pi, 100)
+        self.nstop = mie._nstop(self.x.max())
 
     def time_calc_cross_sections(self, n_sizes):
         mie.calc_cross_sections(self.m, self.x)
@@ -131,3 +137,6 @@ class VectorizedMieCalculations:
 
     def peakmem_calc_ang_scat(self, n_sizes):
         mie.calc_ang_scat(self.m, self.x, self.thetas)
+
+    def time_scatcoeffs(self, n_sizes):
+        mie._scatcoeffs(self.m, self.x, self.nstop)
