@@ -292,32 +292,58 @@ def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
 
 def dn_1_down(z, nmx, nstop, start_val):
-    '''
-    Computes logarithmic derivative of Riccati-Bessel function psi_n(z)
-    by downward recursion as in BHMIE.
+    """Calculates logarithmic derivative D_n(z) of the Riccati-Bessel function
+    psi_n(z) for n = 0, ..., nstop by downward recurrence, as in BHMIE [1]_.
+
+    The recurrence is
+
+                      n           1
+        D_{n-1}(z) = ---  -  -----------
+                      z       D_n + n/z
+
+    (B&H eq. 4.89)
 
     Parameters
     ----------
-    z: complex argument
-    nmx: order from which downward recursion begins.
-    nstop: integer, maximum order
-    start_val: value from which recursion begins
+    z : array-like (real or complex)
+        argument of the logarithmic derivative
+    nmx : integer
+        order from which downward recursion begins (nmx >= nstop)
+    nstop : integer
+        maximum order returned
+    start_val : array-like, shape of z
+        value of D_nmx(z), from which recursion begins
+
+    Returns
+    -------
+    ndarray : shape of z + (nstop+1,)
+        values of D_n(z) for n = 0, ..., nstop
 
     Notes
     -----
-    psi_n(z) is related to the spherical Bessel function j_n(z).
-    '''
+    Downward recurrence for D_n is stable, unlike upward recurrence [1]_.
+    Function is vectorized across z but requires a loop over n.  D_n(z) is real
+    for real z.
+
+    References
+    ----------
+    [1] C. F. Bohren and D. R. Huffman, Absorption and Scattering of Light by
+    Small Particles (Wiley, 1983).
+
+    """
     z = np.array(z)
     start_val = np.atleast_1d(start_val)
-    dn = np.zeros(start_val.shape + (nmx+1,), dtype=complex)
+    # D_n is real for real z
+    real_or_complex = np.result_type(z, start_val, float)
+    # since dn will be full at the end, start empty to save some time
+    dn = np.empty(start_val.shape + (nmx+1,), dtype=real_or_complex)
     dn[..., nmx] = start_val
 
-    # pre-calculate 1/z so we save a little time in the loop
-    i_range = np.arange(nmx-1, -1, -1)
+    # pre-calculate 1/z to save a little time in the downward recurrence loop
     one_over_z = 1/z
-    for i in i_range:
-        dn[..., i] = ((i+1)*one_over_z
-                      - 1.0/(dn[..., i+1] + ((i+1)*one_over_z)))
+    for n in range(nmx, 0, -1):
+        n_over_z = n * one_over_z
+        dn[..., n-1] = n_over_z - 1.0/(dn[..., n] + n_over_z)
     return dn[..., 0:nstop+1]
 
 
