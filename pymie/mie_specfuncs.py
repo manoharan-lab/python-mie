@@ -207,7 +207,7 @@ def riccati_psi_xi(x, nstop):
 def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     """Calculate logarithmic derivative D_n(z) of the Riccati-Bessel function
     for a single value of n using the Lentz (1976) continued fraction method
-    [1].
+    [1]_.
 
     This function is used to seed the down-recursion algorithm in
     `dn_1_down()`, which calculates the other logarithmic derivatives needed to
@@ -218,7 +218,10 @@ def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     Implements check/workaround for ill-conditioning described under "Algorithm
     Improvement" in Lentz (1976) [1]_; see also Wiscombe/NCAR Mie report [2]_.
     Function is vectorized across z (uses array operations to handle multiple
-    values of z in parallel) but still requires a loop to test for convergence
+    values of z in parallel) but still requires a loop to test for convergence.
+    Elements that have converged are frozen (multiplied by exactly 1) while the
+    others continue to iterate, so that the result for each element does not
+    depend on the others.
 
     Parameters
     ----------
@@ -244,52 +247,49 @@ def lentz_dn1(z, n, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     calculations using continued fractions," Applied Optics 15(3), 668-671
     (1976).
 
-    [2] w. Wiscombe, "Mie Scattering Calculations: Advances in Technique and
+    [2] W. Wiscombe, "Mie Scattering Calculations: Advances in Technique and
     Fast, Vector-speed Computer Codes," University Corporation for Atmospheric
     Research. https://doi.org/10.5065/D6ZP4414 (Original work published 1979)
 
     """
+    z = np.atleast_1d(z)
+
     def a_i(i):
         # elements of continued fraction expansion
         # Note: Wiscombe uses a different value for a_1 than the one given by
         # this formula, but Lentz uses the same formula for all a_i
-        val = (-1.)**(i + 1) * 2. * (n + i - 0.5) / z
-        return np.atleast_1d(val)
+        return (-1.)**(i + 1) * 2. * (n + i - 0.5) / z
 
     # calculate numerator and denominator and a_2
     numerator = a_i(2) + 1. / a_i(1)
     denominator = a_i(2)
     product = a_i(1) * numerator / denominator
     ratio = product.copy()
-    ctr = 3
+    # elements that have not yet converged
+    active = np.abs(product - 1) > eps2
+    i = 3
 
-    while ((np.abs(product.real - 1) > eps2).any()
-           or (np.abs(product.imag) > eps2).any()):
-        # find the indices corresponding to the values that have not converged
-        # yet, and iterate only those (otherwise further iteration of values
-        # that have converged could lead to instabilities)
-        ind = np.where(np.logical_or(np.abs(product.real - 1) > eps2,
-                                     np.abs(product.imag) > eps2))
-        ai = a_i(ctr)
-        numerator[ind] = ai[ind] + 1. / numerator[ind]
-        denominator[ind] = ai[ind] + 1. / denominator[ind]
-        # TODO check the ill-conditioning code and update to include indices.
-        # Requires unit tests to be written.
-        if ((np.abs(numerator / ai) < eps1).any()
-            or (np.abs(denominator / ai) < eps1).any()):
-            # ill conditioning
-            xi1 = 1. + a_i(ctr + 1) * numerator
-            xi2 = 1. + a_i(ctr + 1) * denominator
-            ratio = ratio * xi1 / xi2
-            #print('ill conditioned', ratio)
-            numerator = a_i(ctr + 2) + numerator / xi1
-            denominator = a_i(ctr + 2) + denominator / xi2
-            ctr = ctr + 2
-        product[ind] = numerator[ind] / denominator[ind]
-        ratio[ind] = ratio[ind] * product[ind]
-        ctr = ctr + 1
+    while active.any():
+        ai = a_i(i)
+        numerator = ai + 1. / numerator
+        denominator = ai + 1. / denominator
+        ill_conditioned = (np.minimum(np.abs(numerator), np.abs(denominator))
+                           < eps1 * np.abs(ai))
+        if (ill_conditioned & active).any():
+            # ill conditioning: combine two terms, as in Lentz (1976)
+            xi1 = 1. + a_i(i + 1) * numerator
+            xi2 = 1. + a_i(i + 1) * denominator
+            ratio = np.where(active, ratio * xi1 / xi2, ratio)
+            numerator = a_i(i + 2) + numerator / xi1
+            denominator = a_i(i + 2) + denominator / xi2
+            i += 2
+        product = np.where(active, numerator / denominator, 1)
+        ratio = ratio * product
+        active = active & (np.abs(product - 1) > eps2)
+        i += 1
 
     return ratio - n / z
+
 
 def dn_1_down(z, nmx, nstop, start_val):
     '''
