@@ -35,8 +35,8 @@ References
 [1] D. W. Mackowski, R. A. Altenkirch, and M. P. Menguc, "Internal absorption
 cross sections in a stratified sphere," Applied Optics 29, 1551-1559, (1990).
 
-[2] Yang, "Improved recursive algorithm for light scattering by a multilayered
-sphere," Applied Optics 42, 1710-1720, (1993).
+[2] W. Yang, "Improved recursive algorithm for light scattering by a
+multilayered sphere," Applied Optics 42, 1710-1720, (2003).
 
 .. moduleauthor:: Jerome Fung <fung@physics.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
@@ -414,82 +414,70 @@ def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     return dn1, dn3
 
 
-# calculate ratio of RB's defined in Yang eqn. 23 by up recursion relation
-def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
-           eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
-    """Calculate ratio of Riccati-Bessel functions defined in Yang eq. 23 by
-    up recursion.
-
-    Notes
-    -----
-    Logarithmic derivatives calculated automatically if not specified.
-
-    Inputs z1 and z2 should be complex arrays with shape (..., num_layers),
-    where "..." means any number of leading dimensions.
+def Qratio(z1, z2, nstop, dns1, dns2):
+    """Calculate the ratio Q_n^l of Riccati-Bessel functions (defined in Yang
+    eq. 23) by upward recurrence (Yang eq. 33) [1]_.
 
     Parameters
     ----------
-    z1 : array-like with shape (..., num_layers)
-        m for layer * x for previous layer
-    z2 : array-like with shape (..., num_layers)
-        m for layer * x for layer
+    z1 : array-like (complex) with shape (..., num_layers)
+        index of layer l (m_l) times size parameter of layer l-1 (x_{l-1})
+    z2 : array-like (complex) with shape (..., num_layers)
+        index of layer l (m_l) times size parameter of layer l (x_l)
     nstop : integer
-        maximum order of computation
-    eps1 : float
-        underflow criterion to pass to Lentz continued fraction calculation
-    eps2 : float
-        convergence criterion to pass to Lentz continued fraction calculation
+        maximum order
+    dns1, dns2 : tuple of ndarray
+        logarithmic derivatives (D_n^1, D_n^3) at z1 and z2, as returned by
+        `log_der_13()`, each with shape (..., num_layers, nstop+1)
 
     Returns
     -------
-    Qnl : array-like with shape (..., num_layers, order)
-        Q_n^l for all values (e.g. wavelengths) and layers in z
+    ndarray (complex), shape (..., num_layers, nstop+1)
+        Q_n^l for n = 0, ..., nstop
+
+    Notes
+    -----
+    Because each Q_n^l is Q_{n-1}^l times a factor that does not depend on Q,
+    the recurrence is a running product, which we calculate with np.cumprod
+    rather than a loop over order.
+
+    This function is used only in calculating the scattering coefficients of
+    multilayer spheres (`mie._scatcoeffs_multi()`). In Yang's algorithm, the
+    functions H_n^a and H_n^b in each layer (Yang eqs. 24 and 25) depend on
+    Q_n^l, the ratio of psi_n/xi_n at the inner boundary of layer l to
+    psi_n/xi_n at its outer boundary. As Yang notes, calculating Q_n^l by
+    recurrence, rather than from psi_n and xi_n themselves, avoids "the
+    numerical difficulties in earlier methods that were due to the subtraction
+    of nearly equal terms, leaving a small residual."
+
+    References
+    ----------
+    [1] W. Yang, "Improved recursive algorithm for light scattering by a
+    multilayered sphere," Applied Optics 42, 1710-1720, (2003).
+
     """
-    if (dns1 is None) or (dns2 is None):
-        logdersz1 = log_der_13(z1, nstop, eps1, eps2)
-        logdersz2 = log_der_13(z2, nstop, eps1, eps2)
-        d1z1 = logdersz1[0]
-        d3z1 = logdersz1[1]
-        d1z2 = logdersz2[0]
-        d3z2 = logdersz2[1]
-    else:
-        d1z1 = dns1[0]
-        d3z1 = dns1[1]
-        d1z2 = dns2[0]
-        d3z2 = dns2[1]
+    d1z1, d3z1 = dns1
+    d1z2, d3z2 = dns2
 
-    # initialize according to Yang eqn. 34
-    a1 = np.real(z1)
-    a2 = np.real(z2)
-    b1 = np.imag(z1)
-    b2 = np.imag(z2)
-    qns0 = (np.exp(-2.*(b2-b1)) * (np.exp(-1j*2.*a1)-np.exp(-2.*b1))
-             / (np.exp(-1j*2.*a2) - np.exp(-2.*b2)))
-    # resulting shape is (..., num_layers, order)
-    qns0 = qns0[..., np.newaxis]
+    # Q_0^l (Yang eq. 34), where z = a + ib
+    a1, b1 = z1.real, z1.imag
+    a2, b2 = z2.real, z2.imag
+    q0 = (np.exp(-2.*(b2 - b1)) * (np.exp(-2j*a1) - np.exp(-2*b1))
+          / (np.exp(-2j*a2) - np.exp(-2*b2)))
 
-    # Vectorized loop (using np.cumprod) to do upwards recursion in eqn. 33
-    irange = np.arange(1, nstop+1)[np.newaxis, :]
-    # irange shape is (1, order) where 1 is for layer axis; Need to add order
-    # axis to z1, z2 for broadcasting
-    i_over_z1 = irange / z1[..., np.newaxis]
-    i_over_z2 = irange / z2[..., np.newaxis]
-    prod = ((d3z1[..., 1:] + i_over_z1) * (d1z2[..., 1:] + i_over_z2)
-            / ((d3z2[..., 1:] + i_over_z2) * (d1z1[..., 1:] + i_over_z1)))
-    qns = np.concatenate((qns0, qns0 * np.cumprod(prod, axis=-1)), axis=-1)
+    # ratios Q_n^l/Q_{n-1}^l for n = 1, ..., nstop (Yang eq. 33). Need to add
+    # order axis to z1, z2 for broadcasting; result has shape
+    # (..., num_layers, nstop)
+    n_over_z1 = np.arange(1, nstop+1) / z1[..., np.newaxis]
+    n_over_z2 = np.arange(1, nstop+1) / z2[..., np.newaxis]
+    ratio = ((d3z1[..., 1:] + n_over_z1) * (d1z2[..., 1:] + n_over_z2)
+             / ((d3z2[..., 1:] + n_over_z2) * (d1z1[..., 1:] + n_over_z1)))
 
-    # equivalent non-vectorized loop is below
-    #
-    # qns = np.zeros(z1.shape + (nstop+1,), dtype=complex)
-    # qns[..., 0] = (np.exp(-2.*(b2-b1)) * (np.exp(-1j*2.*a1)-np.exp(-2.*b1))
-    #                / (np.exp(-1j*2.*a2) - np.exp(-2.*b2)))
-    # for i in np.arange(1, nstop+1):
-    #     qns[..., i] = qns[..., i-1]* (((d3z1[..., i] + i/z1)
-    #                                    * (d1z2[..., i] + i/z2))
-    #                                   / ((d3z2[..., i] + i/z2)
-    #                                      * (d1z1[..., i] + i/z1)))
+    # vectorized upward recurrence (Yang eq. 33) using np.cumprod. Add order
+    # axis to q0, giving shape (..., num_layers, 1)
+    q0 = q0[..., np.newaxis]
+    return np.concatenate((q0, q0 * np.cumprod(ratio, axis=-1)), axis=-1)
 
-    return qns
 
 def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''

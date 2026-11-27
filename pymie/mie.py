@@ -651,8 +651,7 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
 
     # pre-calculate ratio Q_n^l for all layers
     # Qratio returns array with shape (..., nlayers-1, nstop)
-    Qnl_arr = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s,
-                                   dns2 = derz2s, eps1 = eps1, eps2 = eps2)
+    Qnl_arr = mie_specfuncs.Qratio(z1, z2, nstop, dns1 = derz1s, dns2 = derz2s)
 
     # lay is l-1 (index on layers used by Yang)
     for lay in np.arange(1, nlayers):
