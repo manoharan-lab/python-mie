@@ -1767,17 +1767,30 @@ def vector_scattering_amplitude(m, x, thetas,
 
 
 def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, thetas):
-    """Amplitude scattering matrix from Mie coefficients
+    """Amplitude scattering matrix from Mie coefficients (B&H eq. 4.74)
+
+    For fast vectorized calculations over thetas, this function uses
+    matrix-vector products (@ operator in numpy) instead of np.sum().
 
     """
     pis, taus = _pis_and_taus(n_stop, thetas)
+    a = prefactor * coeffs[0]
+    b = prefactor * coeffs[1]
 
-    # For broadcasting over theta, set shape to (..., 1, order)
-    coeffs = coeffs[..., np.newaxis, :]
+    def sum_over_order(funcs, c):
+        # sum over n of (funcs_n c_n), calculated as a matrix-vector product.
+        # funcs (pi_n or tau_n) is real, so we multiply it by the real and
+        # imaginary parts of c separately, which avoids creating a complex
+        # copy of funcs.  Adding an axis to c makes it a column vector; the
+        # leading axes of c broadcast against the leading axes of funcs, so
+        # the result has the same shape as
+        # np.sum(funcs * c[..., np.newaxis, :], axis=-1)
+        c = c[..., np.newaxis]
+        return (funcs @ c.real)[..., 0] + 1j*(funcs @ c.imag)[..., 0]
 
-    # result should have shape (..., num_thetas)
-    S1 = np.sum(prefactor*(coeffs[0]*pis + coeffs[1]*taus), axis=-1)
-    S2 = np.sum(prefactor*(coeffs[0]*taus + coeffs[1]*pis), axis=-1)
+    # Follows B&H eq. 4.74. Result should have shape (..., num_thetas).
+    S1 = sum_over_order(pis, a) + sum_over_order(taus, b)
+    S2 = sum_over_order(taus, a) + sum_over_order(pis, b)
     return S2, S1
 
 
