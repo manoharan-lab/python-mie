@@ -586,7 +586,7 @@ def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
 
 
 def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
-    '''Calculate scattered field expansion coefficients (in the Mie formalism)
+    """Calculate scattered field expansion coefficients (in the Mie formalism)
     for a particle with an arbitrary number of spherically symmetric layers
     with different refractive indices.
 
@@ -611,7 +611,7 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     scat_coeffs : ndarray (complex)
         Scattering coefficients
 
-    '''
+    """
     # ensure correct data types and shapes
     marray = marray.astype(complex)
     xarray = xarray.astype(complex)
@@ -628,21 +628,26 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
     if nstop is None:
         nstop = _nstop(xarray.max())
 
-    # initialize H_n^a and H_n^b in the core, see eqns. 12a and 13a
-    intl = mie_specfuncs.log_der_13(marray[..., 0] * xarray[..., 0],
-                                    nstop, eps1, eps2)[0]
-    hans = intl
-    hbns = intl
-
     # m_l x_{l-1}
     z1 = marray[..., 1:] * xarray[..., :-1]
-    # # m_l x_l
+    # m_l x_l
     z2 = marray[..., 1:] * xarray[..., 1:]
 
-    # pre-calculate logarithmic derivatives for all layers
-    # log_der_13 returns 2-tuple, each element w/ shape (..., nlayers-1, nstop)
-    derz1s = mie_specfuncs.log_der_13(z1, nstop, eps1, eps2)
-    derz2s = mie_specfuncs.log_der_13(z2, nstop, eps1, eps2)
+    # Calculate logarithmic derivatives for the core and for z1 and z2 in one
+    # call to share the loops over order.  Each element of the result has shape
+    # (..., 2*nlayers - 1, nstop+1)
+    z_all = np.concatenate([marray[..., :1] * xarray[..., :1], z1, z2],
+                           axis=-1)
+    d1_all, d3_all = mie_specfuncs.log_der_13(z_all, nstop, eps1, eps2)
+
+    # initialize H_n^a and H_n^b in the core (see eqs. 12a and 13a)
+    # atleast_2d gives a leading axis of length 1 to unvectorized inputs, so
+    # that output shapes match those of _scatcoeffs() for homogeneous spheres
+    hans = np.atleast_2d(d1_all[..., 0, :])
+    hbns = hans
+    # derivatives for z1 and z2, each with shape (..., nlayers-1, nstop+1)
+    derz1s = (d1_all[..., 1:nlayers, :], d3_all[..., 1:nlayers, :])
+    derz2s = (d1_all[..., nlayers:, :], d3_all[..., nlayers:, :])
 
     # pre-calculate ratio Q_n^l for all layers
     # Qratio returns array with shape (..., nlayers-1, nstop)

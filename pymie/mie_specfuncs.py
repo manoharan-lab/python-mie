@@ -348,43 +348,71 @@ def dn_1_down(z, nmx, nstop, start_val):
 
 
 def log_der_13(z, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
-    '''
-    Calculate logarithmic derivatives of Riccati-Bessel functions psi
-    and xi for complex arguments.  Riccati-Bessel conventions follow
-    Bohren & Huffman.
+    """Calculate logarithmic derivatives D_n^1(z) and D_n^3(z) of the
+    Riccati-Bessel functions psi_n(z) and xi_n(z) for n = 0, ..., nstop,
+    following Mackowski, Altenkirch, Menguc [1]_.
 
-    See Mackowski et al., Applied Optics 29, 1555 (1990).
+    We calculate D_n^1 by downward recurrence (Mackowski eq. 62), seeded by
+    `lentz_dn1()`, and D_n^3 by upward recurrence together with the product
+    (psi_n xi_n) (Mackowski eqs. 63 and 64).
 
     Parameters
     ----------
-    z: complex number
-    nstop: maximum order of computation
-    eps1: underflow criterion for Lentz continued fraction for Dn1
-    eps2: convergence criterion for Lentz continued fraction for Dn1
-    '''
+    z : array-like
+        argument of the logarithmic derivatives, converted to complex
+    nstop : integer
+        maximum order
+    eps1 : float
+        underflow criterion for Lentz continued fraction for D_n^1
+    eps2 : float
+        convergence criterion for Lentz continued fraction for D_n^1
+
+    Returns
+    -------
+    dn1, dn3 : ndarray (complex), each with [shape of z] + (nstop+1,)
+        values of D_n^1(z) and D_n^3(z) for n = 0, ..., nstop
+
+    Notes
+    -----
+    Riccati-Bessel conventions follow Bohren & Huffman.  Function is vectorized
+    across z but requires loops over order.
+
+    This function is used to calculate the scattering coefficients of
+    multilayer spheres (`mie._scatcoeffs_multi()`) and the internal-field
+    coefficients of homogeneous spheres (`mie._internal_coeffs()`), which are
+    needed only for calculations in an absorbing medium. Scattering
+    coefficients of homogeneous spheres, in absorbing or nonabsorbing media,
+    need only D_n^1, which `mie._scatcoeffs()` calculates from `lentz_dn1()`
+    and `dn_1_down()`.
+
+    References
+    ----------
+    [1] D. W. Mackowski, R. A. Altenkirch, M.P. Menguc, "Internal absorption
+    cross sections in a stratified sphere," Applied Optics, 29(10):1551-1559
+    (1990).
+
+    """
     z = np.atleast_1d(z).astype(complex)
 
-    # Calculate Dn_1 (based on \psi(z)) using downward recursion.
-    # See Mackowski eqn. 62
-    #nmx = np.maximum(nstop, int(np.round_(np.absolute(z)))) + 25
-    #dn1 = log_der_1(z, nmx, nstop)
+    # calculate D_n^1 (based on psi) by downward recurrence (Mackowski eq. 62)
     dn1 = dn_1_down(z, nstop + 1, nstop, lentz_dn1(z, nstop + 1, eps1, eps2))
 
-    # Calculate Dn_3 (based on \xi) by up recurrence
-    # initialize
-    dn3 = np.zeros(z.shape + (nstop+1,), dtype = complex)
-    psixi = np.zeros(z.shape + (nstop+1,), dtype = complex)
+    # calculate D_n^3 (based on xi) by upward recurrence (Mackowski eqs. 63 and
+    # 64)
+    dn3 = np.empty(z.shape + (nstop+1,), dtype=complex)
+    psixi = np.empty(z.shape + (nstop+1,), dtype=complex)
     dn3[..., 0] = 1.j
-    psixi[..., 0] = -1j*np.exp(1.j*z)*np.sin(z)
-    for dindex in np.arange(1, nstop+1):
-        # Mackowski eqn 63
-        psixi[..., dindex] = (psixi[..., dindex-1]
-                              * ( (dindex/z) - dn1[..., dindex-1])
-                              * ( (dindex/z) - dn3[..., dindex-1]))
-        # Mackowski eqn 64
-        dn3[..., dindex] = dn1[..., dindex] + 1j/psixi[..., dindex]
+    psixi[..., 0] = -1j * np.exp(1.j*z) * np.sin(z)
+    for n in range(1, nstop+1):
+        n_over_z = n/z
+        # Mackowski eq. 63
+        psixi[..., n] = (psixi[..., n-1] * (n_over_z - dn1[..., n-1])
+                         * (n_over_z - dn3[..., n-1]))
+        # Mackowski eq. 64
+        dn3[..., n] = dn1[..., n] + 1j/psixi[..., n]
 
     return dn1, dn3
+
 
 # calculate ratio of RB's defined in Yang eqn. 23 by up recursion relation
 def Qratio(z1, z2, nstop, dns1 = None, dns2 = None,
