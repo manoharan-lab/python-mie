@@ -453,8 +453,6 @@ def test_cross_section_Sudiarta():
     assert_almost_equal(cext3.to('um^2').magnitude, cext4.to('um^2').magnitude, decimal=6)
 
 
-@pytest.mark.xfail(reason="riccati_psi_xi is inaccurate for arguments with "
-                          "a large imaginary part")
 @pytest.mark.parametrize("material, n_particle, wavelen, radius",
                          ABSORBING_PARTICLES,
                          ids=lambda value: (f"{value.to('nm').magnitude:g}nm"

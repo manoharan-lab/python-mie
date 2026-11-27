@@ -61,10 +61,17 @@ def riccati_psi_xi(x, nstop):
         f_{n-1}(x) + f_{n+1}(x) = (2n+1)/x f_n(x)
 
     For xi_n we use upward recurrence, which is stable for all n. For psi_n we
-    use upward recurrence for n <= |x| and downward recurrence for n > |x|. As
-    Wiscombe and others have shown, upward recurrence for psi_n is stable at n
-    <= |x| and unstable above. Upward recurrence is more accurate than downward
-    recurrence in the region where the function is oscillatory (n <= |x|).
+    use upward recurrence for n <= |x| and downward recurrence for n > |x| when
+    x is real or nearly so. As Wiscombe and others have shown, upward
+    recurrence for psi_n is stable at n <= |x| and unstable above. Upward
+    recurrence is more accurate in the region where psi_n is oscillatory (n <=
+    |x|) because downward recurrence loses accuracy near the zeros of the
+    function there. When x has a substantial imaginary part (|Im(x)| >= 1, a
+    threshold chosen empirically by Claude), we use downward recurrence for all
+    orders. When |Im(x)| is large, upward recurrence becomes unstable, but
+    downward recurrence is accurate because the zeros of psi_n lie on the real
+    axis, and x is far enough away from the real axis that |psi_n| does not
+    become small.
 
     Specifically, the downward recurrence is for the ratios r_n, where
 
@@ -106,10 +113,6 @@ def riccati_psi_xi(x, nstop):
     function is vectorized over the inputs and calculates all orders (though
     note that there are loops over the order that cannot be vectorized because
     they come from three-term recurrence relations).
-
-    Note also that the stability criterion for upward recurrence may not hold
-    if x has a substantial imaginary part. This situation needs to be addressed
-    with a test.
 
     References
     ----------
@@ -181,9 +184,12 @@ def riccati_psi_xi(x, nstop):
         psi_down = psi_down.real
 
     # now combine the values from upward and downward recurrence, using upward
-    # when n <= |x| (stable region) and downward otherwise
+    # only when n <= |x| and x is real or nearly so (|Im(x)| < 1, a threshold
+    # chosen empirically by Claude).
     n = np.arange(nstop + 1)
-    psi = np.where(n <= abs_x[..., np.newaxis], psi_up, psi_down)
+    use_up = ((n <= abs_x[..., np.newaxis])
+              & (np.abs(x.imag)[..., np.newaxis] < 1))
+    psi = np.where(use_up, psi_up, psi_down)
 
     result = np.array([psi, xi[..., :nstop+1]])
     # the order replaces a trailing axis of length 1 (such as the layer axis
