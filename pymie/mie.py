@@ -708,14 +708,22 @@ def _scatcoeffs_multi(marray, xarray, nstop=None, eps1 = 1e-3, eps2 = 1e-16):
 
 
 def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
-    '''
-    Calculate internal Mie coefficients c_n and d_n given
-    relative index, size parameter, and maximum order of expansion.
+    """Calculate internal Mie coefficients c_n and d_n given relative index,
+    size parameter, and maximum order of expansion.
 
-    Follow Bohren & Huffman's convention. Note that van de Hulst and Kerker
-    have different conventions (labeling of c_n and d_n and factors of m)
-    for their internal coefficients.
-    '''
+    The coefficients are given in Bohren & Huffman eq. 4.52, and we follow
+    their convention. Note that van de Hulst and Kerker have different
+    conventions (labeling of c_n and d_n and factors of m) for their internal
+    coefficients. We calculate c_n and d_n in terms of logarithmic derivatives
+    and the ratio psi_n(x)/psi_n(mx), following Mackowski, Altenkirch, Menguc,
+    Applied Optics (1990).
+
+    These coefficients are used to calculate absorption from the internal
+    fields (`_cross_sections_complex_medium_fu()`,
+    `diff_abs_intensity_complex_medium()`), which is needed only for particles
+    in an absorbing medium.
+
+    """
     if x.shape[-1] > 1:
         raise ValueError("Internal Mie coefficients cannot yet be calculated "
                          "for layered sphere")
@@ -724,11 +732,12 @@ def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     x = x.astype(complex)
     z = m * x
 
-    ratio = mie_specfuncs.R_psi(x, z, n_max, eps1, eps2)
-    D1x, D3x = mie_specfuncs.log_der_13(x, n_max, eps1, eps2)
-    D1mx = mie_specfuncs.dn_1_down(z, n_max + 1, n_max,
-                                   mie_specfuncs.lentz_dn1(z, n_max + 1,
-                                                           eps1, eps2))
+    # logarithmic derivatives at x and mx in one call, which shares the loops
+    # over order (D_n^3 at mx is calculated but not used)
+    D1, D3 = mie_specfuncs.log_der_13(np.stack([x, z]), n_max, eps1, eps2)
+    D1x, D3x, D1mx = D1[0], D3[0], D1[1]
+    ratio = mie_specfuncs.R_psi(x, z, n_max, D1x, D1mx)
+
     cl = (m[..., np.newaxis] * ratio * (D3x - D1x)
           / (D3x - m[..., np.newaxis] * D1mx))
     dl = (m[..., np.newaxis] * ratio * (D3x - D1x)

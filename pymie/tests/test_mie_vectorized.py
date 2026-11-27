@@ -326,15 +326,15 @@ class TestVectorizedSpecialFuncs():
             z2 = z2 * np.ones((1,1))
 
         # vectorized version
-        output_vec = mie_specfuncs.R_psi(z1, z2, nmax)
-
-        # loop version of R_psi (from a previous version of pymie)
-        output = np.zeros(z1.shape + (nmax + 1,), dtype=complex)
-        output[..., 0] = np.sin(z1) / np.sin(z2)
         dnz1 = mie_specfuncs.dn_1_down(z1, nmax + 1, nmax,
                                        mie_specfuncs.lentz_dn1(z1, nmax + 1))
         dnz2 = mie_specfuncs.dn_1_down(z2, nmax + 1, nmax,
                                        mie_specfuncs.lentz_dn1(z2, nmax + 1))
+        output_vec = mie_specfuncs.R_psi(z1, z2, nmax, dnz1, dnz2)
+
+        # loop version of R_psi (from a previous version of pymie)
+        output = np.zeros(z1.shape + (nmax + 1,), dtype=complex)
+        output[..., 0] = np.sin(z1) / np.sin(z2)
         for i in np.arange(1, nmax + 1):
             output[..., i] = output[..., i-1] * ((dnz2[..., i] + i / z2)
                                                  / (dnz1[..., i] + i / z1))

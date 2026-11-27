@@ -479,37 +479,53 @@ def Qratio(z1, z2, nstop, dns1, dns2):
     return np.concatenate((q0, q0 * np.cumprod(ratio, axis=-1)), axis=-1)
 
 
-def R_psi(z1, z2, nmax, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
-    '''
-    Calculate ratio of Riccati-Bessel function psi: psi(z1)/psi(z2).
+def R_psi(z1, z2, nstop, dn1_z1, dn1_z2):
+    """Calculate ratio of Riccati-Bessel functions psi_n(z1)/psi_n(z2) for
+    n = 0, ..., nstop by upward recurrence (Mackowski eqs. 65 and 66) [1]_.
 
-    See Mackowski eqns. 65-66.
+    Parameters
+    ----------
+    z1, z2 : array-like (complex)
+        arguments of the Riccati-Bessel functions
+    nstop : integer
+        maximum order
+    dn1_z1, dn1_z2 : ndarray
+        logarithmic derivatives D_n^1 at z1 and z2 (each an ndarray, not a
+        tuple), as returned by `dn_1_down()` or the first element returned by
+        `log_der_13()`, each with shape [shape of z] + (nstop+1,)
 
-    z1, z2 are complex arrays with shape (..., 1)
-    '''
-    # Vectorized loop (using np.cumprod) to do up recursion
-    output_0 = (np.sin(z1) / np.sin(z2))[..., np.newaxis]
-    dnz1 = dn_1_down(z1, nmax + 1, nmax, lentz_dn1(z1, nmax + 1, eps1, eps2))
-    dnz2 = dn_1_down(z2, nmax + 1, nmax, lentz_dn1(z2, nmax + 1, eps1, eps2))
+    Returns
+    -------
+    ndarray (complex), shape [shape of z] + (nstop+1,)
+        psi_n(z1)/psi_n(z2) for n = 0, ..., nstop
 
-    irange = np.arange(1, nmax+1)[np.newaxis, :]
-    # irange shape is (1, order) where 1 is for layer axis; Need to add order
-    # axis to z1, z2 for broadcasting
-    i_over_z1 = irange / z1[..., np.newaxis]
-    i_over_z2 = irange / z2[..., np.newaxis]
-    prod = (dnz2[..., 1:] + i_over_z2) / (dnz1[..., 1:] + i_over_z1)
-    output_vec = np.concatenate((output_0,
-                                 output_0 * np.cumprod(prod, axis=-1)),
+    Notes
+    -----
+    Because psi_n/psi_{n-1} = 1/(D_n^1 + n/z), each ratio is the previous one
+    times a factor that does not depend on the ratio. The recurrence is thus a
+    running product, which we calculate with np.cumprod rather than a loop over
+    order.
+
+    This function is used only to calculate the internal-field coefficients
+    of homogeneous spheres (`mie._internal_coeffs()`).
+
+    References
+    ----------
+    [1] D. W. Mackowski, R. A. Altenkirch, and M. P. Menguc, "Internal
+    absorption cross sections in a stratified sphere," Applied Optics 29(10),
+    1551-1559 (1990).
+
+    """
+    # psi_0(z1)/psi_0(z2), with an order axis added
+    ratio_0 = (np.sin(z1) / np.sin(z2))[..., np.newaxis]
+
+    # calculate the factors by which the ratio changes from order n-1 to
+    # order n, for n = 1, ..., nstop. Need to add order axis to z1, z2 for
+    # broadcasting
+    n_over_z1 = np.arange(1, nstop+1) / z1[..., np.newaxis]
+    n_over_z2 = np.arange(1, nstop+1) / z2[..., np.newaxis]
+    prod = (dn1_z2[..., 1:] + n_over_z2) / (dn1_z1[..., 1:] + n_over_z1)
+    output_vec = np.concatenate((ratio_0, ratio_0 * np.cumprod(prod, axis=-1)),
                                 axis=-1)
-
-    # equivalent non-vectorized loop is below
-    #
-    # output = np.zeros(z1.shape + (nmax + 1,), dtype=complex)
-    # output[..., 0] = np.sin(z1) / np.sin(z2)
-    # dnz1 = dn_1_down(z1, nmax + 1, nmax, lentz_dn1(z1, nmax + 1, eps1, eps2))
-    # dnz2 = dn_1_down(z2, nmax + 1, nmax, lentz_dn1(z2, nmax + 1, eps1, eps2))
-    # for i in np.arange(1, nmax + 1):
-    #     output[..., i] = output[..., i-1] * ((dnz2[..., i] + i / z2)
-    #                                          / (dnz1[..., i] + i / z1))
 
     return output_vec
