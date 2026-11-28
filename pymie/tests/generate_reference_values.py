@@ -177,6 +177,9 @@ def particle_values(m, x, output=True):
         with report("scattering coefficients", output):
             a, b = mie_reference.scatcoeffs(mpmath.mpmathify(m[0]),
                                             mpmath.mpmathify(x[0]), nstop)
+        with report("internal coefficients", output):
+            c, d = mie_reference.internal_coeffs(mpmath.mpmathify(m[0]),
+                                                 mpmath.mpmathify(x[0]), nstop)
         with report("efficiencies", output):
             qsca, qext, qback, g = mie_reference.efficiencies(a, b, x_outer)
         with report("amplitude scattering matrix", output):
@@ -190,6 +193,8 @@ def particle_values(m, x, output=True):
             "nstop": nstop,
             "a": [to_string(an) for an in a],
             "b": [to_string(bn) for bn in b],
+            "c": [to_string(cn) for cn in c],
+            "d": [to_string(dn) for dn in d],
             "qsca": mpmath.nstr(qsca, STORED_DIGITS),
             "qext": mpmath.nstr(qext, STORED_DIGITS),
             "qback": mpmath.nstr(qback, STORED_DIGITS),

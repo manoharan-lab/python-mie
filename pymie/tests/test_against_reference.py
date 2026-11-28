@@ -100,6 +100,27 @@ def test_scatcoeffs_match_reference(particle):
 
 @pytest.mark.parametrize("particle", REFERENCE_VALUES["particles"],
                          ids=particle_id)
+def test_internal_coeffs_match_reference(particle):
+    """Tests that pymie's internal-field coefficients match the stored values
+    of the reference (mpmath) implementation.
+
+    """
+    m = to_array(particle["m"])
+    x = to_array(particle["x"])
+    c = to_array(particle["c"])
+    d = to_array(particle["d"])
+    c_pymie, d_pymie = mie._internal_coeffs(m, x, particle["nstop"])
+    # Set tolerance to 1e-10 because pymie's D_n^3(x) is calculated from a
+    # running product for psi_n xi_n (Mackowski eqs. 63 and 64), which loses
+    # accuracy near zeros of psi_n for real x. Claude calculates a relative
+    # error in c_n and d_n of up to ~1e-11 for orders near x at x = 1000,
+    # whereas other orders agree to ~1e-13.
+    assert_allclose(c_pymie, c, rtol=1e-10)
+    assert_allclose(d_pymie, d, rtol=1e-10)
+
+
+@pytest.mark.parametrize("particle", REFERENCE_VALUES["particles"],
+                         ids=particle_id)
 def test_efficiencies_match_reference(particle):
     """Tests that pymie's scattering efficiencies (including asymmetry
     parameter) match the stored values from the mpmath reference
