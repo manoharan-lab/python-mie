@@ -245,29 +245,47 @@ def calc_ang_scat_RG(m, x, angles):
     return np.stack([ipar, iperp], axis=-1)
 
 
-def calc_cross_sections(m, x, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
+def calc_cross_sections(m, x, nstop=None, eps1=DEFAULT_EPS1,
+                        eps2=DEFAULT_EPS2):
     """Calculate dimensionless scattering, extinction, absorption, and
     backscattering cross sections, and asymmetry parameter for spherically
     symmetric scatterers.
 
     Parameters
     ----------
-    m : array-like
-        complex relative refractive index
-    x : array-like
-        size parameter
+    m : array-like, shape (..., num_layers)
+        complex relative refractive index (particle index divided by medium
+        index) of each layer, innermost first.  Use a last axis of length 1
+        for a homogeneous sphere.
+    x : array-like, shape (..., num_layers)
+        size parameter (k times outer radius) of each layer, innermost first,
+        where k is the wavenumber in the medium.  Leading axes (for example,
+        wavelength or particle size) are vectorized over.
+    nstop : int, optional
+        maximum order of the scattering coefficients to be calculated en route
+        to the cross sections.  If not specified, calculated from the largest
+        size parameter.
+    eps1, eps2 : float, optional
+        tolerances for the Lentz continued fraction used to calculate the
+        logarithmic derivative D_n (see mie_specfuncs.lentz_dn1()).  The
+        defaults are appropriate for nearly all uses.
 
     Returns
     -------
-    cross_sections : tuple (5)
+    cscat, cext, cabs, cback, g : ndarray, each with shape (...)
         Dimensionless scattering, extinction, absorption, and backscattering
-        cross sections, and <cos theta> (asymmetry parameter g)
+        cross sections (k^2 times the dimensional cross sections), and the
+        asymmetry parameter g = <cos theta>.  Each has the shape of the
+        leading axes of m and x.
 
     Notes
     -----
     To recover the dimensional cross-sections, multiply the returned
     cross-sections by 1/k^2, where k is the wavevector in *media*. The
     asymmetry parameter is dimensionless and needs no scaling.
+
+    The absorption cross section is determined from conservation of energy:
+        cabs = cext - cscat
 
     The backscattering cross-section is 1/(4*pi) times the radar backscattering
     cross-section; that is, it corresponds to the differential scattering
@@ -299,8 +317,9 @@ def calc_cross_sections(m, x, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
     where I_0 is the incident intensity.  See van de Hulst, p. 14.
 
     """
-    lmax = _nstop(x.max())
-    albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
+    if nstop is None:
+        nstop = _nstop(x.max())
+    albl = _scatcoeffs(m, x, nstop, eps1=eps1, eps2=eps2)
 
     cscat_sum, cext_sum, cback_sum = _cross_sections(albl[0], albl[1])
     # convert sums from _cross_sections() to dimensionless cross sections
@@ -322,44 +341,83 @@ def calc_cross_sections(m, x, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
 
 
 def calc_efficiencies(m, x):
+    """Calculate scattering, extinction, and backscattering efficiencies of
+    spherically symmetric scatterers.
+
+    Parameters
+    ----------
+    m : array-like, shape (..., num_layers)
+        complex relative refractive index of each layer, innermost first (see
+        calc_cross_sections())
+    x : array-like, shape (..., num_layers)
+        size parameter of each layer, innermost first (see
+        calc_cross_sections())
+
+    Returns
+    -------
+    qscat, qext, qback : ndarray, each with shape (...)
+        scattering, extinction, and backscattering efficiencies, each with the
+        shape of the leading axes of m and x
+
+    Notes
+    -----
+    Efficiencies are cross sections divided by the geometric cross section
+    pi a^2 of the particle, where a is the outer radius.  Here, the
+    dimensionless cross sections from calc_cross_sections() are divided by
+    pi x^2, where x is the size parameter of the outer layer.
+
+    The backscattering efficiency is 1/(4*pi) times the radar backscattering
+    efficiency (B&H p. 122); that is, it corresponds to the differential
+    scattering cross section in the backscattering direction divided by the
+    geometric cross section.
+
+    This function is intended for particles in non-absorbing media (real x).
+    For absorbing media, use the functions for absorbing media instead. It is
+    possible to pass a complex x to this function, and the function will divide
+    the cross-sections from calc_cross_sections() by pi |x|^2, but the results
+    are not physical efficiencies.
+
     """
-    Scattering, extinction, backscattering efficiencies
+    cscat, cext, _, cback, _ = calc_cross_sections(m, x)
 
-    Note that the backscattering efficiency is 1/(4*pi) times the radar
-    backscattering efficiency; that is, it corresponds to the differential
-    scattering cross-section in the backscattering direction, divided by the
-    geometrical cross-section
-    """
-    nstop = _nstop(x.max())
-    coeffs = _scatcoeffs(m, x, nstop)
-
-    cscat, cext, cback = _cross_sections(coeffs[0], coeffs[1])
-
-    # for multilayer spheres, scale by the size parameter corresponding to
-    # outermost radius
-    x_outer = x.max(axis=-1)
-    qscat = cscat * 2./np.abs(x_outer)**2
-    qext = cext * 2./np.abs(x_outer)**2
-    qback = cback * 1./np.abs(x_outer)**2
-
-    # in order: scattering, extinction and backscattering efficiency
-    return qscat, qext, qback
+    # efficiency = dimensionless cross section / dimensionless geometric
+    # cross section (pi x^2), using the size parameter of the outer layer
+    geometric = np.pi * np.abs(x.max(axis=-1))**2
+    return cscat/geometric, cext/geometric, cback/geometric
 
 
 def calc_g(m, x, nstop=None):
-    """
-    Asymmetry parameter
-    """
-    if nstop is None:
-        nstop = _nstop(x.max())
-    coeffs = _scatcoeffs(m, x, nstop)
+    """Calculate the asymmetry parameter g = <cos theta> of spherically
+    symmetric scatterers.
 
-    # for multilayer particle, need to scale by the x of the outermost layer
-    outer_x = x.max(axis=-1)
-    cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./outer_x**2
-    g = ((4./(outer_x**2 * cscat))
-         * _asymmetry_parameter(coeffs[0], coeffs[1]))
-    return g
+    Parameters
+    ----------
+    m : array-like, shape (..., num_layers)
+        complex relative refractive index of each layer, innermost first (see
+        calc_cross_sections())
+    x : array-like, shape (..., num_layers)
+        size parameter of each layer, innermost first (see
+        calc_cross_sections())
+    nstop : int, optional
+        maximum order of the scattering coefficients.  If not specified,
+        calculated from the largest size parameter.  Specifying it is useful
+        when results for different sizes must be calculated to the same order.
+
+    Returns
+    -------
+    g : ndarray with shape (...)
+        asymmetry parameter, with the shape of the leading axes of m and x
+
+    Notes
+    -----
+    g is the average of the cosine of the scattering angle, weighted by the
+    single-particle differential scattering cross section (B&H sec. 4.5). It
+    ranges from -1 (all light scattered backward) to 1 (all forward), and is 0
+    for any scattering pattern that is symmetric around 90 degrees. This
+    function returns the value calculated by calc_cross_sections().
+
+    """
+    return calc_cross_sections(m, x, nstop=nstop)[4]
 
 
 def calc_integrated_cross_section(m, x, thetas):
