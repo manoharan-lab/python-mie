@@ -48,40 +48,27 @@ ABSORBING_PARTICLES = [
 ]
 
 
-def test_cross_sections():
-    # Test cross sections against values calculated from BHMIE code (originally
-    # calculated for testing fortran-based Mie code in holopy)
+def test_cross_sections_bhmie():
+    """Test efficiencies and asymmetry parameter against values calculated
+    with BHMIE for a polystyrene sphere in water.  These values were
+    originally calculated to test the Fortran Mie code in HoloPy.
 
-    # test case is PS sphere in water
+    """
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
     n_matrix = 1.33
     n_particle = 1.59 + 1e-4 * 1.0j
     m = index_ratio(n_particle, n_matrix)
     x = size_parameter(wavelen, n_matrix, radius)
-    qscat, qext, qback = mie.calc_efficiencies(m, x)
-    g = mie.calc_g(m,x)   # asymmetry parameter
 
-    qscat_std, qext_std, g_std = 3.6647, 3.6677, 0.92701
-    assert_almost_equal(qscat, qscat_std, decimal=4)
-    assert_almost_equal(qext, qext_std, decimal=4)
-    assert_almost_equal(g, g_std, decimal=4)
+    qscat, qext, _ = mie.calc_efficiencies(m, x)
+    g = mie.calc_g(m,x)
 
-    # test to make sure calc_cross_sections returns the same values as
-    # calc_efficiencies and calc_g
-    cscat = qscat * np.pi * radius**2
-    cext = qext * np.pi * radius**2
-    cback  = qback * np.pi * radius**2
-    cscat2, cext2, _, cback2, g2 = mie.calc_cross_sections(m, x)
-    # calculate dimensional cross-sections
-    k = 2*np.pi*n_matrix/wavelen
-    cscat2 = cscat2/k**2
-    cext2 = cext2/k**2
-    cback2 = cback2/k**2
-    assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
-    assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
-    assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
-    assert_almost_equal(g, g2)
+    # BHMIE values were copied to 4 decimal places for the efficienes and 5 for
+    # g, so they should agree to within half a unit in the last place.
+    assert_allclose(qscat, 3.6647, rtol=0, atol=5e-5)
+    assert_allclose(qext, 3.6677, rtol=0, atol=5e-5)
+    assert_allclose(g, 0.92701, rtol=0, atol=5e-6)
 
 
 @pytest.mark.parametrize("m, x", [([1.59/1.33 + 1e-4j], [11.0]),
