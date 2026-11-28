@@ -84,6 +84,56 @@ def test_cross_sections():
     assert_almost_equal(g, g2)
 
 
+@pytest.mark.xfail(reason="known bug in calc_cross_sections()")
+@pytest.mark.parametrize("m, x", [([1.59/1.33 + 1e-4j], [11.0]),
+                                  ([1.5], [1.0]),
+                                  ([(0.62 + 2.08j)/1.33], [5.0]),
+                                  ([1.59/1.33, 1.45/1.33 + 1e-3j], [5.0, 10.0])])
+def test_cross_sections_match_efficiencies(m, x):
+    """Test that the dimensionless cross sections from calc_cross_sections()
+    equal pi x^2 times the efficiencies from calc_efficiencies() and that the
+    asymmetry parameter matches calc_g().
+
+    Also test that the backscattering cross section is |S1(pi)|^2. This follows
+    from B&H eq. 4.82 (deleting the factor of 4 pi):
+
+        c_back = |X(pi)|^2 / k^2,
+
+    where X is the vector scattering amplitude, and (bottom of p. 121)
+
+        |X(pi)|^2 = |S_2(pi)|^2 cos^2(phi) + |S_1(pi)|^2 sin^2(phi)
+
+        S_2(pi) = -S_1(pi),
+
+    so that
+
+        |X(pi)|^2 = |S_1(pi)|^2 (cos^2 phi + sin^2 phi) = |S_1(pi)|^2.
+
+    The nondimensional backscattering cross-section k^2 c_back = |S_1(pi)|^2.
+
+    """
+    m = np.array(m)
+    x = np.array(x)
+    # cross-sections returned are nondimensional (k_medium^2 * c)
+    cscat, cext, cabs, cback, g = mie.calc_cross_sections(m, x)
+    qscat, qext, qback = mie.calc_efficiencies(m, x)
+    # nondimensional geometric cross section to convert Q to k^2 c
+    geometric = np.pi * x[-1]**2
+
+    assert_allclose(cscat, qscat * geometric, rtol=1e-14)
+    assert_allclose(cext, qext * geometric, rtol=1e-14)
+    # conservation of energy.  Tolerance looser here because qext and qsca can
+    # be very close for weak absorption
+    assert_allclose(cabs, (qext - qscat) * geometric, rtol=1e-12)
+    assert_allclose(g, mie.calc_g(m, x), rtol=1e-14)
+
+    _, S1, _, _ = mie.amplitude_scattering_matrix(m, x, np.array([np.pi]))
+    # last axis of S1 is the scattering angle
+    S1_back = S1[..., 0]
+    assert_allclose(qback * geometric, np.abs(S1_back)**2, rtol=1e-12)
+    assert_allclose(cback, np.abs(S1_back)**2, rtol=1e-12)
+
+
 def test_form_factor():
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
