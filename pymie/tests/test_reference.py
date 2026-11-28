@@ -186,6 +186,69 @@ def test_efficiencies_small_x(m):
     assert_allclose(float(g), 0, atol=1e-12)
 
 
+def test_internal_coeffs_index_matched():
+    """Test that the internal coefficients are 1 when the particle is
+    index-matched to the medium so that the internal field equals the incident
+    field.
+
+    Rationale for internal coefficients being 1: setting c_n and d_n to 1
+    reduces B&H 4.40 (expansion for the internal fields) to eqs. 4.37 and 4.38
+    (expansion for a plane wave).
+
+    """
+    with mpmath.workdps(30):
+        m = mpmath.mpf(1)
+        x = mpmath.mpf(10)
+        c, d = mie_reference.internal_coeffs(m, x, NSTOP)
+    assert_allclose(np.array(c, dtype=complex), 1, rtol=1e-14)
+    assert_allclose(np.array(d, dtype=complex), 1, rtol=1e-14)
+
+
+@pytest.mark.parametrize("m, x", [(1.5, 10.0), (0.8, 10.0), (1.5 + 0.1j, 10.0),
+                                  (1.9 + 0.6j, 3.0), (1.5 + 0.1j, 10.0 + 0.1j)])
+def test_internal_coeffs_boundary_conditions(m, x):
+    """Test that the internal and scattering coefficients together satisfy
+    the boundary conditions at the surface of the sphere, which (along with
+    orthogonality and other constraints) result in B&H eq. 4.51.  With equal
+    magnetic permeabilities (mu_1 = mu), two of these equations are
+        j_n(mx) c_n   + h_n(x) b_n = j_n(x)
+        m j_n(mx) d_n + h_n(x) a_n = j_n(x)
+    We multiply by x to write these in terms of Riccati-Bessel functions:
+        psi_n(mx) c_n / m + xi_n(x) b_n = psi_n(x)
+        psi_n(mx) d_n     + xi_n(x) a_n = psi_n(x)
+    These equations provide a consistency check on the coefficients, which are
+    calculated from separate formulas (B&H eqs. 4.52 and 4.56-4.57).
+
+    """
+    m = mpmath.mpmathify(m)
+    x = mpmath.mpmathify(x)
+    with mpmath.workdps(30):
+        a, b = mie_reference.scatcoeffs(m, x, NSTOP)
+        c, d = mie_reference.internal_coeffs(m, x, NSTOP)
+        for n in range(1, NSTOP + 1):
+            psi_x = mie_reference.riccati_psi(x, n)
+            psi_mx = mie_reference.riccati_psi(m*x, n)
+            xi_x = mie_reference.riccati_xi(x, n)
+
+            residual_cb = psi_mx * c[n-1]/m + xi_x * b[n-1] - psi_x
+            residual_da = psi_mx * d[n-1] + xi_x * a[n-1] - psi_x
+
+            # Because psi_n(x) is small for n > x, we normalize the results to
+            # the largest of the three terms in the residual before comparing
+            # the residual to zero.
+            scale_cb = max(abs(psi_mx * c[n-1]/m), abs(xi_x * b[n-1]),
+                           abs(psi_x))
+            scale_da = max(abs(psi_mx * d[n-1]), abs(xi_x * a[n-1]),
+                           abs(psi_x))
+
+            # the residuals should be within rounding error (1e-30 at 30 digits
+            # of precision).  We choose a slightly larger tolerance (but still
+            # a stricter bound than double precision) to leave a margin for
+            # differences between mpmath versions.
+            assert abs(residual_cb)/scale_cb < 1e-25
+            assert abs(residual_da)/scale_da < 1e-25
+
+
 @pytest.mark.parametrize("theta", [0.0, 0.3, 1.0, 2.5, np.pi])
 def test_pis_and_taus_low_order(theta):
     """Test that the angular functions pi_n and tau_n agree with the analytical

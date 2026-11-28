@@ -159,6 +159,60 @@ def scatcoeffs(m, x, nstop):
     return a, b
 
 
+def internal_coeffs(m, x, nstop):
+    """Calculates Mie internal-field coefficients c_n and d_n for
+    n = 1, ..., nstop from Bohren and Huffman eq. 4.52 and taking mu_1 = mu
+    (same magnetic permeability in particle and medium)
+
+              j_n(x) [x h_n(x)]' - h_n(x) [x j_n(x)]'
+      c_n = ------------------------------------------
+            j_n(mx) [x h_n(x)]' - h_n(x) [mx j_n(mx)]'
+
+              m j_n(x) [x h_n(x)]' - m h_n(x) [x j_n(x)]'
+      d_n = ----------------------------------------------,
+            m^2 j_n(mx) [x h_n(x)]' - h_n(x) [mx j_n(mx)]'
+
+    where j_n is the spherical Bessel function of the first kind, h_n is the
+    spherical Hankel function of the first kind, and the primes denote
+    derivatives with respect to the argument in brackets. We write the
+    spherical functions in terms of the Riccati-Bessel functions, j_n(x) =
+    psi_n(x)/x and h_n(x) = xi_n(x)/x, so that [x j_n(x)]' = psi'_n(x),
+    [x h_n(x)]' = xi'_n(x), and [mx j_n(mx)]' = psi'_n(mx).  Then
+
+              j_n(x) xi'_n(x) - h_n(x) psi'_n(x)
+      c_n = --------------------------------------
+             j_n(mx) xi'_n(x) - h_n(x) psi'_n(mx)
+
+              m j_n(x) xi'_n(x) - m h_n(x) psi'_n(x)
+      d_n = ------------------------------------------,
+             m^2 j_n(mx) xi'_n(x) - h_n(x) psi'_n(mx)
+
+    m and x should be specified as mpmath float or complex.
+
+    """
+    c = []
+    d = []
+    for n in range(1, nstop + 1):
+        j_x = riccati_psi(x, n)/x
+        h_x = riccati_xi(x, n)/x
+        j_mx = riccati_psi(m*x, n)/(m*x)
+
+        # derivatives of x j_n(x), x h_n(x), and mx j_n(mx) with respect to
+        # their arguments, using mpmath.diff() as in scatcoeffs()
+        dpsi_x = mpmath.diff(lambda z: riccati_psi(z, n), x)
+        dxi_x = mpmath.diff(lambda z: riccati_xi(z, n), x)
+        dpsi_mx = mpmath.diff(lambda z: riccati_psi(z, n), m*x)
+
+        cn = ((j_x  * dxi_x - h_x * dpsi_x) /
+              (j_mx * dxi_x - h_x * dpsi_mx))
+        dn = ((m    * j_x * dxi_x  - m * h_x * dpsi_x) /
+              (m**2 * j_mx * dxi_x  -   h_x * dpsi_mx))
+        c.append(cn)
+        d.append(dn)
+
+    return c, d
+
+
 def efficiencies(a, b, x):
     """Calculates scattering, extinction, and backscattering efficiencies from
     the scattering coefficients, using B&H eqs. 4.61 and 4.62, plus the
