@@ -246,9 +246,9 @@ def calc_ang_scat_RG(m, x, angles):
 
 
 def calc_cross_sections(m, x, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
-    """
-    Calculate dimensionless scattering, absorption, and extinction cross
-    sections, and asymmetry parameter for spherically symmetric scatterers.
+    """Calculate dimensionless scattering, extinction, absorption, and
+    backscattering cross sections, and asymmetry parameter for spherically
+    symmetric scatterers.
 
     Parameters
     ----------
@@ -260,7 +260,7 @@ def calc_cross_sections(m, x, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
     Returns
     -------
     cross_sections : tuple (5)
-        Dimensionless scattering, absorption, extinction, and backscattering
+        Dimensionless scattering, extinction, absorption, and backscattering
         cross sections, and <cos theta> (asymmetry parameter g)
 
     Notes
@@ -271,22 +271,44 @@ def calc_cross_sections(m, x, eps1=DEFAULT_EPS1, eps2=DEFAULT_EPS2):
 
     The backscattering cross-section is 1/(4*pi) times the radar backscattering
     cross-section; that is, it corresponds to the differential scattering
-    cross-section in the backscattering direction.  See B&H 4.6.
+    cross-section in the backscattering direction.  See B&H sec. 4.6.
+
+    This function uses the sums calculated in _cross_sections().  Note that
+    the scattering and extinction sums omit a prefactor of 2*pi/k^2 (B&H eqs.
+    4.61 and 4.62), whereas the backscattering sum (equation at top of p. 122),
+
+        |sum (2n+1)(-1)^n (a_n - b_n)|^2 = |sum_back|^2
+
+    omits a prefactor of pi/k^2.  This can be seen from taking Q_back (same
+    equation) and multiplying by pi a^2 to get the radar cross section:
+
+        C_radar = 1/(ka)^2  pi a^2  |sum_back|^2 = pi/k^2 |sum_back|^2
+
+    The backscattering cross-section is then the radar cross-section divided by
+    4 pi, so that it gives the differential cross section. _cross_sections()
+    includes this factor of 1/(4 pi) in the sum it returns, so that sum also
+    omits a prefactor of pi/k^2.
 
     The radiation pressure cross section C_pr is given by
-    C_pr = C_ext - <cos theta> C_sca.
+        C_pr = C_ext - <cos theta> C_sca.
 
     The radiation pressure force on a sphere is
 
-    F = (n_med I_0 C_pr) / c
+        F = (n_med I_0 C_pr) / c
 
     where I_0 is the incident intensity.  See van de Hulst, p. 14.
+
     """
     lmax = _nstop(x.max())
     albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
 
-    cscat, cext, cback =  tuple(c*2*np.pi for c in
-                                _cross_sections(albl[0], albl[1]))
+    cscat_sum, cext_sum, cback_sum = _cross_sections(albl[0], albl[1])
+    # convert sums from _cross_sections() to dimensionless cross sections
+    # (k^2 times the dimensional cross sections).  See docstring for why we use
+    # pi for the backscattering cross section and 2 pi for the others.
+    cscat = 2*np.pi * cscat_sum
+    cext = 2*np.pi * cext_sum
+    cback = np.pi * cback_sum
 
     cabs = cext - cscat # conservation of energy
 
@@ -898,12 +920,17 @@ def _asymmetry_parameter(al, bl):
 
 def _cross_sections(al, bl):
     '''
-    Calculates scattering and extinction cross sections
+    Calculates scattering, extinction, and backscattering cross sections
     given arrays of Mie scattering coefficients al and bl.
 
     See Bohren & Huffman eqns. 4.61 and 4.62.
 
-    The output omits a scaling prefactor of 2 * pi / k^2 = lambda_media^2/2/pi.
+    The output omits a scaling prefactor of 2 * pi / k^2 = lambda_media^2/2/pi
+    for the scattering and extinction cross sections and a factor of pi/k^2 for
+    the backscattering cross section.  Note that the backscattering cross
+    section returned is the radar cross section in B&H divided by 4 pi, to get
+    values that correspond to the differential scattering cross-section in the
+    backscattering direction.
     '''
     lmax = al.shape[-1]
 

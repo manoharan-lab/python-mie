@@ -84,7 +84,6 @@ def test_cross_sections():
     assert_almost_equal(g, g2)
 
 
-@pytest.mark.xfail(reason="known bug in calc_cross_sections()")
 @pytest.mark.parametrize("m, x", [([1.59/1.33 + 1e-4j], [11.0]),
                                   ([1.5], [1.0]),
                                   ([(0.62 + 2.08j)/1.33], [5.0]),
